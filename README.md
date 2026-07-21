@@ -1,4 +1,10 @@
-# MCP Server Control 🖥️
+# MCP Sentinel 🛡️
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/MarketingDotLimited/mcp-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/MarketingDotLimited/mcp-sentinel/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org)
+[![MCP](https://img.shields.io/badge/MCP-HTTP%2FSSE-blue)](https://modelcontextprotocol.io)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 A **production-grade MCP (Model Context Protocol) server** that lets AI cloud services (Claude, ChatGPT, Gemini, Cursor, etc.) control and manage your Linux server securely via HTTP/SSE.
 
@@ -147,6 +153,21 @@ curl http://localhost:4444/health
 - `openssl` (for HTTPS)
 - Root or sudo for full admin tools
 
+---
+
+## Contributing
+
+Contributions are very welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+- Development setup
+- Adding new MCP tools
+- Submitting pull requests
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+## Security
+
+Found a vulnerability? Please read [SECURITY.md](SECURITY.md) and report privately — do not open a public issue.
+
 ## License
 
-MIT
+[MIT](LICENSE) © 2026 [MarketingDotLimited](https://github.com/MarketingDotLimited)
