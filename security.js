@@ -40,9 +40,10 @@ function ipToNum(ip) {
 }
 
 function getClientIP(req) {
+  if (process.env.TRUST_PROXY === 'true' && req.headers['x-forwarded-for']) {
+    return req.headers['x-forwarded-for'].split(',')[0].trim().replace('::ffff:', '');
+  }
   return (
-    req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-    req.headers['x-real-ip'] ||
     req.socket?.remoteAddress ||
     ''
   ).replace('::ffff:', '');

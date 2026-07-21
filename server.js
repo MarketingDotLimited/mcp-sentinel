@@ -228,7 +228,8 @@ function createMcpServer(identity, ip) {
       try {
         const result = await handler(args, identity);
         logAccess({ ip, apiKey: null, userId: identity.userId, tool: name, args, result: 'success', duration: Date.now() - start });
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+        return { content: [{ type: 'text', text: textContent || 'Success' }] };
       } catch (err) {
         logError({ ip, userId: identity.userId, tool: name, error: err });
         logAccess({ ip, userId: identity.userId, tool: name, args, result: 'failure', duration: Date.now() - start });

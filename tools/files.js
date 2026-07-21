@@ -27,7 +27,7 @@ const ADMIN_ONLY_PATHS = [
   '/proc',
 ];
 
-function resolveSafePath(inputPath, identity) {
+async function resolveSafePath(inputPath, identity) {
   const resolved = path.resolve(inputPath);
 
   // Check absolute forbidden
@@ -37,18 +37,33 @@ function resolveSafePath(inputPath, identity) {
     }
   }
 
+  // Prevent symlink escapes by checking realpath
+  let real = resolved;
+  try {
+    real = await fs.realpath(resolved);
+  } catch {
+    try {
+      const parentDir = path.dirname(resolved);
+      real = await fs.realpath(parentDir);
+      real = path.join(real, path.basename(resolved));
+    } catch {
+      // Fallback if neither exists
+    }
+  }
+
   // Non-admin path restrictions
   if (identity.role !== 'admin') {
     // Users can only access their home dir and /tmp
     const allowed = [`/home/${identity.userId}`, '/tmp', '/var/tmp'];
-    const isAllowed = allowed.some(a => resolved === a || resolved.startsWith(a + '/'));
-    if (!isAllowed) {
+    const isResolvedAllowed = allowed.some(a => resolved === a || resolved.startsWith(a + '/'));
+    const isRealAllowed = allowed.some(a => real === a || real.startsWith(a + '/'));
+    if (!isResolvedAllowed || !isRealAllowed) {
       throw new Error(`Access to '${resolved}' is not permitted for your role`);
     }
   } else {
     // Admin: block admin-only paths for safety unless explicitly admin
     for (const p of ADMIN_ONLY_PATHS) {
-      if (resolved === p || resolved.startsWith(p + '/')) {
+      if (real === p || real.startsWith(p + '/')) {
         // Admin can access but we log it
         return resolved;
       }
@@ -62,7 +77,7 @@ function resolveSafePath(inputPath, identity) {
 
 export async function readFile({ filePath, encoding = 'utf8', maxBytes = 1048576 }, identity) {
   if (!filePath) throw new Error('filePath is required');
-  const safe = resolveSafePath(filePath, identity);
+  const safe = await resolveSafePath(filePath, identity);
 
   const stat = await fs.stat(safe);
   if (stat.isDirectory()) throw new Error(`'${safe}' is a directory, use list_directory instead`);
@@ -95,7 +110,7 @@ export async function writeFile({ filePath, content, mode = 'overwrite', encodin
   if (!filePath) throw new Error('filePath is required');
   if (content === undefined) throw new Error('content is required');
 
-  const safe = resolveSafePath(filePath, identity);
+  const safe = await resolveSafePath(filePath, identity);
   const dir = path.dirname(safe);
 
   // Ensure parent dir exists
@@ -120,7 +135,7 @@ export async function writeFile({ filePath, content, mode = 'overwrite', encodin
 
 export async function deleteFile({ filePath, recursive = false }, identity) {
   if (!filePath) throw new Error('filePath is required');
-  const safe = resolveSafePath(filePath, identity);
+  const safe = await resolveSafePath(filePath, identity);
 
   const stat = await fs.stat(safe);
 
@@ -143,7 +158,7 @@ export async function deleteFile({ filePath, recursive = false }, identity) {
 
 export async function listDirectory({ dirPath, showHidden = false, detailed = true }, identity) {
   if (!dirPath) throw new Error('dirPath is required');
-  const safe = resolveSafePath(dirPath, identity);
+  const safe = await resolveSafePath(dirPath, identity);
 
   const entries = await fs.readdir(safe, { withFileTypes: true });
   const visible = showHidden ? entries : entries.filter(e => !e.name.startsWith('.'));
@@ -178,8 +193,8 @@ export async function listDirectory({ dirPath, showHidden = false, detailed = tr
 
 export async function moveFile({ sourcePath, destPath }, identity) {
   if (!sourcePath || !destPath) throw new Error('sourcePath and destPath are required');
-  const safeSrc = resolveSafePath(sourcePath, identity);
-  const safeDst = resolveSafePath(destPath, identity);
+  const safeSrc = await resolveSafePath(sourcePath, identity);
+  const safeDst = await resolveSafePath(destPath, identity);
 
   await fs.rename(safeSrc, safeDst);
   return { success: true, from: safeSrc, to: safeDst };
@@ -189,8 +204,8 @@ export async function moveFile({ sourcePath, destPath }, identity) {
 
 export async function copyFile({ sourcePath, destPath }, identity) {
   if (!sourcePath || !destPath) throw new Error('sourcePath and destPath are required');
-  const safeSrc = resolveSafePath(sourcePath, identity);
-  const safeDst = resolveSafePath(destPath, identity);
+  const safeSrc = await resolveSafePath(sourcePath, identity);
+  const safeDst = await resolveSafePath(destPath, identity);
 
   await fs.cp(safeSrc, safeDst, { recursive: true });
   return { success: true, from: safeSrc, to: safeDst };
@@ -200,7 +215,7 @@ export async function copyFile({ sourcePath, destPath }, identity) {
 
 export async function getFileInfo({ filePath }, identity) {
   if (!filePath) throw new Error('filePath is required');
-  const safe = resolveSafePath(filePath, identity);
+  const safe = await resolveSafePath(filePath, identity);
 
   const [stat, lstat] = await Promise.all([
     fs.stat(safe).catch(() => null),
@@ -238,7 +253,7 @@ export async function getFileInfo({ filePath }, identity) {
 
 export async function searchFiles({ searchPath, pattern, maxResults = 50, fileType }, identity) {
   if (!searchPath || !pattern) throw new Error('searchPath and pattern are required');
-  const safe = resolveSafePath(searchPath, identity);
+  const safe = await resolveSafePath(searchPath, identity);
 
   const args = [safe, '-name', pattern];
   if (fileType === 'file') args.push('-type', 'f');

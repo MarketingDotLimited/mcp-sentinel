@@ -89,13 +89,13 @@ export async function runCommand({ command, workingDir, timeout = 30, asUser }, 
   };
 
   // Run as different user if admin requests it
-  let finalCommand = command;
-  if (asUser && identity.role === 'admin' && asUser !== 'root') {
-    finalCommand = `su -s /bin/bash -c ${JSON.stringify(command)} ${asUser}`;
-  }
-
   try {
-    const { stdout, stderr } = await execFileAsync('/bin/bash', ['-c', finalCommand], execOpts);
+    let stdout, stderr;
+    if (asUser && identity.role === 'admin' && asUser !== 'root') {
+      ({ stdout, stderr } = await execFileAsync('su', ['-s', '/bin/bash', asUser, '-c', command], execOpts));
+    } else {
+      ({ stdout, stderr } = await execFileAsync('/bin/bash', ['-c', command], execOpts));
+    }
     return {
       stdout: truncate(stdout),
       stderr: truncate(stderr),
