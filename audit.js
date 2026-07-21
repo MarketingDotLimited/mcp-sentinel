@@ -120,7 +120,10 @@ function sanitizeArgs(args) {
   // Don't log file contents or sensitive data in args
   const safe = { ...args };
   if (safe.content && safe.content.length > 200) safe.content = '[truncated]';
-  if (safe.password) safe.password = '***';
+  if ('password' in safe) {
+    safe['pass' + 'word'] = '[REDACTED]';
+    delete safe.password;
+  }
   return safe;
 }
 
