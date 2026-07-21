@@ -1,0 +1,25 @@
+# Environment & secrets
+.env
+*.env.local
+
+# TLS certificates (contain private keys)
+certs/server.key
+certs/*.key
+certs/*.pem
+
+# Logs
+logs/
+*.log
+
+# Node modules
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
