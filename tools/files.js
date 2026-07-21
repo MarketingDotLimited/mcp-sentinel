@@ -146,7 +146,7 @@ export async function deleteFile({ filePath, recursive = false }, identity) {
     if (identity.role !== 'admin' && safe === `/home/${identity.userId}`) {
       throw new Error('Cannot delete your own home directory');
     }
-    await fs.rm(safe, { recursive: true, force: false });
+    await fs.rm(safe, { recursive: true, force: true });
   } else {
     await fs.unlink(safe);
   }

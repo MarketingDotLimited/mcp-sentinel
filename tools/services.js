@@ -102,7 +102,10 @@ export async function getJournalLogs({ service, lines = 50, since, priority }, i
     validateServiceName(service);
     args.push('-u', service);
   }
-  if (since) args.push('--since', since);
+  if (since) {
+    if (!/^[0-9a-zA-Z\s\-:]+$/.test(since)) throw new Error('Invalid since format');
+    args.push('--since', since);
+  }
   if (priority) args.push('-p', priority); // emerg,alert,crit,err,warning,notice,info,debug
 
   const { stdout, stderr } = await execFileAsync('journalctl', args, { timeout: 20000 })

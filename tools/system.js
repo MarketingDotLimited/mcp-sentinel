@@ -19,27 +19,6 @@ const ABSOLUTE_BLACKLIST = [
   /chmod\s+777\s+\/(?!\w)/,           // chmod 777 /
 ];
 
-// Extra restrictions for non-admin users
-const USER_BLACKLIST = [
-  /sudo/,
-  /passwd/,
-  /useradd/,
-  /userdel/,
-  /usermod/,
-  /visudo/,
-  /iptables/,
-  /ufw/,
-  /systemctl\s+(start|stop|restart|enable|disable|mask)/,
-  /service\s+\w+\s+(start|stop|restart)/,
-  /reboot/,
-  /shutdown/,
-  /halt/,
-  /poweroff/,
-  /init\s+[0-6]/,
-  /pkill\s+-9/,
-  /kill\s+-9\s+1\b/,                  // kill init
-];
-
 function isCommandAllowed(command, role) {
   // Check absolute blacklist
   for (const pattern of ABSOLUTE_BLACKLIST) {
@@ -48,8 +27,18 @@ function isCommandAllowed(command, role) {
     }
   }
 
-  // Check user blacklist for non-admin roles
+  // Strong sandbox for non-admin roles: Deny shell metacharacters to prevent bypass
   if (role !== 'admin') {
+    const dangerousChars = /[|&;<>$`\\]/;
+    if (dangerousChars.test(command)) {
+      return { allowed: false, reason: `Shell metacharacters (|, &, ;, <, >, $, \`, \\) are not allowed for role '${role}'` };
+    }
+    
+    // Check user blacklist for non-admin roles
+    const USER_BLACKLIST = [
+      /sudo/, /passwd/, /useradd/, /userdel/, /usermod/, /visudo/, /iptables/, /ufw/,
+      /systemctl/, /service/, /reboot/, /shutdown/, /halt/, /poweroff/, /init\b/, /pkill/, /kill\s+-9\s+1\b/
+    ];
     for (const pattern of USER_BLACKLIST) {
       if (pattern.test(command)) {
         return { allowed: false, reason: `Command not permitted for role '${role}'` };

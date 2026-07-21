@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 
 import {
@@ -163,7 +163,7 @@ app.get('/admin/sessions', authenticate, (req, res) => {
   return res.json({ sessions, count: sessions.length });
 });
 
-// ── MCP SSE Endpoint ───────────────────────────────────────
+// ── MCP Endpoint (Streamable HTTP) ─────────────────────────
 
 app.get('/mcp', authenticateJWT, (req, res) => {
   const sessionId = randomUUID();
@@ -178,7 +178,9 @@ app.get('/mcp', authenticateJWT, (req, res) => {
   // Create a per-session MCP server instance
   const mcpServer = createMcpServer(identity, ip);
 
-  const transport = new SSEServerTransport('/mcp/message', res);
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => sessionId
+  });
 
   activeTransports.set(sessionId, {
     transport,
@@ -192,17 +194,19 @@ app.get('/mcp', authenticateJWT, (req, res) => {
     mcpServer.close().catch(() => {});
   });
 
-  // Pass sessionId to client via header
-  res.setHeader('X-Session-ID', sessionId);
-
   mcpServer.connect(transport).catch(err => {
     logError({ ip, userId: identity.userId, tool: 'SSE_CONNECT', error: err });
+  });
+
+  // Handle the initial GET request to establish the SSE stream
+  transport.handleRequest(req, res).catch(err => {
+    logError({ ip, userId: identity.userId, tool: 'HANDLE_REQUEST_GET', error: err });
   });
 });
 
 // MCP message endpoint (POST from client)
-app.post('/mcp/message', authenticateJWT, async (req, res) => {
-  const sessionId = req.headers['x-session-id'];
+app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
+  const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'];
   const session = activeTransports.get(sessionId);
 
   if (!session) {
@@ -216,7 +220,7 @@ app.post('/mcp/message', authenticateJWT, async (req, res) => {
   }
 
   try {
-    await session.transport.handlePostMessage(req, res);
+    await session.transport.handleRequest(req, res);
   } catch (err) {
     logError({ ip: req.clientIP, userId: req.identity?.userId, tool: 'POST_MESSAGE', error: err });
     if (!res.headersSent) {
@@ -262,17 +266,17 @@ function createMcpServer(identity, ip) {
   // ── System Tools ───────────────────────────────────────
 
   tool('run_command', 'Execute a shell command on the server. Supports working directory and running as a specific user (admin only).', {
-    command: z.string().describe('The shell command to execute'),
-    workingDir: z.string().optional().describe('Working directory for the command'),
+    command: z.string().max(4096).describe('The shell command to execute'),
+    workingDir: z.string().max(4096).optional().describe('Working directory for the command'),
     timeout: z.number().optional().describe('Timeout in seconds (max 300 for admin, 60 for users)'),
-    asUser: z.string().optional().describe('(Admin only) Run command as this user'),
+    asUser: z.string().max(4096).optional().describe('(Admin only) Run command as this user'),
   }, runCommand);
 
   tool('get_system_info', 'Get comprehensive system information: CPU, memory, disk, network, uptime, logged-in users.', {}, getSystemInfo);
 
   tool('get_processes', 'List running processes. Admins see all processes; users see only their own.', {
-    filter: z.string().optional().describe('Filter processes by name/keyword'),
-    asUser: z.string().optional().describe('(Admin only) Show processes for specific user'),
+    filter: z.string().max(4096).optional().describe('Filter processes by name/keyword'),
+    asUser: z.string().max(4096).optional().describe('(Admin only) Show processes for specific user'),
   }, getProcesses);
 
   tool('kill_process', 'Send a signal to a process. Non-admin users can only kill their own processes.', {
@@ -283,46 +287,46 @@ function createMcpServer(identity, ip) {
   // ── File Tools ─────────────────────────────────────────
 
   tool('read_file', 'Read the contents of a file. Paths are sandboxed per role.', {
-    filePath: z.string().describe('Absolute path to the file'),
-    encoding: z.string().optional().describe('File encoding (default: utf8)'),
+    filePath: z.string().max(4096).describe('Absolute path to the file'),
+    encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
     maxBytes: z.number().optional().describe('Maximum bytes to read (default: 1MB)'),
   }, readFile);
 
   tool('write_file', 'Write content to a file (create or overwrite). Paths are sandboxed per role.', {
-    filePath: z.string().describe('Absolute path to the file'),
-    content: z.string().describe('Content to write'),
+    filePath: z.string().max(4096).describe('Absolute path to the file'),
+    content: z.string().max(5 * 1024 * 1024).describe('Content to write'),
     mode: z.enum(['overwrite', 'append']).optional().describe('Write mode (default: overwrite)'),
-    encoding: z.string().optional().describe('File encoding (default: utf8)'),
+    encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
   }, writeFile);
 
   tool('delete_file', 'Delete a file or directory.', {
-    filePath: z.string().describe('Absolute path to delete'),
+    filePath: z.string().max(4096).describe('Absolute path to delete'),
     recursive: z.boolean().optional().describe('Recursively delete directory contents (default: false)'),
   }, deleteFile);
 
   tool('list_directory', 'List the contents of a directory.', {
-    dirPath: z.string().describe('Absolute path to directory'),
+    dirPath: z.string().max(4096).describe('Absolute path to directory'),
     showHidden: z.boolean().optional().describe('Include hidden files (default: false)'),
     detailed: z.boolean().optional().describe('Include file details like size, permissions (default: true)'),
   }, listDirectory);
 
   tool('move_file', 'Move or rename a file/directory.', {
-    sourcePath: z.string().describe('Source path'),
-    destPath: z.string().describe('Destination path'),
+    sourcePath: z.string().max(4096).describe('Source path'),
+    destPath: z.string().max(4096).describe('Destination path'),
   }, moveFile);
 
   tool('copy_file', 'Copy a file or directory.', {
-    sourcePath: z.string().describe('Source path'),
-    destPath: z.string().describe('Destination path'),
+    sourcePath: z.string().max(4096).describe('Source path'),
+    destPath: z.string().max(4096).describe('Destination path'),
   }, copyFile);
 
   tool('get_file_info', 'Get detailed metadata about a file including size, permissions, and SHA256 checksum.', {
-    filePath: z.string().describe('Absolute path to file'),
+    filePath: z.string().max(4096).describe('Absolute path to file'),
   }, getFileInfo);
 
   tool('search_files', 'Search for files by name pattern in a directory tree.', {
-    searchPath: z.string().describe('Root path to search from'),
-    pattern: z.string().describe('Filename pattern (supports wildcards, e.g. "*.log")'),
+    searchPath: z.string().max(4096).describe('Root path to search from'),
+    pattern: z.string().max(4096).describe('Filename pattern (supports wildcards, e.g. "*.log")'),
     maxResults: z.number().optional().describe('Maximum results (default: 50)'),
     fileType: z.enum(['file', 'directory']).optional().describe('Filter by type'),
   }, searchFiles);
@@ -330,23 +334,23 @@ function createMcpServer(identity, ip) {
   // ── Service Tools (Admin only) ─────────────────────────
 
   tool('manage_service', 'Start, stop, restart, enable, or disable a systemd service. Admin only.', {
-    service: z.string().describe('Service name (e.g. nginx, mysql, sshd)'),
+    service: z.string().max(4096).describe('Service name (e.g. nginx, mysql, sshd)'),
     action: z.enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'status', 'is-active']).describe('Action to perform'),
   }, manageService);
 
   tool('get_service_status', 'Get detailed status and recent logs for a systemd service. Admin only.', {
-    service: z.string().describe('Service name'),
+    service: z.string().max(4096).describe('Service name'),
   }, getServiceStatus);
 
   tool('list_services', 'List all systemd services with their status. Admin only.', {
-    filter: z.string().optional().describe('Filter by service name keyword'),
-    state: z.string().optional().describe('Filter by state: active, inactive, failed, etc.'),
+    filter: z.string().max(4096).optional().describe('Filter by service name keyword'),
+    state: z.string().max(4096).optional().describe('Filter by state: active, inactive, failed, etc.'),
   }, listServices);
 
   tool('get_journal_logs', 'Read systemd journal logs. Admin only.', {
-    service: z.string().optional().describe('Service name to filter logs for'),
-    lines: z.number().optional().describe('Number of log lines to return (default: 50, max: 500)'),
-    since: z.string().optional().describe('Show logs since this time (e.g. "1 hour ago", "2024-01-01 00:00:00")'),
+    service: z.string().max(4096).optional().describe('Service name to filter logs for'),
+    lines: z.number().max(500).optional().describe('Number of log lines to return (default: 50, max: 500)'),
+    since: z.string().max(4096).optional().describe('Show logs since this time (e.g. "1 hour ago", "2024-01-01 00:00:00")'),
     priority: z.enum(['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug']).optional(),
   }, getJournalLogs);
 
@@ -363,42 +367,42 @@ function createMcpServer(identity, ip) {
   }, listUsers);
 
   tool('get_user_info', 'Get detailed info about a user including groups and SSH keys.', {
-    username: z.string().describe('Username to query'),
+    username: z.string().max(4096).describe('Username to query'),
   }, getUserInfo);
 
   tool('create_user', 'Create a new system user. Admin only.', {
-    username: z.string().describe('New username'),
-    password: z.string().optional().describe('Initial password'),
-    groups: z.string().optional().describe('Comma-separated supplementary groups'),
-    shell: z.string().optional().describe('Login shell (default: /bin/bash)'),
-    comment: z.string().optional().describe('User comment/description'),
+    username: z.string().max(4096).describe('New username'),
+    password: z.string().max(4096).optional().describe('Initial password'),
+    groups: z.string().max(4096).optional().describe('Comma-separated supplementary groups'),
+    shell: z.string().max(4096).optional().describe('Login shell (default: /bin/bash)'),
+    comment: z.string().max(4096).optional().describe('User comment/description'),
     createHome: z.boolean().optional().describe('Create home directory (default: true)'),
   }, createUser);
 
   tool('delete_user', 'Delete a system user. Admin only.', {
-    username: z.string().describe('Username to delete'),
+    username: z.string().max(4096).describe('Username to delete'),
     removeHome: z.boolean().optional().describe('Remove home directory (default: false)'),
   }, deleteUser);
 
   tool('set_user_password', 'Set or change a user password. Admin only.', {
-    username: z.string().describe('Username'),
-    password: z.string().describe('New password'),
+    username: z.string().max(4096).describe('Username'),
+    password: z.string().max(4096).describe('New password'),
   }, setUserPassword);
 
   tool('modify_user', 'Modify user properties: groups, shell, lock/unlock, expiry. Admin only.', {
-    username: z.string().describe('Username to modify'),
-    addGroups: z.string().optional().describe('Comma-separated groups to add user to'),
-    removeGroups: z.string().optional().describe('Comma-separated groups to remove user from'),
-    shell: z.string().optional().describe('New login shell'),
+    username: z.string().max(4096).describe('Username to modify'),
+    addGroups: z.string().max(4096).optional().describe('Comma-separated groups to add user to'),
+    removeGroups: z.string().max(4096).optional().describe('Comma-separated groups to remove user from'),
+    shell: z.string().max(4096).optional().describe('New login shell'),
     lockAccount: z.boolean().optional().describe('Lock the user account'),
     unlockAccount: z.boolean().optional().describe('Unlock the user account'),
-    expireDate: z.string().optional().describe('Account expiry date (YYYY-MM-DD), empty string to disable'),
+    expireDate: z.string().max(4096).optional().describe('Account expiry date (YYYY-MM-DD), empty string to disable'),
   }, modifyUser);
 
   tool('manage_ssh_keys', 'Add, list, or remove SSH authorized keys for a user.', {
-    username: z.string().describe('Target username'),
+    username: z.string().max(4096).describe('Target username'),
     action: z.enum(['add', 'list', 'remove']).describe('Action to perform'),
-    publicKey: z.string().optional().describe('Full SSH public key string (for add action)'),
+    publicKey: z.string().max(4096).optional().describe('Full SSH public key string (for add action)'),
     keyIndex: z.number().optional().describe('Key index to remove (for remove action, use list first)'),
   }, manageSshKeys);
 

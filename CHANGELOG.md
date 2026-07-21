@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Files**: `read_file`, `write_file`, `delete_file`, `list_directory`, `move_file`, `copy_file`, `get_file_info`, `search_files`
   - **Services**: `manage_service`, `get_service_status`, `list_services`, `get_journal_logs`, `manage_firewall`
   - **Users**: `list_users`, `get_user_info`, `create_user`, `delete_user`, `set_user_password`, `modify_user`, `manage_ssh_keys`
-- **10-layer security model**:
+- **8-layer security model**:
   - API key authentication (`X-API-Key` header)
   - JWT session tokens (IP-bound, 8h expiry)
   - Global and per-key IP whitelist (CIDR support)
@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HTTPS support** — TLS 1.2+ with configurable cert paths
 - **systemd service unit** — auto-start on boot
 - **First-time setup wizard** (`node setup.js`) — generates secrets and TLS certs
-- **API key generator** (`node keygen.js`) — cryptographically secure 64-byte keys
+- **API key generator** (`node keygen.js`) — cryptographically secure 32-byte keys
 - **Graceful shutdown** — SIGTERM/SIGINT handling
 
 [1.0.0]: https://github.com/MarketingDotLimited/mcp-sentinel/releases/tag/v1.0.0

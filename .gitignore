@@ -4,6 +4,7 @@
 
 # TLS certificates (contain private keys)
 certs/server.key
+certs/server.crt
 certs/*.key
 certs/*.pem
 

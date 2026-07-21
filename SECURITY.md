@@ -52,7 +52,7 @@ We follow **responsible disclosure** — we will credit reporters in the release
 
 MCP Sentinel is built with security as a primary concern:
 
-- **API Key authentication** — 64-byte cryptographically random keys
+- **API Key authentication** — 32-byte cryptographically random keys
 - **JWT tokens** — IP-bound, short-lived (8h), signed with HS256
 - **IP Whitelist** — per-key or global CIDR restrictions
 - **Rate Limiting** — 60 req/min global, 10/15min for auth endpoints

@@ -97,7 +97,7 @@ tool('your_tool_name', 'Description for the AI', {
 
 4. **Follow security practices:**
    - Validate all inputs
-   - Restrict paths with `resolveSafePath()`
+   - Restrict paths with `await resolveSafePath()`
    - Check role with `identity.role`
    - Never expose secrets in output
 
