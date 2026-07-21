@@ -10,8 +10,8 @@ A **production-grade MCP (Model Context Protocol) server** that lets AI cloud se
 
 ## ✨ Features
 
-- **20 MCP Tools** — run commands, manage files, control services, manage users & SSH keys
-- **10 Security Layers** — API key + JWT tokens + IP whitelist + rate limiting + audit logs + command blacklist + path sandboxing + HTTPS + Helmet + CORS
+- **24 MCP Tools** — run commands, manage files, control services, manage users & SSH keys
+- **Multi-Layer Security** — API key + JWT tokens + IP whitelist + rate limiting + audit logs + path sandboxing + scope enforcement + HTTPS + Helmet + CORS
 - **Role-Based Access** — `admin` gets full control; `user` is sandboxed to their home directory
 - **Per-User API Keys** — issue scoped keys for different users/services
 - **Audit Logging** — every tool call logged with user, IP, duration, result (daily rotating JSON)
@@ -21,8 +21,8 @@ A **production-grade MCP (Model Context Protocol) server** that lets AI cloud se
 
 ```bash
 # 1. Clone
-git clone https://github.com/MarketingLimited/mcp-server-control.git
-cd mcp-server-control
+git clone https://github.com/MarketingDotLimited/mcp-sentinel.git
+cd mcp-sentinel
 
 # 2. Install dependencies
 npm install
@@ -84,13 +84,13 @@ AI Client → HTTPS → IP Whitelist → API Key/JWT → Rate Limit → Scope Ch
 | Layer | Details |
 |---|---|
 | **HTTPS/TLS** | TLS 1.2+ with strong cipher suites |
-| **IP Whitelist** | Per-key or global CIDR restrictions |
-| **API Key** | 64-byte cryptographically random hex keys |
-| **JWT Tokens** | IP-bound, 8h expiry, issued per-session |
+| **IP Whitelist** | Per-key or global CIDR restrictions (IPv4) |
+| **API Key** | 32-byte cryptographically random hex keys |
+| **JWT Tokens** | HS256-signed, IP-bound, 8h expiry |
 | **Rate Limiting** | 60 req/min global, 10/15min auth |
-| **Command Guard** | Blacklist of destructive patterns |
-| **Path Sandbox** | Users restricted to `/home/{username}` |
-| **Audit Logs** | Structured JSON, 30-day retention |
+| **Scope Enforcement** | Per-key tool access control |
+| **Path Sandbox** | Users restricted to `/home/{username}`, symlink-safe |
+| **Audit Logs** | Structured JSON, 30-day retention, sensitive fields redacted |
 
 ## 📁 Project Structure
 

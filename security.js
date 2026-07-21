@@ -3,6 +3,7 @@
 // ============================================================
 import jwt from 'jsonwebtoken';
 import { logAuth, logSecurityEvent } from './audit.js';
+import { isIP } from 'net';
 
 // ── In-memory key store (load from .env / DB in production) ─
 // Format: { apiKey: { userId, role, allowedIPs, scopes, active } }
@@ -27,8 +28,14 @@ if (process.env.ADMIN_API_KEY) {
  * Supports IPv4 only for simplicity; extend with 'ipaddr.js' for IPv6 if needed.
  */
 function ipInCidr(ip, cidr) {
+  // Skip check if IP is IPv6 and CIDR is IPv4 (or vice versa)
+  const ipVersion = isIP(ip);
+  if (ipVersion === 0) return false; // invalid IP
   if (!cidr.includes('/')) return ip === cidr;
   const [base, bits] = cidr.split('/');
+  const baseVersion = isIP(base);
+  if (ipVersion !== baseVersion) return false; // version mismatch
+  if (ipVersion === 6) return false; // IPv6 CIDR not supported, reject
   const mask = ~((1 << (32 - parseInt(bits))) - 1) >>> 0;
   const ipNum = ipToNum(ip);
   const baseNum = ipToNum(base);
@@ -113,7 +120,6 @@ export function authenticate(req, res, next) {
     userId: keyEntry.userId,
     role: keyEntry.role,
     scopes: keyEntry.scopes,
-    apiKey,
   };
 
   logAuth({ ip, apiKey, userId: keyEntry.userId, event: 'AUTH_SUCCESS' });
@@ -141,6 +147,7 @@ export function issueToken(req, res) {
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
+    algorithm: 'HS256',
     expiresIn: process.env.JWT_EXPIRY || '8h',
     issuer: 'mcp-server',
     audience: 'mcp-client',
@@ -172,6 +179,7 @@ export function authenticateJWT(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       issuer: 'mcp-server',
       audience: 'mcp-client',
+      algorithms: ['HS256'],
     });
 
     // Optional: enforce IP binding

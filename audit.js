@@ -117,13 +117,15 @@ function maskKey(key) {
 
 function sanitizeArgs(args) {
   if (!args) return {};
-  // Don't log file contents or sensitive data in args
   const safe = { ...args };
-  if (safe.content && safe.content.length > 200) safe.content = '[truncated]';
-  if ('password' in safe) {
-    safe['pass' + 'word'] = '[REDACTED]';
-    delete safe.password;
+  // Redact sensitive fields
+  const sensitiveKeys = ['password', 'publicKey', 'apiKey', 'key', 'secret', 'token'];
+  for (const k of sensitiveKeys) {
+    if (k in safe) safe[k] = '[REDACTED]';
   }
+  // Truncate large content
+  if (safe.content && safe.content.length > 200) safe.content = safe.content.slice(0, 100) + '...[TRUNCATED]';
+  if (safe.command && safe.command.length > 500) safe.command = safe.command.slice(0, 200) + '...[TRUNCATED]';
   return safe;
 }
 

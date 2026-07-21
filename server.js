@@ -63,7 +63,7 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (direct API calls) or from trusted origins
     const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -110,10 +110,9 @@ app.use(globalLimiter);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    server: 'mcp-server-control',
+    server: 'mcp-sentinel',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
-    active_sessions: activeTransports.size,
   });
 });
 
@@ -171,6 +170,11 @@ app.get('/mcp', authenticateJWT, (req, res) => {
   const identity = req.identity;
   const ip = req.clientIP;
 
+  // Enforce connection limit
+  if (activeTransports.size >= MAX_SSE_CONNECTIONS) {
+    return res.status(503).json({ error: 'Too many active connections' });
+  }
+
   // Create a per-session MCP server instance
   const mcpServer = createMcpServer(identity, ip);
 
@@ -205,11 +209,19 @@ app.post('/mcp/message', authenticateJWT, async (req, res) => {
     return res.status(400).json({ error: 'Unknown session. Reconnect to /mcp first.' });
   }
 
+  // Verify session ownership — prevent hijacking
+  if (session.identity?.userId !== req.identity?.userId) {
+    logSecurityEvent({ ip: req.clientIP, event: 'SESSION_HIJACK_ATTEMPT', detail: { sessionOwner: session.identity?.userId, requestUser: req.identity?.userId } });
+    return res.status(403).json({ error: 'Session does not belong to you' });
+  }
+
   try {
     await session.transport.handlePostMessage(req, res);
   } catch (err) {
     logError({ ip: req.clientIP, userId: req.identity?.userId, tool: 'POST_MESSAGE', error: err });
-    res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Internal server error' });
+    }
   }
 });
 
@@ -225,6 +237,12 @@ function createMcpServer(identity, ip) {
   function tool(name, description, schema, handler) {
     server.tool(name, description, schema, async (args) => {
       const start = Date.now();
+      // Enforce scope authorization
+      const scopes = identity.scopes || [];
+      if (!scopes.includes('*') && !scopes.includes(name)) {
+        logSecurityEvent({ ip, event: 'SCOPE_DENIED', detail: { userId: identity.userId, tool: name } });
+        return { content: [{ type: 'text', text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }) }], isError: true };
+      }
       try {
         const result = await handler(args, identity);
         logAccess({ ip, apiKey: null, userId: identity.userId, tool: name, args, result: 'success', duration: Date.now() - start });
@@ -422,7 +440,7 @@ server.listen(PORT, HOST, () => {
 
   console.log(`
 ╔══════════════════════════════════════════════════════╗
-║           MCP Server Control - v1.0.0                ║
+║           MCP Sentinel - v1.0.0                      ║
 ╠══════════════════════════════════════════════════════╣
 ║  Status  : ✅ Running                                ║
 ║  Protocol: ${protocol.toUpperCase().padEnd(43)}║
@@ -438,8 +456,15 @@ server.listen(PORT, HOST, () => {
 
 // ── Graceful Shutdown ──────────────────────────────────────
 
+const MAX_SSE_CONNECTIONS = parseInt(process.env.MAX_SSE_CONNECTIONS || '100');
+
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutting down gracefully...`);
+  // Close all active SSE connections
+  for (const [id, session] of activeTransports) {
+    try { session.transport.close?.(); } catch {}
+    activeTransports.delete(id);
+  }
   server.close(() => {
     console.log('Server closed. Goodbye.');
     process.exit(0);
@@ -452,6 +477,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('uncaughtException', (err) => {
   logError({ tool: 'UNCAUGHT_EXCEPTION', error: err });
   console.error('Uncaught exception:', err);
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });

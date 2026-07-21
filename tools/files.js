@@ -3,7 +3,7 @@
 // ============================================================
 import fs from 'fs/promises';
 import path from 'path';
-import { createReadStream, createWriteStream } from 'fs';
+// fs streams available if needed for future large-file streaming
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -174,7 +174,7 @@ export async function listDirectory({ dirPath, showHidden = false, detailed = tr
         const stat = await fs.stat(fullPath);
         return {
           name: entry.name,
-          type: entry.isDirectory() ? 'directory' : entry.isSymbolicLink() ? 'symlink' : 'file',
+          type: entry.isSymbolicLink() ? 'symlink' : entry.isDirectory() ? 'directory' : 'file',
           size: stat.size,
           permissions: (stat.mode & 0o777).toString(8),
           owner_uid: stat.uid,
@@ -235,7 +235,7 @@ export async function getFileInfo({ filePath }, identity) {
 
   return {
     path: safe,
-    type: stat.isDirectory() ? 'directory' : stat.isSymbolicLink() ? 'symlink' : 'file',
+    type: lstat?.isSymbolicLink() ? 'symlink' : stat.isDirectory() ? 'directory' : 'file',
     size: stat.size,
     size_human: formatBytes(stat.size),
     permissions: (stat.mode & 0o777).toString(8),

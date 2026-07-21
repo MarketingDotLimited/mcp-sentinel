@@ -1,7 +1,7 @@
 // ============================================================
 //  tools/system.js - System Information & Command Execution
 // ============================================================
-import { execFile, spawn } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import os from 'os';
 
@@ -65,6 +65,10 @@ function isCommandAllowed(command, role) {
 export async function runCommand({ command, workingDir, timeout = 30, asUser }, identity) {
   if (!command) throw new Error('command is required');
 
+  if (asUser && !/^[a-z_][a-z0-9_\\-]{0,31}$/.test(asUser)) {
+    throw new Error('Invalid username for asUser');
+  }
+
   const check = isCommandAllowed(command, identity.role);
   if (!check.allowed) {
     throw new Error(`Command blocked: ${check.reason}`);
@@ -80,11 +84,12 @@ export async function runCommand({ command, workingDir, timeout = 30, asUser }, 
     maxBuffer: MAX_OUTPUT,
     shell: '/bin/bash',
     env: {
-      ...process.env,
+      PATH: process.env.PATH || '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       HOME: cwd,
       USER: asUser || identity.userId,
       SHELL: '/bin/bash',
       TERM: 'xterm-256color',
+      LANG: process.env.LANG || 'en_US.UTF-8',
     },
   };
 
@@ -145,15 +150,14 @@ export async function getSystemInfo(_, identity) {
 // ── Tool: get_processes ────────────────────────────────────
 
 export async function getProcesses({ filter, asUser }, identity) {
-  let command;
-
+  let psArgs;
   if (identity.role === 'admin') {
-    command = 'ps aux --sort=-%cpu';
+    psArgs = ['aux', '--sort=-%cpu'];
   } else {
-    command = `ps -u ${identity.userId} --sort=-%cpu -o pid,ppid,user,%cpu,%mem,vsz,rss,stat,start,time,cmd`;
+    psArgs = ['-u', identity.userId, '--sort=-%cpu', '-o', 'pid,ppid,user,%cpu,%mem,vsz,rss,stat,start,time,cmd'];
   }
 
-  const { stdout } = await execFileAsync('/bin/bash', ['-c', command]);
+  const { stdout } = await execFileAsync('ps', psArgs);
   let output = stdout.trim();
 
   if (filter) {
