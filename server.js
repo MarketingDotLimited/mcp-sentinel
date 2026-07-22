@@ -16,7 +16,7 @@ import { randomUUID } from 'crypto';
 import { AcmeManager } from './lib/acme.js';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 
 import {
@@ -92,6 +92,9 @@ async function buildSecurityPosture() {
 
 // ── Active SSE connections ─────────────────────────────────
 const activeTransports = new Map(); // sessionId -> { transport, identity, ip }
+// Short-lived state for administrator-initiated OAuth diagnostics. Secrets and
+// access tokens remain in memory only and are never returned to the browser.
+const oauthDiagnostics = new Map();
 
 // ── Express App ───────────────────────────────────────────
 
@@ -146,7 +149,7 @@ app.use(cors({
   },
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID'],
-  exposedHeaders: ['Mcp-Session-Id'],
+  exposedHeaders: ['Mcp-Session-Id', 'WWW-Authenticate'],
   credentials: false,
 }));
 
@@ -665,7 +668,10 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
   res.json({
     resource,
     ...(authorizationServer ? { authorization_servers: [authorizationServer] } : {}),
-    scopes_supported: ["openid", "profile", "email"],
+    // Authelia advertises offline_access and refresh_token support. Include it
+    // here so cloud MCP clients such as ChatGPT can request a renewable grant
+    // instead of requiring the user to authenticate again after token expiry.
+    scopes_supported: ["openid", "profile", "email", "offline_access"],
     bearer_methods_supported: ["header"],
     resource_documentation: "https://github.com/MarketingDotLimited/mcp-sentinel"
   });
@@ -750,6 +756,90 @@ app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) =
   }
 });
 
+// Starts a real authorization-code flow, then tests MCP initialize with the
+// issued access token. It is restricted to admins and removes its temporary
+// OAuth client as soon as the callback completes.
+app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
+  const resource = (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  if (!issuer) return res.status(400).json({ error: 'Authelia issuer is not configured' });
+  const state = randomUUID();
+  const clientId = `mcp-diagnostic-${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  const redirectUri = `${resource}/oauth-diagnostic/callback`;
+  try {
+    const client = await addOAuthClient({ clientId, clientName: 'Temporary MCP OAuth diagnostic', redirectUris: [redirectUri] });
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    oauthDiagnostics.set(state, { clientId: client.client_id, clientSecret: client.client_secret, redirectUri, resource, expiresAt });
+    const cleanupTimer = setTimeout(() => {
+      const pending = oauthDiagnostics.get(state);
+      if (!pending || pending.clientId !== client.client_id) return;
+      oauthDiagnostics.delete(state);
+      deleteOAuthClient(client.client_id).catch(error => logError({ ip: 'internal', userId: 'system', tool: 'OAUTH_DIAGNOSTIC_EXPIRY_CLEANUP', error }));
+    }, 10 * 60 * 1000);
+    cleanupTimer.unref();
+    for (const [key, value] of oauthDiagnostics) if (value.expiresAt < Date.now()) oauthDiagnostics.delete(key);
+    const authorizationUrl = new URL(`${issuer}/api/oidc/authorization`);
+    authorizationUrl.searchParams.set('client_id', client.client_id);
+    authorizationUrl.searchParams.set('redirect_uri', redirectUri);
+    authorizationUrl.searchParams.set('response_type', 'code');
+    authorizationUrl.searchParams.set('scope', 'openid profile email offline_access');
+    authorizationUrl.searchParams.set('resource', resource);
+    authorizationUrl.searchParams.set('state', state);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_STARTED', detail: { clientId: client.client_id } });
+    res.json({ authorizationUrl: authorizationUrl.toString(), expiresAt: new Date(expiresAt).toISOString() });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get('/oauth-diagnostic/callback', async (req, res) => {
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  const diagnostic = oauthDiagnostics.get(state);
+  oauthDiagnostics.delete(state);
+  const render = (title, message, passed = false) => res.status(passed ? 200 : 400).type('html').send(`<!doctype html><meta charset="utf-8"><title>${title}</title><main style="font:16px system-ui;max-width:640px;margin:4rem auto;padding:2rem"><h1>${title}</h1><p>${message}</p><p>You may close this window.</p></main>`);
+  if (!diagnostic || diagnostic.expiresAt < Date.now() || !code) return render('OAuth diagnostic failed', 'The test expired or no authorization code was returned. Start a new test from the OAuth screen.');
+  try {
+    const tokenResponse = await fetch(`${process.env.AUTHELIA_ISSUER.replace(/\/$/, '')}/api/oidc/token`, {
+      method: 'POST',
+      headers: { Authorization: `Basic ${Buffer.from(`${diagnostic.clientId}:${diagnostic.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: diagnostic.redirectUri, resource: diagnostic.resource }),
+    });
+    const tokenBody = await tokenResponse.json().catch(() => ({}));
+    if (!tokenResponse.ok || typeof tokenBody.access_token !== 'string') throw new Error(`Token exchange failed (${tokenResponse.status}${tokenBody.error ? `: ${tokenBody.error}` : ''})`);
+    if (typeof tokenBody.refresh_token !== 'string') throw new Error('Token exchange did not issue the requested refresh token');
+    const mcpHeaders = { Authorization: `Bearer ${tokenBody.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+    const mcpResponse = await fetch(`${diagnostic.resource}/mcp`, {
+      method: 'POST',
+      headers: mcpHeaders,
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'MCP OAuth diagnostic', version: '1.0' } } }),
+    });
+    if (!mcpResponse.ok) throw new Error(`MCP initialize failed (${mcpResponse.status})`);
+    const sessionId = mcpResponse.headers.get('mcp-session-id');
+    if (!sessionId) throw new Error('MCP initialize did not return a session ID');
+    const sessionHeaders = { ...mcpHeaders, 'Mcp-Session-Id': sessionId };
+    const initializedResponse = await fetch(`${diagnostic.resource}/mcp`, {
+      method: 'POST', headers: sessionHeaders,
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+    });
+    if (!initializedResponse.ok) throw new Error(`MCP initialized notification failed (${initializedResponse.status})`);
+    const toolsResponse = await fetch(`${diagnostic.resource}/mcp`, {
+      method: 'POST', headers: sessionHeaders,
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+    });
+    const toolsBody = await toolsResponse.text();
+    if (!toolsResponse.ok || !toolsBody.includes('"tools"')) throw new Error(`MCP tools/list failed (${toolsResponse.status})`);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_PASSED', detail: { clientId: diagnostic.clientId } });
+    return render('OAuth and MCP connection succeeded', 'The live server issued access and refresh tokens, initialized an authenticated MCP session, and returned its tool list.', true);
+  } catch (error) {
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_FAILED', detail: { clientId: diagnostic.clientId, error: error.message } });
+    return render('OAuth diagnostic failed', `The live test reached an error: ${error.message}`);
+  } finally {
+    deleteOAuthClient(diagnostic.clientId).catch(error => logError({ ip: req.clientIP, userId: 'system', tool: 'OAUTH_DIAGNOSTIC_CLEANUP', error }));
+  }
+});
+
 // ── Authelia Health & Control ──────────────────────────────
 
 app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
@@ -773,16 +863,13 @@ app.post('/admin/oauth-restart', authenticateJWT, async (req, res) => {
   }
 });
 
-// MCP Streamable HTTP endpoint. A session is created only by a POST initialize
-// request; subsequent POST/GET requests must present its session id.
+// MCP SSE endpoint. A session is created by a GET request to /mcp;
+// subsequent POST requests to /mcp/message must present the session id.
 app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
-  const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'];
+  const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'] || req.query.sessionId;
   let session = activeTransports.get(sessionId);
 
-  if (!session && req.method === 'POST' && req.path === '/mcp' && !sessionId) {
-    if (!req.body || req.body.method !== 'initialize') {
-      return res.status(400).json({ error: 'A new MCP session must start with an initialize request' });
-    }
+  if (!session && req.method === 'GET' && req.path === '/mcp' && !sessionId) {
     const identity = req.identity;
     const ip = req.clientIP;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
@@ -794,25 +881,25 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
       return res.status(429).json({ error: 'Too many active connections for this user' });
     }
 
-    const newSessionId = randomUUID();
     const mcpServer = await createMcpServer(identity, ip);
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => newSessionId,
-      enableDnsRebindingProtection: true,
-    });
+    const transport = new SSEServerTransport('/mcp/message', res);
+    
     session = { transport, identity, ip, connectedAt: new Date().toISOString(), lastActivity: Date.now(), mcpServer };
-    activeTransports.set(newSessionId, session);
+    activeTransports.set(transport.sessionId, session);
     transport.onclose = () => {
-      activeTransports.delete(newSessionId);
-      monitor.unsubscribeAll(newSessionId);
+      activeTransports.delete(transport.sessionId);
+      monitor.unsubscribeAll(transport.sessionId);
     };
     try {
       await mcpServer.connect(transport);
     } catch (err) {
-      activeTransports.delete(newSessionId);
+      activeTransports.delete(transport.sessionId);
       logError({ ip, userId: identity.userId, tool: 'MCP_CONNECT', error: err });
-      return res.status(500).json({ error: 'Unable to initialize MCP session' });
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'Unable to initialize MCP session' });
+      }
     }
+    return; // SSEServerTransport handles the response stream
   } else if (!session) {
     return res.status(404).json({ error: 'Unknown MCP session' });
   }
@@ -829,7 +916,11 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
   session.lastActivity = Date.now();
 
   try {
-    await session.transport.handleRequest(req, res, req.body);
+    if (req.method === 'POST') {
+      await session.transport.handlePostMessage(req, res);
+    } else {
+      res.status(405).json({ error: 'Method not allowed' });
+    }
   } catch (err) {
     logError({ ip: req.clientIP, userId: req.identity?.userId, tool: 'POST_MESSAGE', error: err });
     if (!res.headersSent) {
