@@ -820,7 +820,26 @@ function createMcpServer(identity, ip) {
 
   // ── Helper: wrap tool calls with audit logging ───────────
   function tool(name, description, schema, handler) {
-    server.tool(name, description, schema, async (args) => {
+    const readOnlyTools = new Set([
+      'get_system_info', 'get_processes', 'read_file', 'list_directory', 'get_file_info', 'search_files',
+      'get_service_status', 'list_services', 'get_journal_logs', 'list_users', 'get_user_info',
+      'list_config_backups', 'list_guided_workflows', 'get_security_posture', 'list_projects',
+      'plan_project_deployment', 'list_automations', 'list_fleet_servers',
+      'list_backup_targets', 'list_webhooks', 'list_active_alerts',
+    ]);
+    const stateChangingTools = new Set([
+      'write_file', 'delete_file', 'move_file', 'copy_file', 'kill_process', 'manage_service',
+      'manage_firewall', 'create_user', 'delete_user', 'set_user_password', 'modify_user', 'manage_ssh_keys',
+      'run_sandboxed_code', 'apply_config', 'restore_config', 'git_operation', 'execute_query',
+      'request_change_approval', 'schedule_health_check', 'deploy_project', 'run_encrypted_backup',
+      'deliver_webhook', 'subscribe_to_alert', 'unsubscribe_from_alert',
+    ]);
+    const annotations = {
+      ...(readOnlyTools.has(name) ? { readOnlyHint: true, idempotentHint: true } : {}),
+      ...(stateChangingTools.has(name) ? { destructiveHint: true } : {}),
+      ...(new Set(['check_fleet_server', 'run_encrypted_backup', 'deliver_webhook', 'deploy_project']).has(name) ? { openWorldHint: true } : {}),
+    };
+    server.tool(name, description, schema, annotations, async (args) => {
       const start = Date.now();
       // Enforce scope authorization
       const scopes = identity.scopes || [];
