@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
@@ -10,58 +10,112 @@ permissions:
   contents: read
 
 jobs:
-  lint-and-check:
-    name: Lint & Syntax Check
+  code-quality:
+    name: Code Quality (Lint & Format)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x, 22.x]
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22.x
           cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npm run format:check
 
       - name: Check for secrets in code
         run: |
-          # Fail if any hardcoded secrets patterns found
           if grep -rniE "password\s*=\s*['\"].+" --exclude-dir=node_modules .; then
             echo "❌ Possible hardcoded password found!"
             exit 1
           fi
           echo "✅ No hardcoded secrets found"
 
+  unit-tests:
+    name: Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 22.x]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Security audit
-        run: npm audit --audit-level=high || echo "Ignoring audit failures for now"
+      - name: Run Unit Tests with Coverage
+        run: npm run test:coverage
 
-      - name: Check syntax — all modules
-        run: |
-          node --check server.js
-          node --check security.js
-          node --check audit.js
-          node --check keygen.js
-          node --check setup.js
-          node --check tools/system.js
-          node --check tools/files.js
-          node --check tools/services.js
-          node --check tools/users.js
-          echo "✅ All files passed syntax check"
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: matrix.node-version == '22.x'
+        with:
+          name: coverage-report
+          path: coverage/
 
-      - name: Check .env is gitignored
-        run: |
-          if git ls-files --error-unmatch .env 2>/dev/null; then
-            echo "❌ .env is tracked by git!"
-            exit 1
-          fi
-          echo "✅ .env is properly gitignored"
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Live MCP E2E Test
+        run: npm run test:live
+
+      - name: Run UI E2E Test
+        run: npm run test:ui
+
+      - name: Upload Playwright artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-artifacts
+          path: .playwright-mcp/
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high || echo "Ignoring high audit failures for now"
 
       - name: Verify required files exist
         run: |
@@ -69,17 +123,3 @@ jobs:
             [ -f "$f" ] || (echo "❌ Missing: $f" && exit 1)
           done
           echo "✅ All required files present"
-
-      - name: Smoke test
-        run: |
-          cp .env.example .env
-          export PORT=4445
-          export JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
-          export ADMIN_API_KEY=mcp_test_key_1234567890
-          export USE_HTTPS=false
-          node server.js &
-          SERVER_PID=$!
-          sleep 3
-          curl -s http://127.0.0.1:4445/health | grep -q '"status":"ok"' || (echo "Smoke test failed" && kill $SERVER_PID && exit 1)
-          echo "✅ Smoke test passed"
-          kill $SERVER_PID

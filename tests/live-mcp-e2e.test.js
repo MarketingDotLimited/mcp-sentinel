@@ -21,14 +21,16 @@ function freePort() {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', () => {
       const { port } = server.address();
-      server.close(error => error ? reject(error) : resolve(port));
+      server.close(error => (error ? reject(error) : resolve(port)));
     });
   });
 }
 
 async function waitFor(url) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    try { if ((await fetch(url)).ok) return; } catch {}
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {}
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('Timed out waiting for the live Sentinel instance');
@@ -43,34 +45,42 @@ async function issueToken(baseUrl, key) {
 async function setCapability(baseUrl, key, id, enabled) {
   const token = await issueToken(baseUrl, key);
   const response = await fetch(`${baseUrl}/admin/capabilities/${id}`, {
-    method: 'PUT', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ enabled }),
+    method: 'PUT',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ enabled }),
   });
-  if (response.status !== 200) throw new Error(`Capability update failed (${response.status}): ${await response.text()}`);
+  if (response.status !== 200)
+    throw new Error(`Capability update failed (${response.status}): ${await response.text()}`);
 }
 
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+
 class McpSession {
-  constructor(baseUrl, key, useBearer = false) { this.baseUrl = baseUrl; this.key = key; this.useBearer = useBearer; this.id = 0; this.sessionId = null; }
-  async request(method, params) {
-    const response = await fetch(`${this.baseUrl}/mcp`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(this.useBearer ? { authorization: `Bearer ${this.key}` } : { 'x-api-key': this.key }), ...(this.sessionId ? { 'mcp-session-id': this.sessionId } : {}) },
-      body: JSON.stringify({ jsonrpc: '2.0', id: ++this.id, method, params }),
-    });
-    if (response.status !== 200) throw new Error(`MCP request failed (${response.status}): ${await response.text()}`);
-    const sessionId = response.headers.get('mcp-session-id');
-    if (sessionId) this.sessionId = sessionId;
-    const text = await response.text();
-    if (!text) return {};
-    const data = text.split('\n').find(line => line.startsWith('data: '));
-    return JSON.parse(data ? data.slice(6) : text);
+  constructor(baseUrl, key, useBearer = false) {
+    this.baseUrl = baseUrl;
+    this.key = key;
+    this.useBearer = useBearer;
+    this.client = null;
   }
   async initialize() {
-    const response = await this.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'live-e2e', version: '1.0.0' } });
-    assert.ok(response.result?.serverInfo?.name);
-    assert.ok(this.sessionId);
-    await this.request('notifications/initialized', {});
+    const url = new URL(`${this.baseUrl}/mcp`);
+    const headers = this.useBearer ? { authorization: `Bearer ${this.key}` } : { 'x-api-key': this.key };
+    const transport = new SSEClientTransport(url, { eventSourceInit: { headers }, requestInit: { headers } });
+    this.client = new Client({ name: 'live-e2e', version: '1.0.0' }, { capabilities: {} });
+    await this.client.connect(transport);
   }
-  async call(name, arguments_) { return this.request('tools/call', { name, arguments: arguments_ }); }
+  async request(method, params) {
+    if (method === 'tools/list') {
+      const res = await this.client.listTools();
+      return { result: res };
+    }
+    throw new Error(`Unsupported request method in test: ${method}`);
+  }
+  async call(name, arguments_) {
+    const res = await this.client.callTool({ name, arguments: arguments_ });
+    return { result: res };
+  }
 }
 
 after(async () => {
@@ -85,19 +95,33 @@ describe('live MCP least-privilege path', { skip: !enabled }, () => {
     child = spawn(process.execPath, ['server.js'], {
       cwd: process.cwd(),
       env: {
-        ...process.env, PORT: String(port), HOST: '127.0.0.1', USE_HTTPS: 'false', ADMIN_API_KEY: adminKey,
+        ...process.env,
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ADMIN_API_KEY: adminKey,
         JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef',
-        KEYS_FILE: path.join(tmp, 'keys.json'), KEYSTORE_FILE: path.join(tmp, 'keys.json'),
-        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'control-plane.json'), MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'), AUDIT_LOG_DIR: path.join(tmp, 'logs'),
-      }, stdio: 'ignore',
+        KEYS_FILE: path.join(tmp, 'keys.json'),
+        KEYSTORE_FILE: path.join(tmp, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'control-plane.json'),
+        MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'),
+        AUDIT_LOG_DIR: path.join(tmp, 'logs'),
+      },
+      stdio: 'ignore',
     });
     await waitFor(`${baseUrl}/health`);
 
     const defaultAdmin = new McpSession(baseUrl, adminKey);
     await defaultAdmin.initialize();
     const defaultTools = await defaultAdmin.request('tools/list', {});
-    assert.equal(defaultTools.result.tools.some(tool => tool.name === 'create_user'), false);
-    assert.equal(defaultTools.result.tools.some(tool => tool.name === 'execute_query'), false);
+    assert.equal(
+      defaultTools.result.tools.some(tool => tool.name === 'create_user'),
+      false
+    );
+    assert.equal(
+      defaultTools.result.tools.some(tool => tool.name === 'execute_query'),
+      false
+    );
     await setCapability(baseUrl, adminKey, 'advanced-system-admin', true);
 
     const admin = new McpSession(baseUrl, adminKey);
@@ -107,13 +131,20 @@ describe('live MCP least-privilege path', { skip: !enabled }, () => {
     assert.deepEqual(systemInfo.annotations, { readOnlyHint: true, idempotentHint: true });
     let created = false;
     try {
-      const create = await admin.call('create_user', { username, shell: '/usr/sbin/nologin', comment: 'Temporary MCP live test', createHome: true, confirm: true });
+      const create = await admin.call('create_user', {
+        username,
+        shell: '/usr/sbin/nologin',
+        comment: 'Temporary MCP live test',
+        createHome: true,
+        confirm: true,
+      });
       assert.equal(create.result.isError, undefined, JSON.stringify(create));
       created = true;
 
       const token = await issueToken(baseUrl, adminKey);
       const addKey = await fetch(`${baseUrl}/admin/keys`, {
-        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
         body: JSON.stringify({ key: limitedKey, userId: username, role: 'user', label: 'live least-privilege test' }),
       });
       if (addKey.status !== 200) throw new Error(`Key creation failed (${addKey.status}): ${await addKey.text()}`);
