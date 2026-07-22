@@ -196,6 +196,16 @@ curl -k https://localhost:4444/health
 - `openssl` (for HTTPS)
 - Root or sudo for full admin tools
 
+## Testing
+
+```bash
+npm test                 # unit and security tests
+npm run test:ui          # Playwright browser flow (uses an isolated local Sentinel)
+npm run test:live        # creates and removes one temporary no-login OS user; run only on a disposable or approved host
+```
+
+The live test verifies a low-privilege MCP identity can read system health but cannot read `/etc/shadow` or create users. Both integration suites use temporary state, keys, logs, and ports.
+
 ---
 
 ## Contributing
