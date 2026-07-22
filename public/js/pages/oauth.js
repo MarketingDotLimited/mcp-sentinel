@@ -334,6 +334,9 @@ window.OAuthPage = (function() {
         saveBtn.className = 'btn btn-primary';
         saveBtn.textContent = 'Save';
         saveBtn.onclick = async () => {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+            
             const data = {
                 username: modal.body.querySelector('#modal-username').value,
                 password: modal.body.querySelector('#modal-password').value,
@@ -362,6 +365,8 @@ window.OAuthPage = (function() {
                 fetchUsers();
             } catch (err) {
                 Toast.error(err.message);
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save';
             }
         };
         

@@ -75,7 +75,7 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "https://fonts.googleapis.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:"],
       connectSrc: ["'self'"],
@@ -86,6 +86,14 @@ app.use(helmet({
 
 // Serve static Web UI files
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Prevent Cloudflare from aggressively caching CORS preflight responses
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  }
+  next();
+});
 
 // CORS - origin policy (this is NOT IP access control)
 app.use(cors({
