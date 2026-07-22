@@ -281,6 +281,14 @@ export function authenticateJWT(req, res, next) {
 
   const token = authHeader.slice(7);
 
+  // Some remote MCP clients (including CLI clients that only expose a bearer
+  // token setting) cannot send arbitrary headers. Treat a Sentinel API key in
+  // that bearer slot exactly like the existing X-API-Key form. This is not a
+  // JWT fallback for arbitrary bearer strings and preserves OIDC processing.
+  if (token.startsWith('mcp_')) {
+    return authenticate(req, res, next);
+  }
+
   // ── Try 1: Internal Sentinel HS256 Token ──────────────
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {

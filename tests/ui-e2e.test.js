@@ -61,6 +61,15 @@ describe('dashboard UX', { skip: !enabled }, () => {
       await page.locator('a[href="#/operations"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Enterprise Operations'));
       assert.match(await page.locator('body').innerText(), /Encrypted backups/);
+
+      await page.locator('a[href="#/connect"]').click();
+      await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Connect your AI'));
+      const connectText = await page.locator('body').innerText();
+      for (const platform of ['ChatGPT (web)', 'Claude (web)', 'Claude Desktop', 'Claude Code CLI', 'Codex CLI', 'Antigravity CLI / IDE', 'Any other MCP-capable tool']) {
+        assert.match(connectText, new RegExp(platform.replace(/[()]/g, '\\$&')));
+      }
+      assert.match(connectText, /What this does — and why it is safer/);
+      assert.match(connectText, /Cloud connector readiness/);
       assert.deepEqual(errors, []);
     } finally {
       await browser.close();
