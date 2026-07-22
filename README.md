@@ -146,32 +146,26 @@ PROJECT_ALLOWED_ROOTS=/srv/my-app,/srv/another-app
 PUBLIC_URL=https://mcp.example.com
 MCP_POLICY_FILE=./policy.json
 
-# Enterprise operations: these are mandatory before configuring each feature.
-# Generate CONTROL_PLANE_ENCRYPTION_KEY with: openssl rand -hex 32
-CONTROL_PLANE_ENCRYPTION_KEY=<64-hex-character-secret>
-MCP_FLEET_ALLOWED_HOSTS=sentinel-1.example.com,sentinel-2.example.com
-BACKUP_ALLOWED_PATHS=/etc/my-app,/srv/my-app/config
-BACKUP_ALLOWED_ROOTS=/var/lib/mcp-sentinel/backups
-S3_ALLOWED_HOSTS=s3.example.com
-WEBHOOK_ALLOWED_HOSTS=hooks.example.com
+# Project health checks are restricted to explicitly registered destinations.
 PROJECT_HEALTH_ALLOWED_HOSTS=app.example.com
 ```
 
 For enterprise policy-as-code, copy [policy.example.json](policy.example.json) outside the repository or to a protected configuration path, set `MCP_POLICY_FILE`, and review changes through your normal configuration-management process. A policy can deny tools for a role or require an approval even when the key would otherwise allow the action.
 
-## Capability packs and legacy compatibility
+## Capability packs
 
 The default experience is deliberately small: **Server Care** for operating a server and **Developer Work** for approved application work. An administrator can enable Advanced System Administration, Advanced Data Access, or Advanced Execution from **Administration → Capability packs**. Disabled packs are neither advertised to new MCP sessions nor executable if an AI client attempts a direct call.
 
-The older fleet, backup-target, webhook, organization, team, and scheduling interfaces are in a soft-sunset window. They remain available for one minor release so existing integrations and state can be migrated, but their REST responses include deprecation headers and they are hidden from normal navigation. Direct deployment is also an Advanced Execution capability; the default is deployment planning only.
+Direct deployment is an Advanced Execution capability; the default is deployment planning only. Organization and team assignments remain part of the authorization model.
 
-## Legacy enterprise operations
+## 2.0 legacy-state migration
 
-MCP Sentinel stores control-plane records in a mode-`0600` SQLite database using WAL, full synchronous transactions, migration versions, and a busy timeout. Secret payloads are encrypted with the systemd `state-key` credential. Do not place state or credentials in source control.
+MCP Sentinel stores control-plane records in a mode-`0600` SQLite database using WAL, full synchronous transactions, migration versions, and a busy timeout. Do not place state or credentials in source control.
 
-- **Fleet:** register each Sentinel health endpoint. Sentinel only performs a timed `GET` to hosts explicitly listed in `MCP_FLEET_ALLOWED_HOSTS`; it does not expose remote shell access through the fleet inventory.
-- **Backups:** backup targets can be a local allow-listed directory or an S3-compatible endpoint. Only allow-listed regular files up to 25 MiB are accepted. Each backup is AES-256-GCM encrypted before it reaches the destination; S3 credentials are encrypted at rest and never returned by the API.
-- **Webhooks:** events are sent only to `WEBHOOK_ALLOWED_HOSTS`, with redirects disabled, a ten-second timeout, and an `X-MCP-Sentinel-Signature-256: sha256=<hmac>` header. Keep the secret only in Sentinel and verify this HMAC on the receiver.
+- The 1.x automation, fleet, backup-target, and webhook interfaces are removed in 2.0.
+- Before starting the 2.0 API or broker against a database that contains those records, stop the 1.x services and run `MCP_LEGACY_EXPORT_OFFLINE=true MCP_LEGACY_EXPORT_DIR=/protected/export node scripts/export-legacy-state.js /protected/export/legacy.json` from the unpacked 2.0 bundle. Keep the same `MCP_LEGACY_EXPORT_DIR` set for the first 2.0 migration start.
+- For JSON control-plane state, also set `MCP_LEGACY_JSON_FILE=/absolute/path/to/control-plane.json`; the exporter writes a protected sidecar verification marker that the dry-run and apply migration both authenticate.
+- The export is redacted, hashed, written with mode `0600`, and recorded in SQLite. The 2.0 migration refuses to drop non-empty legacy tables when that verification marker is absent or does not match.
 - **Deployments:** create a registered project with an allow-listed repository and service. `deploy_project` performs only `git pull --ff-only`, restarts that exact registered systemd service, then checks a health URL whose host is in `PROJECT_HEALTH_ALLOWED_HOSTS`. It requires `confirm: true`, an administrator identity, and key-level approval when approval mode is enabled.
 
 For a nontechnical operator, start with Server Care, Guided Tasks, Approvals, Developer Work, and Connect AI. For AI clients, call `list_guided_workflows` first, use `plan_project_deployment` before deployment, and submit exact risky requests with `request_change_approval`.

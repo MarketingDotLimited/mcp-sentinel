@@ -21,8 +21,10 @@ await fs.writeFile(
   `#!/usr/bin/env node
 const name = process.argv[1].split('/').pop();
 const args = process.argv.slice(2);
-if (name === 'authelia') process.stdout.write('Digest: $argon2id$v=19$m=65536,t=3,p=4$ZmFrZXNhbHQ$ZmFrZWRpZ2VzdA\\n');
-else if (name === 'systemctl' && args[0] === 'is-active') process.stdout.write('active\\n');
+if (process.env.FAKE_AUTHELIA_COMMAND_FAIL === 'true') process.exit(1);
+if (name === 'authelia') process.stdout.write(process.env.FAKE_AUTHELIA_BAD_DIGEST === 'true' ? 'invalid\\n' : 'Digest: $argon2id$v=19$m=65536,t=3,p=4$ZmFrZXNhbHQ$ZmFrZWRpZ2VzdA\\n');
+else if (name === 'systemctl' && process.env.FAKE_SYSTEMCTL_FAIL === 'true') process.exit(1);
+else if (name === 'systemctl' && args[0] === 'is-active') process.stdout.write(process.env.FAKE_SYSTEMCTL_INACTIVE === 'true' ? 'inactive\\n' : 'active\\n');
 else if (name === 'systemctl' && args[0] === 'show') process.stdout.write('ActiveEnterTimestamp=Wed 2026-01-01 00:00:00 UTC\\n');
 `,
   { mode: 0o755 }
@@ -104,5 +106,117 @@ describe('typed Authelia administration state', () => {
     );
     await assert.rejects(authelia.deleteOAuthUser('admin'), /Cannot delete/);
     await assert.rejects(authelia.deleteOAuthClient('chatgpt'), /Cannot delete/);
+  });
+
+  it('validates complete user and client-specific authorization before changing files', async () => {
+    const original = await fs.readFile(usersFile, 'utf8');
+    const base = { username: 'candidate', password: 'a secure password', email: 'candidate@example.test' };
+    const invalid = [
+      [{ ...base, role: 'owner' }, /role/],
+      [{ ...base, scopes: ['valid', 'not allowed!'] }, /scopes/],
+      [{ ...base, projectIds: ['not-a-uuid'] }, /project assignments/],
+      [{ ...base, requireApproval: 'yes' }, /approval setting/],
+      [{ ...base, linuxUser: 'root' }, /Linux user/],
+      [{ ...base, organizationId: 'invalid' }, /organization/],
+      [{ ...base, teamId: 'invalid' }, /team/],
+      [{ ...base, authorizationVersion: 0 }, /authorization version/],
+      [{ ...base, clients: [] }, /client overrides/],
+      [{ ...base, clients: { 'x!': {} } }, /override ID/],
+      [{ ...base, clients: { chatgpt: [] } }, /client override/],
+      [{ ...base, clients: { chatgpt: { unknown: true } } }, /unknown field/],
+      [{ ...base, clients: { chatgpt: { linuxUser: 'root' } } }, /directly to root/],
+      [{ ...base, clients: { chatgpt: { role: 'owner' } } }, /override role/],
+      [{ ...base, clients: { chatgpt: { scopes: 'files.*' } } }, /override scopes/],
+      [{ ...base, clients: { chatgpt: { projectIds: ['invalid'] } } }, /project assignments/],
+      [{ ...base, clients: { chatgpt: { requireApproval: 'yes' } } }, /approval setting/],
+      [{ ...base, clients: { chatgpt: { authorizationVersion: 0 } } }, /authorization version/],
+    ];
+    for (const [input, message] of invalid) await assert.rejects(authelia.addOAuthUser(input), message);
+    assert.equal(await fs.readFile(usersFile, 'utf8'), original);
+  });
+
+  it('rejects malformed user records, missing identities, and hash failures', async () => {
+    await assert.rejects(authelia.addOAuthUser({}), /required/);
+    await assert.rejects(
+      authelia.addOAuthUser({ username: 'bad user', password: 'password', email: 'user@example.test' }),
+      /Username/
+    );
+    await assert.rejects(
+      authelia.addOAuthUser({ username: 'valid', password: 'password', email: 'invalid' }),
+      /valid email/
+    );
+    await assert.rejects(
+      authelia.addOAuthUser({
+        username: 'valid',
+        password: 'password',
+        email: 'valid@example.test',
+        linuxUser: 'definitely-not-a-real-user',
+      }),
+      /does not exist/
+    );
+    process.env.FAKE_AUTHELIA_BAD_DIGEST = 'true';
+    await assert.rejects(
+      authelia.addOAuthUser({ username: 'valid', password: 'password', email: 'valid@example.test' }),
+      /Password hashing failed/
+    );
+    delete process.env.FAKE_AUTHELIA_BAD_DIGEST;
+    await assert.rejects(authelia.updateOAuthUser('missing', {}), /not found/);
+    await assert.rejects(authelia.deleteOAuthUser('missing'), /not found/);
+  });
+
+  it('rolls back an unhealthy user-file change and reports inactive health', async () => {
+    await authelia.addOAuthUser({
+      username: 'rollback-user',
+      password: 'password',
+      email: 'before@example.test',
+      role: 'viewer',
+    });
+    const before = await fs.readFile(usersFile, 'utf8');
+    process.env.FAKE_SYSTEMCTL_INACTIVE = 'true';
+    await assert.rejects(authelia.updateOAuthUser('rollback-user', { email: 'after@example.test' }), /Rolled back/);
+    delete process.env.FAKE_SYSTEMCTL_INACTIVE;
+    assert.equal(await fs.readFile(usersFile, 'utf8'), before);
+    process.env.FAKE_SYSTEMCTL_FAIL = 'true';
+    assert.equal((await authelia.getAutheliaHealth()).status, 'inactive');
+    delete process.env.FAKE_SYSTEMCTL_FAIL;
+    await authelia.deleteOAuthUser('rollback-user');
+  });
+
+  it('validates OAuth client configuration and supports generated localhost clients', async () => {
+    await assert.rejects(authelia.addOAuthClient({ redirectUris: [] }), /redirect URI/);
+    await assert.rejects(
+      authelia.addOAuthClient({ clientId: 'x!', redirectUris: ['https://example.test/callback'] }),
+      /clientId/
+    );
+    for (const redirect of [
+      'https://user:pass@example.test/callback',
+      'https://example.test/callback#fragment',
+      'not a URL',
+    ]) {
+      await assert.rejects(
+        authelia.addOAuthClient({ clientId: 'invalid-client', redirectUris: [redirect] }),
+        /redirectUris/
+      );
+    }
+    const generated = await authelia.addOAuthClient({
+      clientName: '',
+      redirectUris: ['http://localhost/callback', 'http://localhost/callback'],
+    });
+    assert.match(generated.client_id, /^chatgpt-[0-9a-f]{16}$/);
+    assert.equal(generated.redirect_uris.length, 1);
+    await assert.rejects(
+      authelia.addOAuthClient({ clientId: generated.client_id, redirectUris: ['https://example.test/callback'] }),
+      /already exists/
+    );
+    await assert.rejects(authelia.deleteOAuthClient('missing-client'), /not found/);
+    await authelia.deleteOAuthClient(generated.client_id);
+
+    await fs.writeFile(configFile, '{}\n', { mode: 0o600 });
+    await assert.rejects(
+      authelia.addOAuthClient({ clientId: 'missing-section', redirectUris: ['https://example.test/callback'] }),
+      /missing OIDC clients/
+    );
+    await assert.rejects(authelia.deleteOAuthClient('missing-section'), /Invalid Authelia config/);
+    await fs.writeFile(configFile, 'identity_providers:\n  oidc:\n    clients: []\n', { mode: 0o600 });
   });
 });

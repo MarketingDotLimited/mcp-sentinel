@@ -765,8 +765,7 @@ select.input-field {
   animation: slideUp 0.3s ease;
 }
 
-/* Legacy and specialist administration pages remain routable during the
-   compatibility window but are not part of the default navigation. */
+/* Specialist administration links are revealed only for administrators. */
 .admin-nav {
   display: none !important;
 }

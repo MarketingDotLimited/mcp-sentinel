@@ -507,7 +507,10 @@ function projectTestCommand(parameters) {
   if (!recipe.target && target) throw new Error('This recipe does not accept a target');
   if (
     parameters.filter &&
-    (typeof parameters.filter !== 'string' || !parameters.filter.trim() || parameters.filter.length > 256)
+    (typeof parameters.filter !== 'string' ||
+      !parameters.filter.trim() ||
+      parameters.filter.length > 256 ||
+      /[\0\r\n]/.test(parameters.filter))
   )
     throw new Error('Invalid test filter');
   const argv = [...recipe.argv];

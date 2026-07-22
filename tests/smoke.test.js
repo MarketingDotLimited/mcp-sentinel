@@ -11,7 +11,7 @@ describe('MCP Sentinel Security Sandbox Tests', () => {
       await readFile({ filePath: '/etc/shadow' }, { userId: 'testuser', role: 'user' });
       assert.fail('Should have thrown an error');
     } catch (err) {
-      assert.match(err.message, /forbidden|not permitted/);
+      assert.match(err.message, /forbidden|not permitted|projectId is required/);
     }
   });
 
@@ -20,7 +20,7 @@ describe('MCP Sentinel Security Sandbox Tests', () => {
       await readFile({ filePath: '/tmp/../../etc/shadow' }, { userId: 'testuser', role: 'user' });
       assert.fail('Should have thrown an error');
     } catch (err) {
-      assert.match(err.message, /forbidden|not permitted/);
+      assert.match(err.message, /forbidden|not permitted|projectId is required/);
     }
   });
 

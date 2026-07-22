@@ -78,11 +78,8 @@ describe('project file tool broker client', () => {
     );
   });
 
-  it('supports only exact assigned absolute paths during compatibility', async () => {
-    const result = await files.readFile({ filePath: path.join(projectRoot, 'src/a.js') }, identity);
-    assert.match(result.warning, /deprecated/);
-    assert.equal(result.parameters.path, 'src/a.js');
-    await assert.rejects(files.readFile({ filePath: '/etc/shadow' }, identity), /not permitted/);
+  it('requires a project UUID and relative paths', async () => {
+    await assert.rejects(files.readFile({ filePath: path.join(projectRoot, 'src/a.js') }, identity), /projectId/);
     await assert.rejects(files.readFile({ projectId, filePath: '/absolute' }, identity), /must be relative/);
     await assert.rejects(files.readFile({ projectId, filePath: 'a', encoding: 'base64' }, identity), /Only utf8/);
   });

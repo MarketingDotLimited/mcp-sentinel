@@ -43,16 +43,7 @@ function rotate(value) {
 }
 
 const database = new DatabaseSync(databaseFile);
-const tables = [
-  'approvals',
-  'projects',
-  'automations',
-  'organizations',
-  'teams',
-  'fleet',
-  'backup_targets',
-  'webhooks',
-];
+const tables = ['approvals', 'projects', 'organizations', 'teams'];
 database.exec('BEGIN IMMEDIATE');
 try {
   let records = 0;

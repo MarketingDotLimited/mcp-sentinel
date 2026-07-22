@@ -1,6 +1,6 @@
 {
   "admin": {
-    "linuxUser": "root",
+    "linuxUser": "mcp-sentinel-admin",
     "role": "admin",
     "requireApproval": false,
     "authorizationVersion": 1,

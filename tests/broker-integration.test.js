@@ -251,6 +251,131 @@ describe('broker operational integration', () => {
     }
   });
 
+  it('rejects malformed typed operations across every privileged boundary', async () => {
+    await assert.rejects(
+      handleRequest({ requestId: 'invalid', operation: 'broker.health', parameters: {} }),
+      /Invalid request ID/
+    );
+    await assert.rejects(
+      handleRequest({
+        requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        operation: 'broker.health',
+        parameters: null,
+      }),
+      /parameters must be an object/
+    );
+    await assert.rejects(
+      handleRequest({
+        requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        operation: 'broker.health',
+        parameters: { extra: true },
+      }),
+      /unknown field/
+    );
+
+    const denials = [
+      ['service.status', { service: 42 }, /Invalid service/],
+      ['service.status', { service: 'bad..service' }, /Invalid service/],
+      ['service.list', { state: 'BAD!' }, /Invalid service state/],
+      ['journal.read', { since: 'yesterday; reboot' }, /Invalid journal time/],
+      ['process.signal', { pid: 1, signal: 'TERM' }, /Invalid process ID/],
+      ['process.signal', { pid: 99999999, signal: 'INVALID' }, /Invalid process signal/],
+      ['process.signal', { pid: 99999999, signal: 'TERM', owner: 'bad user' }, /Invalid process owner/],
+      ['project.file.read', { projectId: 'invalid', path: 'source.txt' }, /Invalid project ID/],
+      [
+        'project.file.read',
+        { projectId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', path: 'source.txt' },
+        /not registered/,
+      ],
+      ['project.file.read', { projectId, path: projectRoot }, /relative/],
+      ['project.file.read', { projectId, path: 'directory' }, /regular file/],
+      ['project.file.write', { projectId, path: 'bad.txt', content: 7 }, /content must be a string/],
+      ['project.file.write', { projectId, path: 'bad.txt', content: 'x', mode: 'merge' }, /write mode/],
+      ['project.file.list', { projectId, path: 'source.txt' }, /must be a directory/],
+      ['project.file.search', { projectId, path: 'source.txt', pattern: '*' }, /must be a directory/],
+      ['project.file.search', { projectId, path: '.', pattern: '*', fileType: 'link' }, /search file type/],
+      ['project.file.copy', { projectId, source: 'directory', destination: 'dir-copy' }, /regular project files/],
+      ['project.file.move', { projectId, source: 'directory', destination: 'dir-move' }, /regular project files/],
+      ['project.file.copy', { projectId, source: 'source.txt', destination: 'target.test' }, /already exists/],
+      ['project.file.move', { projectId, source: 'source.txt', destination: 'target.test' }, /already exists/],
+      ['config.apply', { configId: 'INVALID!', content: '{}' }, /Invalid configuration ID/],
+      ['config.restore', { configId: 'application', timestamp: 'bad' }, /Invalid configuration backup timestamp/],
+      ['project.test', { runId: 'bad', projectId, runner: 'npm', target: 'target.test' }, /Invalid run ID/],
+      [
+        'project.test',
+        { runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', projectId, runner: 'unknown', target: 'target.test' },
+        /recipe is not registered/,
+      ],
+      [
+        'project.test',
+        { runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', projectId, runner: 'npm', target: projectRoot },
+        /relative project path/,
+      ],
+      [
+        'project.test',
+        {
+          runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          projectId,
+          runner: 'composer-validate',
+          target: 'target.test',
+        },
+        /does not accept a target/,
+      ],
+      [
+        'project.test',
+        { runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', projectId, runner: 'npm', target: 'target.test', filter: 'x' },
+        /does not accept a filter/,
+      ],
+      [
+        'project.test',
+        {
+          runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          projectId,
+          runner: 'python',
+          target: 'target.test',
+          filter: ' ',
+        },
+        /Invalid test filter/,
+      ],
+      [
+        'project.test',
+        {
+          runId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          projectId,
+          runner: 'python',
+          target: 'target.test',
+          filter: 'safe\nunsafe',
+        },
+        /Invalid test filter/,
+      ],
+      ['project.git', { projectId, action: 'log', args: { n: 101 } }, /Git log count/],
+      ['project.git', { projectId, action: 'add', args: { files: [] } }, /requires 1-100/],
+      ['project.git', { projectId, action: 'add', args: { files: ['-all'] } }, /non-option relative/],
+      ['project.git', { projectId, action: 'add', args: { files: ['../outside'] } }, /escapes repository/],
+      ['project.git', { projectId, action: 'checkout', args: {} }, /exactly one/],
+      ['project.git', { projectId, action: 'checkout', args: { branch: 'main', file: 'source.txt' } }, /exactly one/],
+      ['project.git', { projectId, action: 'checkout', args: { branch: 'bad..ref' } }, /Invalid Git ref/],
+      ['project.git', { projectId, action: 'commit', args: { message: 'bad\nmessage' } }, /Commit message/],
+      ['project.git', { projectId, action: 'merge', args: {} }, /not registered/],
+      ['user.info', { username: 'root' }, /Invalid managed username/],
+      ['user.info', { username: 'not-managed' }, /not registered/],
+      ['user.create', { username: 'not-managed' }, /not registered/],
+      ['user.delete', { username: runAsUser, removeHome: true }, /offline recovery/],
+      ['user.password', { username: runAsUser, password: 'short' }, /Password does not satisfy/],
+      ['user.modify', { username: runAsUser, lockAccount: true, unlockAccount: true }, /Cannot lock and unlock/],
+      ['user.modify', { username: runAsUser, addGroups: ['unregistered'] }, /Every group/],
+      ['user.modify', { username: runAsUser, shell: '/bin/false' }, /shell is not registered/],
+      ['user.modify', { username: runAsUser, expireDate: 'tomorrow' }, /Invalid account expiry/],
+      ['user.ssh', { username: runAsUser, action: 'replace' }, /Invalid SSH key action/],
+      ['project.cancel', { runId: 'bad' }, /Invalid run ID/],
+    ];
+    for (const [operation, parameters, message] of denials) await assert.rejects(call(operation, parameters), message);
+
+    const allEntries = await call('project.file.list', { projectId, path: '.', showHidden: true });
+    assert.ok(allEntries.entries.some(entry => entry.name === '.env.testing'));
+    assert.equal((await call('project.file.info', { projectId, path: 'directory' })).type, 'directory');
+  });
+
   it('serves newline-delimited typed requests on the protected Unix socket', async () => {
     const brokerServer = startBroker();
     await new Promise(resolve => (brokerServer.listening ? resolve() : brokerServer.once('listening', resolve)));

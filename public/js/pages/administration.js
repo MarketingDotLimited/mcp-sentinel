@@ -4,6 +4,11 @@ import { Router } from '../router.js';
 (function () {
   let root;
   const links = [
+    [
+      'ChatGPT action manifest',
+      '#/action-manifest',
+      'Compare live tool schemas and record the connector refresh gate.',
+    ],
     ['Security checks', '#/security', 'Review explicit security controls and warnings.'],
     ['Audit logs', '#/logs', 'Review AI actions and denials.'],
     ['API keys', '#/keys', 'Issue narrowly scoped keys and require approvals.'],
