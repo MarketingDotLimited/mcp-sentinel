@@ -14,7 +14,7 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = (q) => new Promise(resolve => rl.question(q, resolve));
+const ask = q => new Promise(resolve => rl.question(q, resolve));
 
 async function main() {
   console.log(`
@@ -28,7 +28,7 @@ async function main() {
   const adminKey = `mcp_${randomBytes(32).toString('hex')}`;
 
   // 2. Ask configuration
-  let portStr = await ask('Port [4444]: ') || '4444';
+  let portStr = (await ask('Port [4444]: ')) || '4444';
   const port = parseInt(portStr, 10);
   if (isNaN(port) || port < 1 || port > 65535) {
     console.error('Invalid port. Must be an integer between 1 and 65535.');
@@ -45,17 +45,25 @@ async function main() {
     console.error('Invalid characters in Allowed Origins');
     process.exit(1);
   }
-  const serverIp = await ask('Server IP or Hostname [127.0.0.1]: ') || '127.0.0.1';
+  const serverIp = (await ask('Server IP or Hostname [127.0.0.1]: ')) || '127.0.0.1';
 
   let acmeDomain = '';
   let acmeEmail = '';
   let acmePort = '80';
   if (useHttps) {
-    const useAcme = (await ask('Configure Let\'s Encrypt auto-TLS? (requires domain pointing to this server and port 80 open) [y/N]: ')).toLowerCase() === 'y';
+    const useAcme =
+      (
+        await ask(
+          "Configure Let's Encrypt auto-TLS? (requires domain pointing to this server and port 80 open) [y/N]: "
+        )
+      ).toLowerCase() === 'y';
     if (useAcme) {
       acmeDomain = await ask('  Domain name (e.g. mcp.example.com): ');
       acmeEmail = await ask('  Email address (for expiry notices): ');
-      acmePort = await ask('  Challenge server port (must be accessible externally on port 80 via port-forwarding or directly) [80]: ') || '80';
+      acmePort =
+        (await ask(
+          '  Challenge server port (must be accessible externally on port 80 via port-forwarding or directly) [80]: '
+        )) || '80';
     }
   }
 
@@ -65,32 +73,44 @@ async function main() {
     try {
       await fs.mkdir(path.join(__dirname, 'certs'), { recursive: true });
       await execFileAsync('openssl', [
-        'req', '-x509', '-nodes', '-days', '365',
-        '-newkey', 'rsa:4096',
-        '-keyout', path.join(__dirname, 'certs', 'server.key'),
-        '-out', path.join(__dirname, 'certs', 'server.crt'),
-        '-subj', '/CN=mcp-server/O=MCP/C=US',
-        '-addext', `subjectAltName=IP:${serverIp},DNS:${serverIp},IP:127.0.0.1,DNS:localhost`,
+        'req',
+        '-x509',
+        '-nodes',
+        '-days',
+        '365',
+        '-newkey',
+        'rsa:4096',
+        '-keyout',
+        path.join(__dirname, 'certs', 'server.key'),
+        '-out',
+        path.join(__dirname, 'certs', 'server.crt'),
+        '-subj',
+        '/CN=mcp-server/O=MCP/C=US',
+        '-addext',
+        `subjectAltName=IP:${serverIp},DNS:${serverIp},IP:127.0.0.1,DNS:localhost`,
       ]);
       console.log('✅ Certificate generated: ./certs/server.crt');
-      console.log('   For production, replace with a Let\'s Encrypt certificate!');
+      console.log("   For production, replace with a Let's Encrypt certificate!");
     } catch (err) {
       console.error('⚠️  openssl not found. Install openssl or set USE_HTTPS=false');
       process.exit(1);
     }
   } else if (useHttps && acmeDomain) {
-    console.log('\n📜 Let\'s Encrypt auto-TLS will provision certificates on first run.');
+    console.log("\n📜 Let's Encrypt auto-TLS will provision certificates on first run.");
   }
 
   // 4. Check if .env exists
   try {
     await fs.access(path.join(__dirname, '.env'));
-    const overwrite = (await ask('\n⚠️  .env already exists. Overwrite and generate new secrets? [y/N]: ')).toLowerCase() === 'y';
+    const overwrite =
+      (await ask('\n⚠️  .env already exists. Overwrite and generate new secrets? [y/N]: ')).toLowerCase() === 'y';
     if (!overwrite) {
       console.log('Setup aborted. Existing .env preserved.');
       process.exit(0);
     }
-  } catch (err) { /* .env doesn't exist, proceed */ }
+  } catch (err) {
+    /* .env doesn't exist, proceed */
+  }
 
   // 5. Write .env
   const envContent = `# MCP Server Control - Auto-generated configuration
@@ -123,6 +143,14 @@ AUDIT_LOG_DIR=./logs
 AUDIT_LOG_KEEP_DAYS=30
 
 MAX_OUTPUT_SIZE=1048576
+
+# Optional OAuth/OIDC bearer-token support for cloud MCP connectors.
+# Set these to your public Authelia issuer and JWKS endpoint before enabling
+# a ChatGPT or other cloud OAuth connector.
+PUBLIC_URL=
+OAUTH_RESOURCE_URL=
+AUTHELIA_ISSUER=
+AUTHELIA_JWKS_URL=
 `;
 
   await fs.writeFile(path.join(__dirname, '.env'), envContent, { mode: 0o600 });
@@ -158,6 +186,10 @@ CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETGID 
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 MemoryMax=1G
 TasksMax=256
+
+# Sentinel updates its own state and the Authelia user/configuration files.
+# Keep ProtectSystem=strict while granting only these required paths.
+ReadWritePaths=${__dirname} /etc/authelia
 
 [Install]
 WantedBy=multi-user.target

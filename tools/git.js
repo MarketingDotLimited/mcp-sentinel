@@ -1,8 +1,11 @@
 import { secureExec } from '../lib/exec.js';
 
 export async function gitOperation({ repoPath, action, args }, identity) {
-  const allowedRepos = (process.env.GIT_ALLOWED_REPOS || '').split(',').map(s => s.trim()).filter(Boolean);
-  
+  const allowedRepos = (process.env.GIT_ALLOWED_REPOS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
   if (!allowedRepos.includes(repoPath)) {
     throw new Error(`Repository path '${repoPath}' is not in the allowed list (GIT_ALLOWED_REPOS)`);
   }
@@ -49,8 +52,9 @@ export async function gitOperation({ repoPath, action, args }, identity) {
     };
   }
 
-  const { stdout, stderr } = await secureExec(['git', ...cmdArgs], identity, execOpts)
-    .catch(err => { throw new Error(`Git error: ${err.stderr || err.message}`); });
+  const { stdout, stderr } = await secureExec(['git', ...cmdArgs], identity, execOpts).catch(err => {
+    throw new Error(`Git error: ${err.stderr || err.message}`);
+  });
 
   return { action, repoPath, output: stdout.trim() || stderr.trim() || 'Success' };
 }

@@ -4,7 +4,15 @@ import { isIP } from 'net';
 import ipaddr from 'ipaddr.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { loadKeystore, addKeyEntry, revokeKeyEntry, revokeKeyEntryById, getKeyEntry, getKeys, getKeyById } from './keystore.js';
+import {
+  loadKeystore,
+  addKeyEntry,
+  revokeKeyEntry,
+  revokeKeyEntryById,
+  getKeyEntry,
+  getKeys,
+  getKeyById,
+} from './keystore.js';
 import { randomUUID } from 'crypto';
 
 const execFileAsync = promisify(execFile);
@@ -31,32 +39,88 @@ const JWT_DENYLIST = new Set();
 
 export const ROLE_TEMPLATES = {
   viewer: {
-    label: 'Viewer', description: 'Read server health and approved project information without making changes.',
-    scopes: ['get_system_info', 'get_processes', 'get_service_status', 'list_services', 'get_journal_logs', 'list_directory', 'read_file', 'get_file_info', 'search_files', 'list_guided_workflows', 'list_projects', 'plan_project_deployment', 'list_automations', 'security.*'],
+    label: 'Viewer',
+    description: 'Read server health and approved project information without making changes.',
+    scopes: [
+      'get_system_info',
+      'get_processes',
+      'get_service_status',
+      'list_services',
+      'get_journal_logs',
+      'list_directory',
+      'read_file',
+      'get_file_info',
+      'search_files',
+      'list_guided_workflows',
+      'list_projects',
+      'plan_project_deployment',
+      'list_automations',
+      'security.*',
+    ],
     requireApproval: true,
   },
   auditor: {
-    label: 'Auditor', description: 'Read-only access for security, operations, and compliance review.',
-    scopes: ['get_system_info', 'get_processes', 'get_service_status', 'list_services', 'get_journal_logs', 'list_directory', 'read_file', 'get_file_info', 'search_files', 'list_guided_workflows', 'list_projects', 'plan_project_deployment', 'list_automations'],
+    label: 'Auditor',
+    description: 'Read-only access for security, operations, and compliance review.',
+    scopes: [
+      'get_system_info',
+      'get_processes',
+      'get_service_status',
+      'list_services',
+      'get_journal_logs',
+      'list_directory',
+      'read_file',
+      'get_file_info',
+      'search_files',
+      'list_guided_workflows',
+      'list_projects',
+      'plan_project_deployment',
+      'list_automations',
+    ],
     requireApproval: true,
   },
   developer: {
-    label: 'Developer', description: 'Build, test, inspect repositories, and propose deployments. Risky actions require approval.',
+    label: 'Developer',
+    description: 'Build, test, inspect repositories, and propose deployments. Risky actions require approval.',
     scopes: ['system.*', 'files.*', 'docker.*', 'git.*', 'db.*', 'projects.*', 'workflows.*', 'monitor.*'],
     requireApproval: true,
   },
   operator: {
-    label: 'Operator', description: 'Operate approved services and configurations with human approval for changes.',
-    scopes: ['system.*', 'services.*', 'files.*', 'config.*', 'monitor.*', 'automations.*', 'workflows.*', 'projects.*'],
+    label: 'Operator',
+    description: 'Operate approved services and configurations with human approval for changes.',
+    scopes: [
+      'system.*',
+      'services.*',
+      'files.*',
+      'config.*',
+      'monitor.*',
+      'automations.*',
+      'workflows.*',
+      'projects.*',
+    ],
     requireApproval: true,
   },
   user: {
-    label: 'User', description: 'Read server information and files within the user’s normal sandbox. Select custom scopes to grant more.',
-    scopes: ['get_system_info', 'get_processes', 'list_directory', 'read_file', 'get_file_info', 'search_files', 'list_guided_workflows', 'list_projects', 'plan_project_deployment', 'list_automations'],
+    label: 'User',
+    description:
+      'Read server information and files within the user’s normal sandbox. Select custom scopes to grant more.',
+    scopes: [
+      'get_system_info',
+      'get_processes',
+      'list_directory',
+      'read_file',
+      'get_file_info',
+      'search_files',
+      'list_guided_workflows',
+      'list_projects',
+      'plan_project_deployment',
+      'list_automations',
+    ],
     requireApproval: true,
   },
   admin: {
-    label: 'Administrator', description: 'Full server control. Use only for trusted owners and emergency operations.',
+    label: 'Administrator',
+    description: 'Full server control. Use only for trusted owners and emergency operations.',
     scopes: ['*'],
     requireApproval: false,
   },
@@ -70,17 +134,17 @@ export const ROLE_TEMPLATES = {
 function ipInCidr(ip, cidr) {
   try {
     const parsedIP = ipaddr.process(ip);
-    
+
     if (!cidr.includes('/')) {
       return parsedIP.toString() === ipaddr.process(cidr).toString();
     }
-    
+
     const [rangeIpStr, bitsStr] = cidr.split('/');
     const rangeIp = ipaddr.process(rangeIpStr);
     const bits = parseInt(bitsStr, 10);
-    
+
     if (parsedIP.kind() !== rangeIp.kind()) return false;
-    
+
     return parsedIP.match(rangeIp, bits);
   } catch (err) {
     return false; // invalid IP or CIDR
@@ -90,10 +154,16 @@ function ipInCidr(ip, cidr) {
 function getClientIP(req) {
   const directIp = (req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
   if (process.env.TRUST_PROXY === 'true' && req.headers['x-forwarded-for']) {
-    const trustedProxies = (process.env.TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean);
+    const trustedProxies = (process.env.TRUSTED_PROXIES || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
     const isTrusted = trustedProxies.length > 0 && trustedProxies.some(p => ipInCidr(directIp, p));
     if (isTrusted) {
-      return req.headers['x-forwarded-for'].split(',')[0].trim().replace(/^::ffff:/, '');
+      return req.headers['x-forwarded-for']
+        .split(',')[0]
+        .trim()
+        .replace(/^::ffff:/, '');
     }
   }
   return directIp;
@@ -134,13 +204,11 @@ export function authenticate(req, res, next) {
   const ip = req.clientIP || getClientIP(req);
 
   // 1. Check API Key header
-  const apiKey =
-    req.headers['x-api-key'] ||
-    req.headers['authorization']?.replace(/^Bearer\s+/i, '');
+  const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace(/^Bearer\s+/i, '');
 
   if (!apiKey) {
     logAuth({ ip, event: 'AUTH_MISSING_KEY', reason: 'No API key provided' });
-    return res.status(401).json({ error: 'Missing API key' });
+    return sendUnauthorized(req, res, 'Missing API key');
   }
 
   const keyEntry = getKeyEntry(apiKey);
@@ -174,6 +242,21 @@ export function authenticate(req, res, next) {
 
   logAuth({ ip, apiKey, userId: keyEntry.userId, event: 'AUTH_SUCCESS' });
   next();
+}
+
+// Remote MCP clients learn the OAuth authorization server from the challenge
+// returned by the protected resource. Without this header ChatGPT can reach
+// /mcp but cannot populate its OAuth endpoint fields during connector setup.
+function sendUnauthorized(req, res, error) {
+  if (req.path === '/mcp' || req.path === '/mcp/message') {
+    const publicUrl = (
+      process.env.OAUTH_RESOURCE_URL ||
+      process.env.PUBLIC_URL ||
+      `${req.protocol}://${req.get('host')}`
+    ).replace(/\/$/, '');
+    res.set('WWW-Authenticate', `Bearer resource_metadata="${publicUrl}/.well-known/oauth-protected-resource"`);
+  }
+  return res.status(401).json({ error });
 }
 
 // ── JWT Token Endpoints ────────────────────────────────────
@@ -244,7 +327,7 @@ const MAPPINGS_FILE = process.env.AUTHELIA_MAPPINGS_FILE || '/etc/authelia/user-
 
 async function getAutheliaJWKS(forceRefresh = false) {
   if (!AUTHELIA_JWKS_URL) return null;
-  if (_jwksCache && !forceRefresh && (Date.now() - _jwksCacheTime < JWKS_CACHE_TTL)) {
+  if (_jwksCache && !forceRefresh && Date.now() - _jwksCacheTime < JWKS_CACHE_TTL) {
     return _jwksCache;
   }
   try {
@@ -299,13 +382,13 @@ export function authenticateJWT(req, res, next) {
 
     if (JWT_DENYLIST.has(decoded.jti)) {
       logSecurityEvent({ ip, event: 'TOKEN_DENYLISTED', detail: { jti: decoded.jti } });
-      return res.status(401).json({ error: 'Token revoked' });
+      return sendUnauthorized(req, res, 'Token revoked');
     }
 
     const keyEntry = getKeyById(decoded.keyId);
     if (!keyEntry || !keyEntry.active || keyEntry.version !== decoded.keyVersion) {
       logSecurityEvent({ ip, event: 'TOKEN_KEY_REVOKED', detail: { keyId: decoded.keyId } });
-      return res.status(401).json({ error: 'Token invalidated (key revoked or changed)' });
+      return sendUnauthorized(req, res, 'Token invalidated (key revoked or changed)');
     }
 
     // Enforce IP binding (soft check due to Cloudflare rotating proxy IPs)
@@ -335,7 +418,7 @@ export function authenticateJWT(req, res, next) {
   // ── Try 2: Authelia RS256 OIDC Token ──────────────────
   if (!AUTHELIA_ISSUER || !AUTHELIA_JWKS_URL) {
     logSecurityEvent({ ip, event: 'INVALID_BEARER_TOKEN', detail: {} });
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return sendUnauthorized(req, res, 'Invalid or expired token');
   }
   (async () => {
     try {
@@ -343,7 +426,7 @@ export function authenticateJWT(req, res, next) {
       const jwks = await getAutheliaJWKS();
       if (!jwks) {
         logSecurityEvent({ ip, event: 'OAUTH_JWKS_UNAVAILABLE', detail: {} });
-        return res.status(401).json({ error: 'OAuth verification unavailable' });
+        return sendUnauthorized(req, res, 'OAuth verification unavailable');
       }
 
       let result;
@@ -365,7 +448,7 @@ export function authenticateJWT(req, res, next) {
       }
 
       const payload = result.payload;
-      
+
       // Basic audience check: ensure the token is meant for an OIDC client
       if (!payload.aud && !payload.client_id) {
         throw new Error('Missing audience or client_id claim');
@@ -379,14 +462,34 @@ export function authenticateJWT(req, res, next) {
         throw new Error('Invalid token type: id_token cannot be used as an access token');
       }
 
-      const oauthUsername = payload.preferred_username || payload.email || payload.sub || '';
+      // Authelia access tokens use an opaque stable subject and do not always
+      // embed profile claims. Resolve the username from the OIDC userinfo
+      // endpoint when necessary, and bind the response to the token subject.
+      let oauthUsername = payload.preferred_username || payload.email || '';
+      if (!oauthUsername) {
+        const userinfoResponse = await fetch(`${AUTHELIA_ISSUER.replace(/\/$/, '')}/api/oidc/userinfo`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!userinfoResponse.ok) throw new Error(`OIDC userinfo request failed (${userinfoResponse.status})`);
+        const userinfo = await userinfoResponse.json();
+        if (!userinfo.sub || userinfo.sub !== payload.sub) throw new Error('OIDC userinfo subject mismatch');
+        oauthUsername = userinfo.preferred_username || userinfo.email || '';
+      }
+      if (!oauthUsername) throw new Error('OAuth token does not identify a mapped username');
 
       // Look up user mapping
       const mappings = await loadUserMappings();
-      
+
       // Extract client_id from token (aud could be an array or string, or client_id could be present)
-      const clientId = payload.client_id || (Array.isArray(payload.aud) ? payload.aud[0] : payload.aud);
-      
+      const configuredResource = (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, '');
+      const tokenAudiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
+      const clientId =
+        payload.client_id ||
+        payload.azp ||
+        tokenAudiences.find(audience => audience !== configuredResource) ||
+        tokenAudiences[0];
+
       const userMapping = mappings[oauthUsername];
       if (!userMapping) {
         throw new Error(`No mapping found for OAuth user: ${oauthUsername}`);
@@ -418,7 +521,7 @@ export function authenticateJWT(req, res, next) {
       return next();
     } catch (oauthErr) {
       logSecurityEvent({ ip, event: 'OAUTH_TOKEN_REJECTED', detail: { error: oauthErr.message } });
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      return sendUnauthorized(req, res, 'Invalid or expired token');
     }
   })();
 }
@@ -443,8 +546,9 @@ export function requireScope(toolName) {
 // ── API Key Management ─────────────────────────────────────
 
 export async function addApiKey(key, options) {
-  if (!key || key.length < 32) throw new Error("Key must be at least 32 characters");
-  if (!['admin', 'developer', 'operator', 'viewer', 'auditor', 'user'].includes(options.role)) throw new Error("Invalid role");
+  if (!key || key.length < 32) throw new Error('Key must be at least 32 characters');
+  if (!['admin', 'developer', 'operator', 'viewer', 'auditor', 'user'].includes(options.role))
+    throw new Error('Invalid role');
   const template = ROLE_TEMPLATES[options.role];
 
   if (options.userId !== 'admin') {
@@ -461,7 +565,8 @@ export async function addApiKey(key, options) {
     allowedIPs: options.allowedIPs || [],
     scopes: Array.isArray(options.scopes) && options.scopes.length ? options.scopes : template.scopes,
     label: options.label || '',
-    requireApproval: options.requireApproval === undefined ? template.requireApproval : options.requireApproval === true,
+    requireApproval:
+      options.requireApproval === undefined ? template.requireApproval : options.requireApproval === true,
     projectIds: Array.isArray(options.projectIds) ? options.projectIds : undefined,
     organizationId: options.organizationId || undefined,
     teamId: options.teamId || undefined,
@@ -497,9 +602,26 @@ export { getClientIP };
 export function scopeAllows(scopes, toolName) {
   const groups = {
     'system.*': ['get_system_info', 'get_processes', 'kill_process'],
-    'files.*': ['read_file', 'write_file', 'delete_file', 'list_directory', 'move_file', 'copy_file', 'get_file_info', 'search_files'],
+    'files.*': [
+      'read_file',
+      'write_file',
+      'delete_file',
+      'list_directory',
+      'move_file',
+      'copy_file',
+      'get_file_info',
+      'search_files',
+    ],
     'services.*': ['manage_service', 'get_service_status', 'list_services', 'get_journal_logs', 'manage_firewall'],
-    'users.*': ['list_users', 'get_user_info', 'create_user', 'delete_user', 'set_user_password', 'modify_user', 'manage_ssh_keys'],
+    'users.*': [
+      'list_users',
+      'get_user_info',
+      'create_user',
+      'delete_user',
+      'set_user_password',
+      'modify_user',
+      'manage_ssh_keys',
+    ],
     'docker.*': ['run_sandboxed_code'],
     'git.*': ['git_operation'],
     'db.*': ['execute_query'],
@@ -513,5 +635,9 @@ export function scopeAllows(scopes, toolName) {
     'backups.*': ['list_backup_targets', 'run_encrypted_backup'],
     'webhooks.*': ['list_webhooks', 'deliver_webhook'],
   };
-  return scopes.includes('*') || scopes.includes(toolName) || Object.entries(groups).some(([scope, tools]) => scopes.includes(scope) && tools.includes(toolName));
+  return (
+    scopes.includes('*') ||
+    scopes.includes(toolName) ||
+    Object.entries(groups).some(([scope, tools]) => scopes.includes(scope) && tools.includes(toolName))
+  );
 }

@@ -16,7 +16,7 @@ if (!fs.existsSync(LOG_DIR)) {
 
 let lastHash = crypto.createHash('sha256').update('init').digest('hex');
 let seqNo = 0;
-const tamperFormat = winston.format((info) => {
+const tamperFormat = winston.format(info => {
   seqNo++;
   info.seqNo = seqNo;
   const data = JSON.stringify(info) + lastHash;
@@ -144,16 +144,33 @@ function maskKey(key) {
 
 export function sanitizeArgs(args) {
   if (!args) return {};
-  
+
   function deepSanitize(obj) {
     if (typeof obj !== 'object' || obj === null) return obj;
     if (Array.isArray(obj)) return obj.map(deepSanitize);
-    
+
     const safe = { ...obj };
-    const sensitiveKeys = ['password', 'publickey', 'apikey', 'key', 'secret', 'token', 'authorization', 'content', 'newcontent', 'code', 'connectionstring'];
+    const sensitiveKeys = [
+      'password',
+      'publickey',
+      'apikey',
+      'key',
+      'secret',
+      'token',
+      'authorization',
+      'content',
+      'newcontent',
+      'code',
+      'connectionstring',
+    ];
     for (const k of Object.keys(safe)) {
       const normalizedKey = k.toLowerCase();
-      if (sensitiveKeys.includes(normalizedKey) || normalizedKey.includes('password') || normalizedKey.includes('secret') || normalizedKey.includes('token')) {
+      if (
+        sensitiveKeys.includes(normalizedKey) ||
+        normalizedKey.includes('password') ||
+        normalizedKey.includes('secret') ||
+        normalizedKey.includes('token')
+      ) {
         safe[k] = '[REDACTED]';
       } else if (typeof safe[k] === 'object') {
         safe[k] = deepSanitize(safe[k]);
@@ -166,9 +183,9 @@ export function sanitizeArgs(args) {
     }
     return safe;
   }
-  
+
   const safe = deepSanitize(args);
-  
+
   // Truncate large content
   if (safe.content && safe.content.length > 200) safe.content = safe.content.slice(0, 100) + '...[TRUNCATED]';
   if (safe.command && safe.command.length > 500) safe.command = safe.command.slice(0, 500) + '...[TRUNCATED]';

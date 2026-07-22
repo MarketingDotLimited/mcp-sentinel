@@ -1,0 +1,4 @@
+- main [ref=f7e2]:
+    - heading "OAuth diagnostic failed" [level=1] [ref=f7e3]
+    - paragraph [ref=f7e4]: 'The live test reached an error: MCP initialize failed (401)'
+    - paragraph [ref=f7e5]: You may close this window.

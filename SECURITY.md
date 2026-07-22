@@ -2,9 +2,9 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---|---|
-| 1.x (latest) | ✅ Yes |
+| Version      | Supported |
+| ------------ | --------- |
+| 1.x (latest) | ✅ Yes    |
 
 ---
 
@@ -16,7 +16,7 @@ If you discover a security vulnerability in MCP Sentinel, please report it respo
 
 ### How to Report
 
-1. **GitHub Private Advisory** *(preferred)*:  
+1. **GitHub Private Advisory** _(preferred)_:  
    Go to [Security → Report a vulnerability](https://github.com/MarketingDotLimited/mcp-sentinel/security/advisories/new)
 
 2. **Email**:  
@@ -36,13 +36,13 @@ Please include as much of the following as possible:
 
 ## Response Timeline
 
-| Action | Timeline |
-|---|---|
-| Acknowledgement of report | Within **48 hours** |
-| Initial assessment | Within **5 business days** |
-| Patch released (critical) | Within **7 days** |
-| Patch released (moderate) | Within **30 days** |
-| Public disclosure | After patch is released |
+| Action                    | Timeline                   |
+| ------------------------- | -------------------------- |
+| Acknowledgement of report | Within **48 hours**        |
+| Initial assessment        | Within **5 business days** |
+| Patch released (critical) | Within **7 days**          |
+| Patch released (moderate) | Within **30 days**         |
+| Public disclosure         | After patch is released    |
 
 We follow **responsible disclosure** — we will credit reporters in the release notes unless you prefer to remain anonymous.
 

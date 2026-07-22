@@ -4,7 +4,7 @@
 // ============================================================
 import { randomBytes } from 'crypto';
 
-const [,, userId = 'user', role = 'user', scopes = ''] = process.argv;
+const [, , userId = 'user', role = 'user', scopes = ''] = process.argv;
 
 const key = `mcp_${randomBytes(32).toString('hex')}`;
 
@@ -19,17 +19,28 @@ console.log(`
 ║  Scopes : ${(scopes || '*').padEnd(52)}  ║
 ╚═════════════════════════════════════════════════════════════════╝
 
-${role === 'admin' ? `Add to your .env (for master key):
+${
+  role === 'admin'
+    ? `Add to your .env (for master key):
   ADMIN_API_KEY=${key}
 
-Or add via API (for additional keys):` : `Add via API (admin only):`}
+Or add via API (for additional keys):`
+    : `Add via API (admin only):`
+}
   POST /admin/keys
   {
     "key": "${key}",
     "userId": "${userId}",
     "role": "${role}",
     "allowedIPs": [],
-    "scopes": [${scopes ? scopes.split(',').map(s => `"${s.trim()}"`).join(', ') : '"*"'}],
+    "scopes": [${
+      scopes
+        ? scopes
+            .split(',')
+            .map(s => `"${s.trim()}"`)
+            .join(', ')
+        : '"*"'
+    }],
     "label": "Generated key"
   }
 `);

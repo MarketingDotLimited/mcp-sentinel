@@ -7,8 +7,12 @@ const require = createRequire(import.meta.url);
 let pg = null;
 let mysql = null;
 
-try { pg = require('pg'); } catch {}
-try { mysql = require('mysql2/promise'); } catch {}
+try {
+  pg = require('pg');
+} catch {}
+try {
+  mysql = require('mysql2/promise');
+} catch {}
 
 const DB_CONFIG_PATH = path.join(process.cwd(), 'db_connections.json');
 
@@ -44,7 +48,7 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
   }
 
   const maxRows = config.maxRows || 100;
-  
+
   if (config.driver === 'pg') {
     if (!pg) throw new Error('pg module not installed. Run: npm install pg');
     const { Client } = pg;
@@ -52,17 +56,17 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
       connectionString: config.connectionString,
       statement_timeout: config.queryTimeout || 10000,
     });
-    
+
     await client.connect();
     try {
       if (!isWrite) await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
-      
+
       const res = await client.query({
         text: normalizedQuery,
         values: params,
         rowMode: 'array',
       });
-      
+
       const rows = res.rows.slice(0, maxRows);
       return {
         alias,
@@ -80,12 +84,12 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
       uri: config.connectionString,
       connectTimeout: 5000,
     });
-    
+
     try {
       if (!isWrite) await conn.query('SET SESSION TRANSACTION READ ONLY');
-      
+
       const [rows, fields] = await conn.execute(normalizedQuery, params);
-      
+
       if (Array.isArray(rows)) {
         const resultRows = rows.slice(0, maxRows);
         return {

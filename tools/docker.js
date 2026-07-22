@@ -45,16 +45,26 @@ export async function runSandboxedCode({ language, code, allowNetwork = false, t
   }
 
   const dockerArgs = [
-    'run', '--rm', '-i',
-    '--memory', '256m',
-    '--memory-swap', '256m',
-    '--cpus', '0.5',
-    '--pids-limit', '64',
-    '--security-opt', 'no-new-privileges',
-    '--cap-drop', 'ALL',
+    'run',
+    '--rm',
+    '-i',
+    '--memory',
+    '256m',
+    '--memory-swap',
+    '256m',
+    '--cpus',
+    '0.5',
+    '--pids-limit',
+    '64',
+    '--security-opt',
+    'no-new-privileges',
+    '--cap-drop',
+    'ALL',
     '--read-only',
-    '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
-    '--network', allowNetwork ? 'bridge' : 'none',
+    '--tmpfs',
+    '/tmp:rw,noexec,nosuid,size=64m',
+    '--network',
+    allowNetwork ? 'bridge' : 'none',
   ];
 
   if (tempDir) {
@@ -67,32 +77,37 @@ export async function runSandboxedCode({ language, code, allowNetwork = false, t
   dockerArgs.push(`mcp-sandbox-${language}`);
 
   return new Promise((resolve, reject) => {
-    const child = execFile('docker', dockerArgs, { timeout: validTimeout * 1000, maxBuffer: 1048576 }, (err, stdout, stderr) => {
-      // Cleanup temp dir
-      if (tempDir) {
-        fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    const child = execFile(
+      'docker',
+      dockerArgs,
+      { timeout: validTimeout * 1000, maxBuffer: 1048576 },
+      (err, stdout, stderr) => {
+        // Cleanup temp dir
+        if (tempDir) {
+          fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+        }
+
+        let truncated = false;
+        let out = stdout || '';
+        let errOut = stderr || '';
+
+        if (err && err.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
+          truncated = true;
+          out += '\n[OUTPUT TRUNCATED AT 1MB]';
+        }
+
+        if (err && err.killed) {
+          errOut += `\n[PROCESS KILLED AFTER ${validTimeout}s TIMEOUT]`;
+        }
+
+        resolve({
+          success: !err,
+          stdout: out.trim(),
+          stderr: errOut.trim(),
+          truncated,
+        });
       }
-
-      let truncated = false;
-      let out = stdout || '';
-      let errOut = stderr || '';
-
-      if (err && err.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
-        truncated = true;
-        out += '\n[OUTPUT TRUNCATED AT 1MB]';
-      }
-
-      if (err && err.killed) {
-        errOut += `\n[PROCESS KILLED AFTER ${validTimeout}s TIMEOUT]`;
-      }
-
-      resolve({
-        success: !err,
-        stdout: out.trim(),
-        stderr: errOut.trim(),
-        truncated,
-      });
-    });
+    );
 
     child.stdin.write(code);
     child.stdin.end();

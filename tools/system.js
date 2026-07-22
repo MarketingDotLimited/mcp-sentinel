@@ -21,7 +21,7 @@ export async function getSystemInfo(_, identity) {
   }
 
   const results = await Promise.allSettled(tasks);
-  
+
   const uptimeOut = results[0];
   const freeOut = results[1];
   const loadOut = results[2];
@@ -122,7 +122,10 @@ function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let i = 0;
   let val = bytes;
-  while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+  while (val >= 1024 && i < units.length - 1) {
+    val /= 1024;
+    i++;
+  }
   return `${val.toFixed(1)} ${units[i]}`;
 }
 

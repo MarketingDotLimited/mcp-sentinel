@@ -1,9 +1,7 @@
 {
   "admin": {
     "linuxUser": "root",
-    "scopes": [
-      "*"
-    ]
+    "scopes": ["*"]
   },
   "rabeeb": {
     "linuxUser": "rabeeb.com_07v7ld45234",
