@@ -1,6 +1,6 @@
 # MCP Sentinel containment and migration runbook
 
-This repository contains the compatibility implementation for the Sentinel 2.0 security boundary. Production activation is deliberately gated because credential rotation, history rewriting, firewall changes, OAuth reauthorization, and service installation affect systems outside the checkout.
+This repository contains the Sentinel 2.0 security boundary. Production activation is deliberately gated because credential rotation, history rewriting, firewall changes, OAuth reauthorization, and service installation affect systems outside the checkout.
 
 ## 1. Contain and preserve
 
@@ -43,9 +43,11 @@ Require fresh clones after the rewrite. Do not reuse old worktrees, caches, imag
 5. Install `deploy/mcp-sentinel-broker.service` and `deploy/mcp-sentinel.service`, run `systemd-analyze security` on both, then enable the broker before the public service.
 6. Bind Sentinel and Authelia to loopback. Terminate TLS at the trusted Nginx proxy, disable proxy buffering for `/mcp`, and set explicit `ALLOWED_ORIGINS`, `TRUST_PROXY=true`, and loopback-only `TRUSTED_PROXIES`.
 
+The public unit lists each database password credential explicitly because older supported systemd releases ignore `LoadCredentialGlob`. Add one `LoadCredential=<passwordCredential>:/etc/mcp-sentinel/credentials/<passwordCredential>` line for every additional registered database alias, then rerun `systemd-analyze verify` before deployment.
+
 ## 4. Migrate state and validate authorization
 
-On first start, `MCP_STATE_DB` creates the versioned SQLite schema in WAL mode. If `CONTROL_PLANE_STATE_FILE` points to legacy JSON, Sentinel makes a `.pre-sqlite-backup`, converts malformed project IDs to UUIDs, retains legacy aliases, and marks the migration so reruns are idempotent.
+On first start, `MCP_STATE_DB` creates the versioned SQLite schema in WAL mode. If `CONTROL_PLANE_STATE_FILE` points to legacy JSON, Sentinel makes a `.pre-sqlite-backup`, converts malformed project IDs to UUIDs, retains legacy aliases, and marks the migration so reruns are idempotent. A 2.0 migration refuses removed automation, fleet, backup-target, or webhook data unless the offline exporter from the stopped 2.0 bundle has recorded a matching verified export.
 
 API keys, capability flags, OAuth mappings, JWT revocations, alert subscriptions, and task runs also use the same protected database in production. The daily backup timer uses SQLite's online backup API, verifies integrity, and encrypts the result with `state-backup-key`. Rehearse restores offline with `MCP_RESTORE_OFFLINE=true node scripts/restore-state.js <backup>`; the restore authenticates, checksums, and integrity-checks the image before atomic replacement.
 
@@ -68,6 +70,8 @@ After deployment and rotation, open `/admin/action-manifest` and record its vers
 
 ## 6. Release and rollback gates
 
-Do not publish the 2.0 release until lint, formatting, unit/UI/transport tests, dependency audit, Gitleaks, TruffleHog, migration dry-run, broker health, OAuth health, rollback rehearsal, and audit-chain verification pass. The current compatibility flag `ENABLE_LEGACY_TOOLS` defaults to false; export legacy fleet/backup/webhook/automation records before deleting their code and tables in the final 2.0 migration.
+Do not deploy the 2.0 release until lint, formatting, unit/UI/transport tests, dependency audit, Gitleaks, TruffleHog, migration dry-run, broker health, OAuth health, rollback rehearsal, and audit-chain verification pass. With the 1.x services stopped, run the 2.0 bundle's offline exporter before starting the 2.0 service; the migration transactionally removes legacy fleet, backup-target, webhook, and automation tables only after verifying the export file, checksum, marker, and record counts.
+
+Build only from a clean, reviewed release commit with `MCP_RELEASE_SIGNING_KEY=<gpg-key-id> npm run release:bundle`. The builder archives the exact Git commit with deterministic paths and gzip metadata, writes a SHA-256 checksum, creates and verifies an armored detached signature, and rejects a mismatched exact version tag. `MCP_ALLOW_UNSIGNED_RELEASE=true` exists only so CI can exercise reproducibility without access to the production signing key.
 
 Rollback restores the protected pre-migration database/config backup, the previous signed application bundle, the previous systemd units, and the previous proxy configuration. Credential rotation is never rolled back to a compromised value.

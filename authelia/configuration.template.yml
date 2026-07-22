@@ -48,7 +48,8 @@ identity_providers:
     clients:
       - client_id: chatgpt
         client_name: ChatGPT
-        public: true
+        client_secret: '${CHATGPT_CLIENT_SECRET_HASH}'
+        public: false
         authorization_policy: one_factor
         require_pkce: true
         pkce_challenge_method: S256
@@ -60,5 +61,12 @@ identity_providers:
           - openid
           - profile
           - email
+          - offline_access
+        response_types:
+          - code
+        grant_types:
+          - authorization_code
+          - refresh_token
+        token_endpoint_auth_method: client_secret_basic
         userinfo_signed_response_alg: none
         access_token_signed_response_alg: RS256

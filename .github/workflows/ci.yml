@@ -32,6 +32,19 @@ jobs:
       - name: Run Prettier check
         run: npm run format:check
 
+      - name: Verify reproducible release bundle
+        run: |
+          MCP_ALLOW_UNSIGNED_RELEASE=true npm run release:bundle
+          first_hash="$(cut -d' ' -f1 dist/mcp-sentinel-*.sha256)"
+          MCP_ALLOW_UNSIGNED_RELEASE=true npm run release:bundle
+          second_hash="$(cut -d' ' -f1 dist/mcp-sentinel-*.sha256)"
+          test "$first_hash" = "$second_hash"
+          tar -tzf dist/mcp-sentinel-*.tar.gz | grep -q 'mcp-sentinel-.*\/authelia\/configuration.template.yml'
+          if tar -tzf dist/mcp-sentinel-*.tar.gz | grep -Eq 'authelia\/(configuration|users|user-mappings)\.(yml|json)|oidc_.*\.pem|\.sqlite3?$'; then
+            echo 'Release archive contains runtime state or credentials.' >&2
+            exit 1
+          fi
+
       - name: Check for secrets in code
         run: |
           if grep -rniE "password\s*=\s*['\"].+" --exclude-dir=node_modules .; then
@@ -89,7 +102,7 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Run Live MCP E2E Test
-        run: npm run test:live
+        run: sudo env "PATH=$PATH" npm run test:live
 
       - name: Run UI E2E Test
         run: npm run test:ui
@@ -107,6 +120,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -119,6 +134,11 @@ jobs:
 
       - name: Scan Git history for secrets
         uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+
+      - name: Verify secrets with TruffleHog
+        uses: trufflesecurity/trufflehog@a2ef4f51a5e3644c500f02650db88504cd7d9b68 # main, pinned 2026-07-23
+        with:
+          extra_args: --only-verified
 
       - name: Verify required files exist
         run: |

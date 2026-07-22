@@ -60,27 +60,50 @@ describe('constrained project test runner', () => {
     );
   });
 
-  it('passes an argument array to the executor and returns failure output', async () => {
-    const identity = { userId: 'developer', role: 'user' };
+  it('requires registry resolution and returns structured failure output', async () => {
+    const identity = { userId: 'developer', role: 'developer', keyId: 'key-1' };
+    const project = {
+      id: '67e2d481-1b21-487d-810b-1ccbfd0cf98c',
+      rootPath: projectRoot,
+      repoPath: projectRoot,
+      runAsUser: 'project-user',
+      permittedTasks: ['npm'],
+      allowFullSuite: false,
+    };
+    await assert.rejects(
+      runProjectTests(
+        { projectPath: projectRoot, runner: 'npm', target: 'tests/Unit/ExampleTest.php' },
+        identity,
+        async () => ({})
+      ),
+      /confirm: true is required/
+    );
     const result = await runProjectTests(
-      { projectPath: projectRoot, runner: 'phpunit', target: 'tests/Unit/ExampleTest.php' },
+      {
+        projectId: project.id,
+        runner: 'npm',
+        target: 'tests/Unit/ExampleTest.php',
+        confirm: true,
+      },
       identity,
       async (argv, receivedIdentity, options) => {
-        assert.deepEqual(argv, ['vendor/bin/phpunit', 'tests/Unit/ExampleTest.php']);
-        assert.equal(receivedIdentity, identity);
+        assert.deepEqual(argv, ['npm', 'test', '--', 'tests/Unit/ExampleTest.php']);
+        assert.equal(receivedIdentity.userId, 'project-user');
         assert.equal(options.cwd, projectRoot);
         const error = new Error('test failed');
         error.code = 1;
         error.stdout = 'one assertion failed';
         error.stderr = 'failure details';
         throw error;
-      }
+      },
+      async () => ({ project })
     );
 
-    assert.equal(result.success, false);
+    assert.equal(result.state, 'failed');
     assert.equal(result.exitCode, 1);
     assert.equal(result.stdout, 'one assertion failed');
     assert.equal(result.stderr, 'failure details');
+    assert.equal(result.failureClassification, 'test-failure');
   });
 
   it('runs a registered Laravel target as the configured Unix user with testing-only environment', async () => {
@@ -287,7 +310,7 @@ describe('constrained project test runner', () => {
       { projectId: project.id, runner: 'npm', confirm: true },
       identity,
       async () => ({ stdout: '', stderr: '' }),
-      async () => ({ project, deprecationWarning: 'legacy' })
+      async () => ({ project })
     );
     await run.completion;
     assert.equal((await cancelProjectTestRun({ runId: run.runId, confirm: true }, identity)).state, 'completed');

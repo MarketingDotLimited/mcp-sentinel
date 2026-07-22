@@ -79,34 +79,22 @@ import { brokerCall } from './lib/broker-client.js';
 import { getAdminState, setAdminState } from './lib/admin-state.js';
 import { evaluatePolicy, getPolicyStatus } from './lib/policy.js';
 import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } from './lib/capabilities.js';
+import { toolResultSchema } from './lib/tool-result-schemas.js';
 import {
   assertProjectHealthUrlAllowed,
   assertRepositoryPermitted,
-  checkFleetServer,
   consumeApproval,
-  createAutomation,
-  createBackupTarget,
   createOrganization,
   createProject,
   createTeam,
-  createWebhook,
   decideApproval,
-  deliverWebhook,
-  exportLegacyState,
   getDeploymentPlan,
   getProject,
   getWorkflowCatalog,
   listApprovals,
-  listAutomations,
-  listBackupTargets,
-  listFleet,
   listOrganizations,
   listProjects,
-  listWebhooks,
-  registerFleetServer,
   requestApproval,
-  runBackup,
-  runDueAutomations,
   validateKeyAssignment,
 } from './lib/control-plane.js';
 import {
@@ -447,32 +435,6 @@ const authenticatedLimiter = rateLimit({
 // parsed body explicitly, which also lets us identify Streamable HTTP initialize requests.
 app.use(express.json({ limit: '5mb' }));
 
-// Compatibility window: these endpoints remain callable for one minor release,
-// but are intentionally removed from the default product experience.
-app.use((req, res, next) => {
-  const legacyPaths = [
-    '/admin/automations',
-    '/admin/organizations',
-    '/admin/teams',
-    '/admin/fleet',
-    '/admin/backup-targets',
-    '/admin/webhooks',
-    '/admin/backups/run',
-  ];
-  if (legacyPaths.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
-    if (process.env.ENABLE_LEGACY_TOOLS !== 'true') {
-      return res.status(404).json({ error: 'Legacy compatibility APIs are disabled' });
-    }
-    res.set('Deprecation', 'true');
-    res.set('Sunset', 'next-minor-release');
-    res.set(
-      'X-MCP-Sentinel-Deprecated',
-      'This compatibility endpoint is deprecated; export or migrate its configuration before the next minor release.'
-    );
-  }
-  next();
-});
-
 // authLimiter moved to routes/auth.js
 
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER || '5', 10);
@@ -769,13 +731,6 @@ app.post('/admin/action-refresh-status', authenticateJWT, async (req, res) => {
   return res.json(status);
 });
 
-app.get('/admin/legacy-export', authenticateJWT, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-  const legacy = await exportLegacyState(req.identity);
-  res.set('Content-Disposition', `attachment; filename="mcp-sentinel-legacy-${Date.now()}.json"`);
-  return res.json(legacy);
-});
-
 app.get('/admin/sessions', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
@@ -866,28 +821,6 @@ app.post('/admin/projects', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get('/admin/automations', authenticateJWT, async (req, res) => {
-  try {
-    return res.json({ automations: await listAutomations(req.identity) });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/admin/automations', authenticateJWT, async (req, res) => {
-  try {
-    const automation = await createAutomation(req.body || {}, req.identity);
-    logSecurityEvent({
-      ip: req.clientIP,
-      event: 'AUTOMATION_CREATED',
-      detail: { automationId: automation.id, type: automation.type, by: req.identity.userId },
-    });
-    return res.status(201).json({ automation });
-  } catch (err) {
-    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
-  }
-});
-
 app.get('/admin/organizations', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listOrganizations(req.identity));
@@ -921,120 +854,6 @@ app.post('/admin/teams', authenticateJWT, async (req, res) => {
     return res.status(201).json({ team });
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
-  }
-});
-
-// ── Enterprise operations: fleet, backups, and webhooks ───
-
-function controlPlaneResponse(res, err) {
-  return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
-}
-
-app.get('/admin/fleet', authenticateJWT, async (req, res) => {
-  try {
-    return res.json({ servers: await listFleet(req.identity) });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.post('/admin/fleet', authenticateJWT, async (req, res) => {
-  try {
-    const server = await registerFleetServer(req.body || {}, req.identity);
-    logSecurityEvent({
-      ip: req.clientIP,
-      event: 'FLEET_SERVER_REGISTERED',
-      detail: { serverId: server.id, by: req.identity.userId },
-    });
-    return res.status(201).json({ server });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.post('/admin/fleet/:id/check', authenticateJWT, async (req, res) => {
-  try {
-    return res.json({ server: await checkFleetServer(req.params.id, req.identity) });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.get('/admin/backup-targets', authenticateJWT, async (req, res) => {
-  try {
-    return res.json({ targets: await listBackupTargets(req.identity) });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.post('/admin/backup-targets', authenticateJWT, async (req, res) => {
-  try {
-    const target = await createBackupTarget(req.body || {}, req.identity);
-    logSecurityEvent({
-      ip: req.clientIP,
-      event: 'BACKUP_TARGET_CREATED',
-      detail: { targetId: target.id, type: target.type, by: req.identity.userId },
-    });
-    return res.status(201).json({ target });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.post('/admin/backups/run', authenticateJWT, async (req, res) => {
-  if (!req.body?.confirm) return res.status(400).json({ error: 'confirm: true required' });
-  try {
-    if (req.identity.role !== 'admin') throw new Error('Only administrators can run backups');
-    const backup = await runBackup(req.body || {});
-    logSecurityEvent({
-      ip: req.clientIP,
-      event: 'ENCRYPTED_BACKUP_COMPLETED',
-      detail: { backupId: backup.id, targetId: backup.targetId, by: req.identity.userId },
-    });
-    return res.json({ backup });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.get('/admin/webhooks', authenticateJWT, async (req, res) => {
-  try {
-    return res.json({ webhooks: await listWebhooks(req.identity) });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.post('/admin/webhooks', authenticateJWT, async (req, res) => {
-  try {
-    const webhook = await createWebhook(req.body || {}, req.identity);
-    logSecurityEvent({
-      ip: req.clientIP,
-      event: 'WEBHOOK_CREATED',
-      detail: { webhookId: webhook.id, by: req.identity.userId },
-    });
-    return res.status(201).json({ webhook });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
-  }
-});
-
-app.post('/admin/webhooks/:id/deliver', authenticateJWT, async (req, res) => {
-  if (!req.body?.confirm) return res.status(400).json({ error: 'confirm: true required' });
-  try {
-    const delivery = await deliverWebhook(
-      { webhookId: req.params.id, event: req.body.event, payload: req.body.payload },
-      req.identity
-    );
-    logSecurityEvent({
-      ip: req.clientIP,
-      event: 'WEBHOOK_DELIVERED',
-      detail: { webhookId: req.params.id, event: req.body.event, by: req.identity.userId, status: delivery.status },
-    });
-    return res.json({ delivery });
-  } catch (err) {
-    return controlPlaneResponse(res, err);
   }
 });
 
@@ -1684,7 +1503,7 @@ async function createMcpServer(identity, ip) {
 
   // ── Helper: wrap tool calls with audit logging ───────────
   const registrations = [];
-  function tool(name, description, schema, handler) {
+  function tool(name, description, schema, handler, resultSchema = null) {
     // Tools outside the authenticated identity's scope are never advertised.
     // Invocation checks below remain as defense in depth for stale sessions.
     if (!scopeAllows(identity.scopes || [], name)) return;
@@ -1705,10 +1524,6 @@ async function createMcpServer(identity, ip) {
       'get_security_posture',
       'list_projects',
       'plan_project_deployment',
-      'list_automations',
-      'list_fleet_servers',
-      'list_backup_targets',
-      'list_webhooks',
       'list_active_alerts',
       'get_project_test_run',
     ]);
@@ -1731,23 +1546,18 @@ async function createMcpServer(identity, ip) {
       'git_operation',
       'execute_query',
       'request_change_approval',
-      'schedule_health_check',
       'deploy_project',
-      'run_encrypted_backup',
-      'deliver_webhook',
       'subscribe_to_alert',
       'unsubscribe_from_alert',
       'run_project_tests',
       'cancel_project_test_run',
     ]);
     const openWorldTools = new Set([
-      'check_fleet_server',
-      'run_encrypted_backup',
-      'deliver_webhook',
       'deploy_project',
       'run_project_tests',
       'run_sandboxed_code',
       'git_operation',
+      'execute_query',
     ]);
     const annotations = {
       readOnlyHint: readOnlyTools.has(name),
@@ -1761,19 +1571,28 @@ async function createMcpServer(identity, ip) {
       .join(' ');
     const fullDescription = `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`;
     const inputJsonSchema = zodToJsonSchema(z.object(schema), { target: 'openApi3', $refStrategy: 'none' });
-    const outputJsonSchema = {
-      type: 'object',
-      properties: { result: {} },
-      required: ['result'],
-      additionalProperties: false,
-    };
+    const errorResultSchema = z
+      .object({
+        error: z.string(),
+        errorId: z.string().uuid().optional(),
+        requiredCapability: z.string().nullable().optional(),
+        pendingApproval: z.boolean().optional(),
+        approvalId: z.string().uuid().optional(),
+        message: z.string().optional(),
+      })
+      .passthrough();
+    const effectiveResultSchema = z.union([resultSchema || toolResultSchema(name), errorResultSchema]);
+    const outputJsonSchema = zodToJsonSchema(z.object({ result: effectiveResultSchema }), {
+      target: 'openApi3',
+      $refStrategy: 'none',
+    });
     const registration = server.registerTool(
       name,
       {
         title,
         description: fullDescription,
         inputSchema: schema,
-        outputSchema: { result: z.any().describe('Structured result returned by this operation') },
+        outputSchema: { result: effectiveResultSchema.describe('Structured result returned by this operation') },
         annotations,
       },
       async args => {
@@ -1857,7 +1676,7 @@ async function createMcpServer(identity, ip) {
           (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
           (name === 'run_sandboxed_code' && args.allowNetwork === true) ||
           (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
-          ['deploy_project', 'run_encrypted_backup', 'deliver_webhook'].includes(name) ||
+          name === 'deploy_project' ||
           (name === 'execute_query' &&
             /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || '')) ||
           policyDecision.requireApproval;
@@ -2003,7 +1822,7 @@ async function createMcpServer(identity, ip) {
         .enum(['TERM', 'KILL', 'HUP', 'INT', 'USR1', 'USR2'])
         .optional()
         .describe('Signal to send (default: TERM)'),
-      confirm: z.boolean().describe('Must be true to execute'),
+      confirm: z.literal(true).describe('Must be true to execute'),
     },
     killProcess
   );
@@ -2011,8 +1830,7 @@ async function createMcpServer(identity, ip) {
     'run_project_tests',
     'Run a registered project test recipe as the project execution user in a verified testing environment.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project identifier'),
-      projectPath: z.string().max(4096).optional().describe('Deprecated exact registered project root; use projectId'),
+      projectId: z.string().uuid().describe('Assigned registered project identifier'),
       runner: z
         .enum([
           'artisan',
@@ -2035,14 +1853,48 @@ async function createMcpServer(identity, ip) {
       filter: z.string().min(1).max(256).optional().describe('Optional bounded runner filter'),
       confirm: z.literal(true).describe('Must be true to start the test process'),
     },
-    runProjectTests
+    runProjectTests,
+    z.object({
+      runId: z.string().uuid(),
+      projectId: z.string().uuid(),
+      runner: z.string(),
+      target: z.string().nullable(),
+      state: z.enum(['running', 'completed', 'failed', 'cancelled']),
+      exitCode: z.number().int().nullable(),
+      durationMs: z.number().nonnegative(),
+      testCount: z.number().int().nonnegative().optional(),
+      assertionCount: z.number().int().nonnegative().optional(),
+      stdout: z.string(),
+      stderr: z.string(),
+      truncated: z.boolean(),
+      failureClassification: z
+        .enum(['cancelled', 'timeout', 'unsafe-environment', 'test-failure', 'runner-error'])
+        .nullable(),
+    })
   );
 
   tool(
     'get_project_test_run',
     'Get the structured status and bounded output of a project test run owned by this identity.',
     { runId: z.string().uuid().describe('Test run identifier') },
-    getProjectTestRun
+    getProjectTestRun,
+    z.object({
+      runId: z.string().uuid(),
+      projectId: z.string().uuid(),
+      runner: z.string(),
+      target: z.string().nullable(),
+      state: z.enum(['running', 'completed', 'failed', 'cancelled']),
+      exitCode: z.number().int().nullable(),
+      durationMs: z.number().nonnegative(),
+      testCount: z.number().int().nonnegative().optional(),
+      assertionCount: z.number().int().nonnegative().optional(),
+      stdout: z.string(),
+      stderr: z.string(),
+      truncated: z.boolean(),
+      failureClassification: z
+        .enum(['cancelled', 'timeout', 'unsafe-environment', 'test-failure', 'runner-error'])
+        .nullable(),
+    })
   );
 
   tool(
@@ -2052,7 +1904,24 @@ async function createMcpServer(identity, ip) {
       runId: z.string().uuid().describe('Test run identifier'),
       confirm: z.literal(true).describe('Must be true to cancel the run'),
     },
-    cancelProjectTestRun
+    cancelProjectTestRun,
+    z.object({
+      runId: z.string().uuid(),
+      projectId: z.string().uuid(),
+      runner: z.string(),
+      target: z.string().nullable(),
+      state: z.enum(['running', 'completed', 'failed', 'cancelled']),
+      exitCode: z.number().int().nullable(),
+      durationMs: z.number().nonnegative(),
+      testCount: z.number().int().nonnegative().optional(),
+      assertionCount: z.number().int().nonnegative().optional(),
+      stdout: z.string(),
+      stderr: z.string(),
+      truncated: z.boolean(),
+      failureClassification: z
+        .enum(['cancelled', 'timeout', 'unsafe-environment', 'test-failure', 'runner-error'])
+        .nullable(),
+    })
   );
 
   // ── File Tools ─────────────────────────────────────────
@@ -2061,8 +1930,8 @@ async function createMcpServer(identity, ip) {
     'read_file',
     'Read the contents of a file. Paths are sandboxed per role.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      filePath: z.string().max(4096).describe('Project-relative path, or a deprecated exact assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Path relative to the registered project root'),
       encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
       maxBytes: z.number().int().positive().optional().describe('Maximum bytes to read (default: 1MB)'),
     },
@@ -2073,8 +1942,8 @@ async function createMcpServer(identity, ip) {
     'write_file',
     'Write content to a file (create or overwrite). Paths are sandboxed per role.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      filePath: z.string().max(4096).describe('Project-relative path, or a deprecated exact assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Path relative to the registered project root'),
       content: z
         .string()
         .max(5 * 1024 * 1024)
@@ -2089,10 +1958,10 @@ async function createMcpServer(identity, ip) {
     'delete_file',
     'Delete a file or directory.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      filePath: z.string().max(4096).describe('Project-relative path, or a deprecated exact assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Path relative to the registered project root'),
       recursive: z.boolean().optional().describe('Recursively delete directory contents (default: false)'),
-      confirm: z.boolean().optional().describe('Must be true to execute'),
+      confirm: z.literal(true).describe('Must be true to execute'),
     },
     deleteFile
   );
@@ -2101,8 +1970,8 @@ async function createMcpServer(identity, ip) {
     'list_directory',
     'List the contents of a directory.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      dirPath: z.string().max(4096).describe('Project-relative directory, or a deprecated assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      dirPath: z.string().max(4096).describe('Directory relative to the registered project root'),
       showHidden: z.boolean().optional().describe('Include hidden files (default: false)'),
       detailed: z.boolean().optional().describe('Include file details like size, permissions (default: true)'),
     },
@@ -2113,9 +1982,9 @@ async function createMcpServer(identity, ip) {
     'move_file',
     'Move or rename a regular file inside one assigned project.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      sourcePath: z.string().max(4096).describe('Project-relative source, or deprecated assigned absolute path'),
-      destPath: z.string().max(4096).describe('Project-relative destination, or deprecated assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      sourcePath: z.string().max(4096).describe('Source relative to the registered project root'),
+      destPath: z.string().max(4096).describe('Destination relative to the registered project root'),
     },
     moveFile
   );
@@ -2124,9 +1993,9 @@ async function createMcpServer(identity, ip) {
     'copy_file',
     'Copy a regular file inside one assigned project.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      sourcePath: z.string().max(4096).describe('Project-relative source, or deprecated assigned absolute path'),
-      destPath: z.string().max(4096).describe('Project-relative destination, or deprecated assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      sourcePath: z.string().max(4096).describe('Source relative to the registered project root'),
+      destPath: z.string().max(4096).describe('Destination relative to the registered project root'),
     },
     copyFile
   );
@@ -2135,8 +2004,8 @@ async function createMcpServer(identity, ip) {
     'get_file_info',
     'Get detailed metadata about a file including size, permissions, and SHA256 checksum.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      filePath: z.string().max(4096).describe('Project-relative path, or deprecated assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Path relative to the registered project root'),
     },
     getFileInfo
   );
@@ -2145,8 +2014,8 @@ async function createMcpServer(identity, ip) {
     'search_files',
     'Search for files by name pattern in a directory tree.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      searchPath: z.string().max(4096).describe('Project-relative root, or deprecated assigned absolute path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
+      searchPath: z.string().max(4096).describe('Search root relative to the registered project root'),
       pattern: z
         .string()
         .max(128)
@@ -2255,7 +2124,7 @@ async function createMcpServer(identity, ip) {
       shell: z.string().max(4096).optional().describe('Login shell (default: /bin/bash)'),
       comment: z.string().max(4096).optional().describe('User comment/description'),
       createHome: z.boolean().optional().describe('Create home directory (default: true)'),
-      confirm: z.boolean().optional().describe('Must be true to create a user'),
+      confirm: z.literal(true).describe('Must be true to create a user'),
     },
     createUser
   );
@@ -2266,7 +2135,7 @@ async function createMcpServer(identity, ip) {
     {
       username: z.string().max(4096).describe('Username to delete'),
       removeHome: z.boolean().optional().describe('Remove home directory (default: false)'),
-      confirm: z.boolean().optional().describe('Must be true to execute'),
+      confirm: z.literal(true).describe('Must be true to execute'),
     },
     deleteUser
   );
@@ -2277,7 +2146,7 @@ async function createMcpServer(identity, ip) {
     {
       username: z.string().max(4096).describe('Username'),
       password: z.string().max(4096).describe('New password'),
-      confirm: z.boolean().optional().describe('Must be true to change a password'),
+      confirm: z.literal(true).describe('Must be true to change a password'),
     },
     setUserPassword
   );
@@ -2293,7 +2162,7 @@ async function createMcpServer(identity, ip) {
       lockAccount: z.boolean().optional().describe('Lock the user account'),
       unlockAccount: z.boolean().optional().describe('Unlock the user account'),
       expireDate: z.string().max(4096).optional().describe('Account expiry date (YYYY-MM-DD), empty string to disable'),
-      confirm: z.boolean().optional().describe('Must be true to modify a user'),
+      confirm: z.literal(true).describe('Must be true to modify a user'),
     },
     modifyUser
   );
@@ -2359,7 +2228,7 @@ async function createMcpServer(identity, ip) {
         .max(60)
         .optional()
         .describe('Seconds to wait for service health (default: 15)'),
-      confirm: z.boolean().describe('Must be true to execute'),
+      confirm: z.literal(true).describe('Must be true to execute'),
     },
     applyConfig
   );
@@ -2388,7 +2257,7 @@ async function createMcpServer(identity, ip) {
         .string()
         .regex(/^\d{10,16}$/)
         .describe('Timestamp of the backup to restore'),
-      confirm: z.boolean().describe('Must be true to execute'),
+      confirm: z.literal(true).describe('Must be true to execute'),
     },
     restoreConfig
   );
@@ -2397,14 +2266,36 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'git_operation',
-    'Execute a fixed Git recipe as the assigned project Unix user. repoPath is accepted only as an exact deprecated project lookup.',
+    'Execute a fixed Git recipe as the assigned project Unix user.',
     {
-      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
-      repoPath: z.string().max(4096).optional().describe('Deprecated exact registered repository path'),
+      projectId: z.string().uuid().describe('Assigned registered project UUID'),
       action: z
         .enum(['status', 'diff', 'log', 'branch', 'checkout', 'add', 'commit', 'pull', 'push'])
         .describe('Git action'),
-      args: z.record(z.any()).optional().describe('Action-specific arguments (e.g. { message: "msg" })'),
+      args: z
+        .union([
+          z.object({}).strict(),
+          z.object({ n: z.number().int().min(1).max(100) }).strict(),
+          z.object({ files: z.array(z.string().min(1).max(4096)).min(1).max(100) }).strict(),
+          z
+            .object({
+              branch: z.string().min(1).max(255).optional(),
+              file: z.string().min(1).max(4096).optional(),
+              create: z.boolean().optional(),
+            })
+            .strict(),
+          z
+            .object({
+              message: z
+                .string()
+                .min(1)
+                .max(2000)
+                .regex(/^[^\r\n\0]+$/),
+            })
+            .strict(),
+        ])
+        .optional()
+        .describe('Strict action-specific arguments; unknown fields are rejected by the broker'),
       confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
     },
     gitOperation
@@ -2500,7 +2391,7 @@ async function createMcpServer(identity, ip) {
     'Deploy a registered project using a controlled Git fast-forward pull, a registered systemd service restart, and an optional health check. Administrator approval is required.',
     {
       projectId: z.string().uuid().describe('Registered project identifier'),
-      confirm: z.boolean().describe('Must be true to deploy'),
+      confirm: z.literal(true).describe('Must be true to deploy'),
     },
     async ({ projectId }, toolIdentity) => {
       if (toolIdentity.role !== 'admin') throw new Error('Deploying a project requires an administrator role');
@@ -2510,7 +2401,7 @@ async function createMcpServer(identity, ip) {
           'This project has no registered systemd service, so it cannot use the managed deployment playbook'
         );
       await assertRepositoryPermitted(project.repoPath, toolIdentity);
-      const git = await gitOperation({ repoPath: project.repoPath, action: 'pull', args: {} }, toolIdentity);
+      const git = await gitOperation({ projectId: project.id, action: 'pull', args: {} }, toolIdentity);
       const service = await manageService({ service: project.serviceName, action: 'restart' }, toolIdentity);
       let health = { status: 'not-configured' };
       if (project.healthUrl) {
@@ -2535,86 +2426,6 @@ async function createMcpServer(identity, ip) {
         rollback: 'Use the project’s previous Git revision and restart its registered service if verification fails.',
       };
     }
-  );
-
-  tool(
-    'list_automations',
-    'List the scheduled read-only health checks available to this identity.',
-    {},
-    async (_, toolIdentity) => {
-      return { automations: await listAutomations(toolIdentity) };
-    }
-  );
-
-  tool(
-    'schedule_health_check',
-    'Schedule a read-only server health check. It records CPU, memory, and disk health and never changes the server.',
-    {
-      name: z.string().max(80).optional().describe('Friendly automation name'),
-      intervalMinutes: z.number().int().min(5).max(10080).optional().describe('How often to check, in minutes'),
-    },
-    async ({ name, intervalMinutes }, toolIdentity) => {
-      return { automation: await createAutomation({ name, intervalMinutes, type: 'health_check' }, toolIdentity) };
-    }
-  );
-
-  tool(
-    'list_fleet_servers',
-    'List registered MCP Sentinel servers and their most recent health checks. Read-only.',
-    {},
-    async (_, toolIdentity) => ({ servers: await listFleet(toolIdentity) })
-  );
-
-  tool(
-    'check_fleet_server',
-    'Check the health endpoint of a registered Sentinel server. The destination must be on the administrator allow-list.',
-    {
-      serverId: z.string().uuid().describe('Registered fleet server identifier'),
-    },
-    async ({ serverId }, toolIdentity) => ({ server: await checkFleetServer(serverId, toolIdentity) })
-  );
-
-  tool(
-    'list_backup_targets',
-    'List encrypted backup destinations without exposing credentials. Administrator only.',
-    {},
-    async (_, toolIdentity) => ({ targets: await listBackupTargets(toolIdentity) })
-  );
-
-  tool(
-    'run_encrypted_backup',
-    'Encrypt a permitted configuration file with AES-256-GCM and send it to a registered local or S3-compatible destination. Administrator approval is required.',
-    {
-      targetId: z.string().uuid().describe('Registered backup target identifier'),
-      sourcePath: z.string().max(4096).describe('Permitted regular file to back up'),
-      confirm: z.boolean().describe('Must be true to create a backup'),
-    },
-    async ({ targetId, sourcePath }, toolIdentity) => {
-      if (toolIdentity.role !== 'admin') throw new Error('Encrypted backups require an administrator role');
-      return { backup: await runBackup({ targetId, sourcePath }) };
-    }
-  );
-
-  tool(
-    'list_webhooks',
-    'List signed webhook integrations without exposing their signing secrets. Administrator only.',
-    {},
-    async (_, toolIdentity) => ({ webhooks: await listWebhooks(toolIdentity) })
-  );
-
-  tool(
-    'deliver_webhook',
-    'Deliver a signed generic webhook event to a registered allow-listed endpoint. Administrator approval is required.',
-    {
-      webhookId: z.string().uuid().describe('Registered webhook identifier'),
-      event: z
-        .string()
-        .regex(/^[a-z0-9._-]{1,80}$/)
-        .describe('Subscribed event name'),
-      payload: z.record(z.any()).optional().describe('Non-secret event data'),
-      confirm: z.boolean().describe('Must be true to deliver'),
-    },
-    async ({ webhookId, event, payload }, toolIdentity) => deliverWebhook({ webhookId, event, payload }, toolIdentity)
   );
 
   tool(
@@ -2663,8 +2474,7 @@ async function createMcpServer(identity, ip) {
   });
 
   // Disabled packs are absent from tools/list, so an AI cannot casually discover
-  // or invoke specialist operations. Existing legacy tools stay discoverable with
-  // a deprecation notice for the agreed one-minor-release migration window.
+  // or invoke specialist operations.
   for (const { name, registration } of registrations) {
     const availability = await toolAvailability(name);
     const policyDecision = await evaluatePolicy({ tool: name, identity }).catch(() => ({ allowed: false }));
@@ -2851,19 +2661,6 @@ async function startServer() {
       }
     }
   });
-
-  // Automations are intentionally read-only until a future playbook has an
-  // explicit policy, approval, and rollback contract.
-  setInterval(async () => {
-    try {
-      const completed = await runDueAutomations(monitor.getLatestStats());
-      for (const automation of completed) {
-        logSecurityEvent({ ip: 'internal', event: 'AUTOMATION_COMPLETED', detail: automation });
-      }
-    } catch (err) {
-      logError({ ip: 'internal', userId: 'system', tool: 'AUTOMATION_RUNNER', error: err });
-    }
-  }, 60000);
 }
 
 startServer().catch(err => {

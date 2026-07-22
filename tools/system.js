@@ -7,7 +7,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { secureExec } from '../lib/exec.js';
 import { brokerCall } from '../lib/broker-client.js';
-import { getProject, getProjectByExactPath, loadTaskRunState, persistTaskRun } from '../lib/control-plane.js';
+import { getProject, loadTaskRunState, persistTaskRun } from '../lib/control-plane.js';
 
 const MAX_OUTPUT = parseInt(process.env.MAX_OUTPUT_SIZE || '1048576');
 
@@ -332,7 +332,6 @@ function publicRun(run) {
     stderr: run.stderr,
     truncated: run.truncated,
     failureClassification: classifyFailure(run),
-    deprecationWarning: run.deprecationWarning,
   };
 }
 
@@ -347,14 +346,8 @@ function truncateResult(value) {
 }
 
 async function resolveRegisteredProject(input, identity) {
-  if (input.projectId) return { project: await getProject(input.projectId, identity) };
-  if (input.projectPath) {
-    return {
-      project: await getProjectByExactPath(input.projectPath, identity),
-      deprecationWarning: 'projectPath is deprecated; use the returned projectId on future calls.',
-    };
-  }
-  throw new Error('projectId is required');
+  if (!input.projectId) throw new Error('projectId is required');
+  return { project: await getProject(input.projectId, identity) };
 }
 
 export async function startProjectTestRun(
@@ -364,7 +357,7 @@ export async function startProjectTestRun(
   projectResolver = resolveRegisteredProject
 ) {
   if (input.confirm !== true) throw new Error('confirm: true is required to run project tests');
-  const { project, deprecationWarning } = await projectResolver(input, identity);
+  const { project } = await projectResolver(input, identity);
   if (!project.runAsUser) throw new Error('The registered project must declare runAsUser');
   if (!(project.permittedTasks || []).includes(input.runner))
     throw new Error('This test recipe is not permitted for the project');
@@ -393,7 +386,6 @@ export async function startProjectTestRun(
     finishedAt: null,
     owner: testRunOwner(identity),
     controller,
-    deprecationWarning,
   };
   testRuns.set(run.runId, run);
   await persistTaskRun(durableRun(run));
@@ -469,7 +461,18 @@ export async function cancelProjectTestRun({ runId, confirm }, identity) {
   run.state = 'cancelled';
   run.controller.abort();
   await run.cancel?.().catch(() => {});
-  await Promise.race([run.completion, new Promise(resolve => setTimeout(resolve, 2000))]);
+  let cancellationTimer;
+  try {
+    await Promise.race([
+      run.completion,
+      new Promise(resolve => {
+        cancellationTimer = setTimeout(resolve, 2000);
+        cancellationTimer.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(cancellationTimer);
+  }
   return publicRun(run);
 }
 
@@ -479,33 +482,24 @@ export function pruneProjectTestRuns(now = Date.now()) {
   }
 }
 
-export async function runProjectTests(input, identity, execute = secureExec) {
-  if (input.projectId || input.confirm !== undefined) {
-    const run = await startProjectTestRun(input, identity, execute);
-    const waitMs = Math.min(Number(input.waitMs || 50_000), 50_000);
-    return Promise.race([run.completion, new Promise(resolve => setTimeout(() => resolve(publicRun(run)), waitMs))]);
-  }
-  const { cwd, argv } = await buildProjectTestInvocation(input);
-
+export async function runProjectTests(
+  input,
+  identity,
+  execute = secureExec,
+  projectResolver = resolveRegisteredProject
+) {
+  const run = await startProjectTestRun(input, identity, execute, projectResolver);
+  const waitMs = Math.min(Number(input.waitMs || 50_000), 50_000);
+  let waitTimer;
   try {
-    const { stdout, stderr } = await execute(argv, identity, { cwd });
-    return {
-      success: true,
-      exitCode: 0,
-      cwd,
-      argv,
-      stdout: truncate(stdout?.trim()),
-      stderr: truncate(stderr?.trim()),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      exitCode: Number.isInteger(error.code) ? error.code : null,
-      signal: error.signal || null,
-      cwd,
-      argv,
-      stdout: truncate(error.stdout?.trim()),
-      stderr: truncate(error.stderr?.trim() || error.message),
-    };
+    return await Promise.race([
+      run.completion,
+      new Promise(resolve => {
+        waitTimer = setTimeout(() => resolve(publicRun(run)), waitMs);
+        waitTimer.unref?.();
+      }),
+    ]);
+  } finally {
+    clearTimeout(waitTimer);
   }
 }

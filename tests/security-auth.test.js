@@ -150,4 +150,40 @@ describe('API key and session-token security', () => {
     assert.equal(health.clientIP, '127.0.0.1');
     assert.ok(security.getRoleTemplates().some(role => role.id === 'developer'));
   });
+
+  it('handles token lifetime variants and negative key-management paths', async () => {
+    const unauthenticated = response();
+    security.issueToken({ clientIP: '127.0.0.1' }, unauthenticated);
+    assert.equal(unauthenticated.statusCode, 401);
+
+    const source = request({ 'x-api-key': apiKey });
+    security.authenticate(source, response(), () => {});
+    source.clientIP = '127.0.0.1';
+    for (const [configured, expected] of [
+      ['30m', '30m'],
+      ['2h', '2h'],
+      ['invalid', '8h'],
+    ]) {
+      process.env.JWT_EXPIRY = configured;
+      const issued = response();
+      security.issueToken(source, issued);
+      assert.equal(issued.body.expires_in, expected);
+    }
+
+    const bearer = request({ authorization: `Bearer ${apiKey}` });
+    let bearerNext = false;
+    security.authenticateJWT(bearer, response(), () => (bearerNext = true));
+    assert.equal(bearerNext, true);
+    const invalidLogout = response();
+    security.revokeSessionToken({ identity: { authType: 'oauth' } }, invalidLogout);
+    assert.equal(invalidLogout.statusCode, 400);
+
+    assert.equal(await security.revokeApiKey('missing-key'), false);
+    assert.equal(await security.revokeApiKeyById('missing-id'), false);
+    await assert.rejects(security.updateApiKey('missing-id', { label: 'new' }), /Key not found/);
+    await assert.rejects(
+      security.addApiKey(`mcp_${'c'.repeat(64)}`, { userId: 'definitely-not-a-real-user', role: 'viewer' }),
+      /does not exist/
+    );
+  });
 });

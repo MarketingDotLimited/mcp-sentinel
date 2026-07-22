@@ -47,9 +47,11 @@ describe('dashboard UX', { skip: !enabled }, () => {
       cwd: process.cwd(),
       env: {
         ...process.env,
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
         ADMIN_API_KEY: key,
         JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef',
         KEYS_FILE: path.join(tmp, 'keys.json'),
@@ -80,6 +82,13 @@ describe('dashboard UX', { skip: !enabled }, () => {
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Administration'));
       assert.match(await page.locator('body').innerText(), /Capability packs/);
       assert.match(await page.locator('body').innerText(), /Advanced Data Access[\s\S]*Disabled by default/);
+
+      await page.getByRole('link', { name: /ChatGPT action manifest/ }).click();
+      await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('ChatGPT action manifest'));
+      await page.waitForFunction(() => document.querySelector('#manifest-status')?.textContent?.includes('Manifest v'));
+      const manifestText = await page.locator('body').innerText();
+      assert.match(manifestText, /Run Project Tests/);
+      assert.match(manifestText, /Refresh the connector action snapshot/);
 
       await page.locator('a[href="#/connect"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Connect your AI'));

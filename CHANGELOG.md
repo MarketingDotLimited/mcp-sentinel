@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] — 2026-07-23
+
+### Security architecture release
+
+- Runs the public service unprivileged and routes registered privileged operations through a closed, typed Unix-socket broker.
+- Requires UUID project registration for project files, Git recipes, and test recipes; removes path-based compatibility inputs.
+- Adds durable SQLite WAL state, encrypted verified backups, transactional migrations, OAuth authorization versions, persistent revocation, and HMAC-chained audit verification.
+- Adds structured project-test run, status, and cancellation tools with bounded output and testing-environment enforcement.
+- Removes the 1.x automation, fleet, backup-target, and webhook APIs, MCP tools, dashboard pages, code, and tables. Non-empty legacy tables require a matching verified offline export before migration.
+- Adds scope-filtered manifests, Streamable HTTP and SSE list-change notifications, pinned CI actions, secret scanning, release coverage gates, and production deployment/rollback instructions.
+
 ## [1.1.0] — 2026-07-22
 
 ### 🔒 Security Update
@@ -62,5 +73,6 @@ This compatibility release implements the code-side containment and migration bo
 - **API key generator** (`node keygen.js`) — cryptographically secure 32-byte keys
 - **Graceful shutdown** — SIGTERM/SIGINT handling
 
+[2.0.0]: https://github.com/MarketingDotLimited/mcp-sentinel/releases/tag/v2.0.0
 [1.1.0]: https://github.com/MarketingDotLimited/mcp-sentinel/releases/tag/v1.1.0
 [1.0.0]: https://github.com/MarketingDotLimited/mcp-sentinel/releases/tag/v1.0.0

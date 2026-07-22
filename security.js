@@ -118,7 +118,6 @@ export const ROLE_TEMPLATES = {
       'list_guided_workflows',
       'list_projects',
       'plan_project_deployment',
-      'list_automations',
       'security.*',
     ],
     requireApproval: true,
@@ -139,7 +138,6 @@ export const ROLE_TEMPLATES = {
       'list_guided_workflows',
       'list_projects',
       'plan_project_deployment',
-      'list_automations',
     ],
     requireApproval: true,
   },
@@ -152,16 +150,7 @@ export const ROLE_TEMPLATES = {
   operator: {
     label: 'Operator',
     description: 'Operate approved services and configurations with human approval for changes.',
-    scopes: [
-      'system.*',
-      'services.*',
-      'files.*',
-      'config.*',
-      'monitor.*',
-      'automations.*',
-      'workflows.*',
-      'projects.*',
-    ],
+    scopes: ['system.*', 'services.*', 'files.*', 'config.*', 'monitor.*', 'workflows.*', 'projects.*'],
     requireApproval: true,
   },
   user: {
@@ -178,7 +167,6 @@ export const ROLE_TEMPLATES = {
       'list_guided_workflows',
       'list_projects',
       'plan_project_deployment',
-      'list_automations',
     ],
     requireApproval: true,
   },
@@ -734,11 +722,7 @@ export const SCOPE_GROUPS = {
       'cancel_project_test_run',
     ],
   },
-  'automations.*': { label: 'Automations', tools: ['list_automations', 'schedule_health_check'] },
   'security.*': { label: 'Security', tools: ['get_security_posture'] },
-  'fleet.*': { label: 'Fleet', tools: ['list_fleet_servers', 'check_fleet_server'] },
-  'backups.*': { label: 'Backups', tools: ['list_backup_targets', 'run_encrypted_backup'] },
-  'webhooks.*': { label: 'Webhooks', tools: ['list_webhooks', 'deliver_webhook'] },
 };
 
 export function scopeAllows(scopes, toolName) {
