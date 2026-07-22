@@ -14,9 +14,10 @@ function requireAdmin(identity) {
 
 function validateServiceName(name) {
   // Only allow safe service name characters
-  if (!/^[a-zA-Z0-9_\-\.@]+$/.test(name)) {
+  if (!/^[a-zA-Z0-9_\-\.\@]+$/.test(name)) {
     throw new Error(`Invalid service name: '${name}'`);
   }
+  if (name.startsWith('-')) throw new Error('Service name cannot start with -');
   // Prevent directory traversal
   if (name.includes('..') || name.includes('/')) {
     throw new Error('Invalid service name');
@@ -37,14 +38,14 @@ export async function manageService({ service, action }, identity) {
 
   const { stdout, stderr } = await execFileAsync(
     'systemctl',
-    [action, service],
+    [action, '--', service],
     { timeout: 30000 }
-  ).catch(err => ({ stdout: err.stdout || '', stderr: err.stderr || err.message }));
+  );
 
   return {
     service,
     action,
-    output: stdout.trim() || stderr.trim() || 'Command executed',
+    output: stdout.trim() || stderr?.trim() || 'Command executed',
   };
 }
 
@@ -96,7 +97,8 @@ export async function listServices({ filter, state }, identity) {
 export async function getJournalLogs({ service, lines = 50, since, priority }, identity) {
   requireAdmin(identity);
 
-  const args = ['--no-pager', '--output=short-iso', `-n`, String(Math.min(lines, 500))];
+  const validLines = Math.max(1, Math.min(Math.floor(lines), 500));
+  const args = ['--no-pager', '--output=short-iso', `-n`, String(validLines)];
 
   if (service) {
     validateServiceName(service);
@@ -125,7 +127,11 @@ export async function manageFirewall({ action, port, protocol = 'tcp', rule }, i
     throw new Error(`Invalid firewall action. Use one of: ${allowedActions.join(', ')}`);
   }
 
-  // Try ufw first, then iptables
+  if (port) {
+    const p = parseInt(port, 10);
+    if (isNaN(p) || p < 1 || p > 65535) throw new Error('Port must be between 1 and 65535');
+  }
+
   let command, args;
 
   if (action === 'status' || action === 'list') {
@@ -143,15 +149,15 @@ export async function manageFirewall({ action, port, protocol = 'tcp', rule }, i
   } else if (action === 'deny' && port) {
     command = 'ufw';
     args = ['deny', `${port}/${protocol}`];
-  } else if (action === 'delete' && port) {
+  } else if (action === 'delete' && port && rule) {
+    if (!['allow', 'deny'].includes(rule)) throw new Error('Rule must be allow or deny for delete action');
     command = 'ufw';
-    args = ['delete', 'allow', `${port}/${protocol}`];
+    args = ['delete', rule, `${port}/${protocol}`];
   } else {
     throw new Error('Invalid combination of action and parameters');
   }
 
-  const { stdout, stderr } = await execFileAsync(command, args, { timeout: 15000 })
-    .catch(err => ({ stdout: err.stdout || '', stderr: err.stderr || err.message }));
+  const { stdout, stderr } = await execFileAsync(command, args, { timeout: 15000 });
 
   return { action, output: stdout.trim() || stderr.trim() };
 }

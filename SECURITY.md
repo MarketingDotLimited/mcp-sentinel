@@ -52,14 +52,15 @@ We follow **responsible disclosure** — we will credit reporters in the release
 
 MCP Sentinel is built with security as a primary concern:
 
-- **API Key authentication** — 32-byte cryptographically random keys
-- **JWT tokens** — IP-bound, short-lived (8h), signed with HS256
-- **IP Whitelist** — per-key or global CIDR restrictions
-- **Rate Limiting** — 60 req/min global, 10/15min for auth endpoints
-- **Command Blacklist** — regex patterns blocking destructive commands
-- **Path Sandboxing** — non-admin users locked to `/home/{username}`
+- **API Key authentication** — Persistently stored, SHA-256 hashed keys
+- **JWT tokens** — IP-bound, short-lived bearer tokens with active revocation
+- **IP Whitelist** — per-key or global CIDR restrictions (IPv4 & IPv6)
+- **Rate & Session Limiting** — Global limits, auth limits, and concurrent session limits
+- **Privilege Separation** — Tools run as the mapped Unix user UID/GID (never root for users)
+- **Defense-in-Depth Heuristics** — Regex patterns blocking destructive commands (not a primary boundary)
+- **Path Sandboxing** — symlink-safe, non-admin users locked to `/home/{username}` and private temp dirs
 - **Role-based access** — `admin` vs `user` with scope enforcement
-- **Audit Logging** — every tool call logged with IP, user, result
+- **Audit Logging** — Tamper-evident structured JSON with secret redaction
 - **Helmet.js** — security headers (CSP, HSTS, XSS protection)
 - **TLS support** — HTTPS with TLS 1.2+ and strong cipher suites
 
@@ -68,5 +69,5 @@ MCP Sentinel is built with security as a primary concern:
 ## Known Limitations
 
 - The server must run as `root` for full admin capabilities (user management, system services). If you only need file/command access, consider running as a non-root user.
-- The command blacklist uses regex patterns and may not catch all edge cases. Always apply the principle of least privilege using scoped API keys.
-- Self-signed certificates are provided for testing only. **Always use a trusted CA certificate in production.**
+- The command heuristic is a defense-in-depth measure, not a primary boundary. Real security relies on strict UNIX privilege separation and tool scopes.
+- Self-signed certificates are provided for development testing only. **Always use a trusted CA certificate in production.**

@@ -45,6 +45,7 @@ async function main() {
     console.error('Invalid characters in Allowed Origins');
     process.exit(1);
   }
+  const serverIp = await ask('Server IP or Hostname [127.0.0.1]: ') || '127.0.0.1';
 
   // 3. Generate self-signed cert if HTTPS
   if (useHttps) {
@@ -57,7 +58,7 @@ async function main() {
         '-keyout', path.join(__dirname, 'certs', 'server.key'),
         '-out', path.join(__dirname, 'certs', 'server.crt'),
         '-subj', '/CN=mcp-server/O=MCP/C=US',
-        '-addext', 'subjectAltName=IP:0.0.0.0,IP:127.0.0.1',
+        '-addext', `subjectAltName=IP:${serverIp},DNS:${serverIp},IP:127.0.0.1,DNS:localhost`,
       ]);
       console.log('✅ Certificate generated: ./certs/server.crt');
       console.log('   For production, replace with a Let\'s Encrypt certificate!');
@@ -70,7 +71,7 @@ async function main() {
   // 4. Check if .env exists
   try {
     await fs.access(path.join(__dirname, '.env'));
-    const overwrite = (await ask('\\n⚠️  .env already exists. Overwrite and generate new secrets? [y/N]: ')).toLowerCase() === 'y';
+    const overwrite = (await ask('\n⚠️  .env already exists. Overwrite and generate new secrets? [y/N]: ')).toLowerCase() === 'y';
     if (!overwrite) {
       console.log('Setup aborted. Existing .env preserved.');
       process.exit(0);
@@ -131,9 +132,14 @@ StandardError=journal
 SyslogIdentifier=mcp-server
 
 # Security hardening
-NoNewPrivileges=false
-PrivateTmp=false
-ProtectSystem=false
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID CAP_SYS_ADMIN
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=1G
+TasksMax=256
 
 [Install]
 WantedBy=multi-user.target
@@ -154,10 +160,10 @@ WantedBy=multi-user.target
 ║  ${adminKey.slice(50).padEnd(50)}  ║
 ║                                                      ║
 ║  Server URL:                                         ║
-║  ${`${protocol}://YOUR_SERVER_IP:${port}`.padEnd(50)}  ║
+║  ${`${protocol}://${serverIp}:${port}`.padEnd(50)}  ║
 ║                                                      ║
 ║  MCP Endpoint (for AI clients):                      ║
-║  ${`${protocol}://YOUR_SERVER_IP:${port}/mcp`.padEnd(50)}  ║
+║  ${`${protocol}://${serverIp}:${port}/mcp`.padEnd(50)}  ║
 ╠══════════════════════════════════════════════════════╣
 ║  Next Steps:                                         ║
 ║  1. npm start                    (run server)        ║

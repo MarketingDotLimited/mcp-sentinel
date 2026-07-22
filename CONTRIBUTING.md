@@ -59,7 +59,7 @@ node keygen.js
 npm run dev
 
 # 5. Test health endpoint
-curl http://localhost:4444/health
+curl -k https://localhost:4444/health
 ```
 
 ---
@@ -68,7 +68,7 @@ curl http://localhost:4444/health
 
 ```
 mcp-sentinel/
-├── server.js          # Main server — Express + MCP SSE transport
+├── server.js          # Main server — Express + Streamable HTTP transport
 ├── security.js        # Auth middleware — API key, JWT, IP whitelist
 ├── audit.js           # Structured audit + error logging
 ├── keygen.js          # API key generator utility
@@ -104,10 +104,10 @@ tool('your_tool_name', 'Description for the AI', {
 5. **Test it:**
 ```bash
 # Get a JWT token
-TOKEN=$(curl -s -X POST http://localhost:4444/auth/token \
+TOKEN=$(curl -k -s -X POST https://localhost:4444/auth/token \
   -H "X-API-Key: YOUR_KEY" | node -e "process.stdin.resume();process.stdin.on('data',d=>console.log(JSON.parse(d).token))")
 
-# Connect via SSE and call your tool
+# Connect via Streamable HTTP and call your tool
 ```
 
 ---

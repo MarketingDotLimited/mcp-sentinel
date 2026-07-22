@@ -141,7 +141,6 @@ app.get('/health', (req, res) => {
     status: 'ok',
     server: 'mcp-sentinel',
     version: process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
-    timestamp: new Date().toISOString(),
   });
 });
 
@@ -280,6 +279,16 @@ app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
   }
 });
 
+// ── Centralized Error Handler ──────────────────────────────
+
+app.use((err, req, res, next) => {
+  const errorId = require('crypto').randomUUID();
+  logError({ ip: req.clientIP || 'unknown', userId: req.identity?.userId || 'unknown', tool: 'HTTP_ERROR', errorId, error: err });
+  if (!res.headersSent) {
+    res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
+  }
+});
+
 // ── MCP Server Factory ─────────────────────────────────────
 
 function createMcpServer(identity, ip) {
@@ -302,16 +311,23 @@ function createMcpServer(identity, ip) {
         logSecurityEvent({ ip, event: 'SCOPE_DENIED', detail: { userId: identity.userId, tool: name } });
         return { content: [{ type: 'text', text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }) }], isError: true };
       }
+      
+      const destructiveTools = ['delete_file', 'delete_user', 'manage_firewall', 'kill_process'];
+      if (destructiveTools.includes(name) && !args.confirm) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'This is a destructive action. You must include "confirm": true in your arguments to proceed.' }) }], isError: true };
+      }
+      
       try {
         const result = await handler(args, identity);
         logAccess({ ip, apiKey: null, userId: identity.userId, tool: name, args, result: 'success', duration: Date.now() - start });
         const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
         return { content: [{ type: 'text', text: textContent || 'Success' }] };
       } catch (err) {
-        logError({ ip, userId: identity.userId, tool: name, error: err });
-        logAccess({ ip, userId: identity.userId, tool: name, args, result: 'failure', duration: Date.now() - start });
+        const errorId = require('crypto').randomUUID();
+        logError({ ip, userId: identity.userId, tool: name, errorId, error: err });
+        logAccess({ ip, userId: identity.userId, tool: name, args, errorId, result: 'failure', duration: Date.now() - start });
         return {
-          content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }],
+          content: [{ type: 'text', text: JSON.stringify({ error: `Operation failed (Error ID: ${errorId})` }) }],
           isError: true,
         };
       }
@@ -328,8 +344,9 @@ function createMcpServer(identity, ip) {
   }, getProcesses);
 
   tool('kill_process', 'Send a signal to a process. Non-admin users can only kill their own processes.', {
-    pid: z.number().describe('Process ID to signal'),
+    pid: z.number().int().positive().describe('Process ID to signal'),
     signal: z.enum(['TERM', 'KILL', 'HUP', 'INT', 'USR1', 'USR2']).optional().describe('Signal to send (default: TERM)'),
+    confirm: z.boolean().optional().describe('Must be true to execute'),
   }, killProcess);
 
   // ── File Tools ─────────────────────────────────────────
@@ -337,7 +354,7 @@ function createMcpServer(identity, ip) {
   tool('read_file', 'Read the contents of a file. Paths are sandboxed per role.', {
     filePath: z.string().max(4096).describe('Absolute path to the file'),
     encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
-    maxBytes: z.number().optional().describe('Maximum bytes to read (default: 1MB)'),
+    maxBytes: z.number().int().positive().optional().describe('Maximum bytes to read (default: 1MB)'),
   }, readFile);
 
   tool('write_file', 'Write content to a file (create or overwrite). Paths are sandboxed per role.', {
@@ -350,6 +367,7 @@ function createMcpServer(identity, ip) {
   tool('delete_file', 'Delete a file or directory.', {
     filePath: z.string().max(4096).describe('Absolute path to delete'),
     recursive: z.boolean().optional().describe('Recursively delete directory contents (default: false)'),
+    confirm: z.boolean().optional().describe('Must be true to execute'),
   }, deleteFile);
 
   tool('list_directory', 'List the contents of a directory.', {
@@ -375,7 +393,7 @@ function createMcpServer(identity, ip) {
   tool('search_files', 'Search for files by name pattern in a directory tree.', {
     searchPath: z.string().max(4096).describe('Root path to search from'),
     pattern: z.string().max(4096).describe('Filename pattern (supports wildcards, e.g. "*.log")'),
-    maxResults: z.number().optional().describe('Maximum results (default: 50)'),
+    maxResults: z.number().int().positive().optional().describe('Maximum results (default: 50)'),
     fileType: z.enum(['file', 'directory']).optional().describe('Filter by type'),
   }, searchFiles);
 
@@ -397,15 +415,17 @@ function createMcpServer(identity, ip) {
 
   tool('get_journal_logs', 'Read systemd journal logs. Admin only.', {
     service: z.string().max(4096).optional().describe('Service name to filter logs for'),
-    lines: z.number().max(500).optional().describe('Number of log lines to return (default: 50, max: 500)'),
+    lines: z.number().int().positive().max(500).optional().describe('Number of log lines to return (default: 50, max: 500)'),
     since: z.string().max(4096).optional().describe('Show logs since this time (e.g. "1 hour ago", "2024-01-01 00:00:00")'),
     priority: z.enum(['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug']).optional(),
   }, getJournalLogs);
 
   tool('manage_firewall', 'Manage UFW firewall rules. Admin only.', {
     action: z.enum(['status', 'enable', 'disable', 'allow', 'deny', 'delete', 'list']).describe('Firewall action'),
-    port: z.number().optional().describe('Port number for allow/deny/delete actions'),
+    port: z.number().int().positive().optional().describe('Port number for allow/deny/delete actions'),
     protocol: z.enum(['tcp', 'udp']).optional().describe('Protocol (default: tcp)'),
+    rule: z.enum(['allow', 'deny']).optional().describe('Rule type for delete action'),
+    confirm: z.boolean().optional().describe('Must be true to execute destructive actions'),
   }, manageFirewall);
 
   // ── User Management Tools (Admin only) ─────────────────
@@ -430,6 +450,7 @@ function createMcpServer(identity, ip) {
   tool('delete_user', 'Delete a system user. Admin only.', {
     username: z.string().max(4096).describe('Username to delete'),
     removeHome: z.boolean().optional().describe('Remove home directory (default: false)'),
+    confirm: z.boolean().optional().describe('Must be true to execute'),
   }, deleteUser);
 
   tool('set_user_password', 'Set or change a user password. Admin only.', {
@@ -451,7 +472,7 @@ function createMcpServer(identity, ip) {
     username: z.string().max(4096).describe('Target username'),
     action: z.enum(['add', 'list', 'remove']).describe('Action to perform'),
     publicKey: z.string().max(4096).optional().describe('Full SSH public key string (for add action)'),
-    keyIndex: z.number().optional().describe('Key index to remove (for remove action, use list first)'),
+    keyIndex: z.number().int().nonnegative().optional().describe('Key index to remove (for remove action, use list first)'),
   }, manageSshKeys);
 
   return server;
@@ -563,8 +584,13 @@ function gracefulShutdown(signal) {
     activeTransports.delete(id);
   }
   server.close(() => {
-    console.log('Server closed. Goodbye.');
-    process.exit(0);
+    console.log('Server closed. Flushing logs...');
+    import('./audit.js').then(({ shutdownLoggers }) => {
+      shutdownLoggers(() => {
+        console.log('Goodbye.');
+        process.exit(0);
+      });
+    }).catch(() => process.exit(0));
   });
   setTimeout(() => process.exit(1), 10000);
 }

@@ -6,7 +6,7 @@
 [![MCP](https://img.shields.io/badge/MCP-HTTP%2FSSE-blue)](https://modelcontextprotocol.io)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-A **production-grade MCP (Model Context Protocol) server** that lets AI cloud services (Claude, ChatGPT, Gemini, Cursor, etc.) control and manage your Linux server securely via HTTP/SSE.
+A **security-hardened MCP (Model Context Protocol) server** that lets AI cloud services (Claude, ChatGPT, Gemini, Cursor, etc.) control and manage your Linux server securely via Streamable HTTP.
 
 ## ✨ Features
 
@@ -40,13 +40,15 @@ systemctl enable --now mcp-server
 
 ## 🔗 Connect Your AI Client
 
+> **Note:** The examples use `https://`. HTTPS is **required** for production use to protect your credentials and data.
+
 ### Claude Desktop
 ```json
 {
   "mcpServers": {
     "server-control": {
       "type": "sse",
-      "url": "http://YOUR_SERVER_IP:4444/mcp",
+      "url": "https://YOUR_SERVER_IP:4444/mcp",
       "headers": { "X-API-Key": "YOUR_ADMIN_KEY" }
     }
   }
@@ -58,7 +60,7 @@ systemctl enable --now mcp-server
 {
   "mcpServers": {
     "server-control": {
-      "url": "http://YOUR_SERVER_IP:4444/mcp",
+      "url": "https://YOUR_SERVER_IP:4444/mcp",
       "type": "sse",
       "headers": { "X-API-Key": "YOUR_ADMIN_KEY" }
     }
@@ -70,7 +72,7 @@ systemctl enable --now mcp-server
 
 | Category | Tools |
 |---|---|
-| **System** | `run_command`, `get_system_info`, `get_processes`, `kill_process` |
+| **System** | `get_system_info`, `get_processes`, `kill_process` |
 | **Files** | `read_file`, `write_file`, `delete_file`, `list_directory`, `move_file`, `copy_file`, `get_file_info`, `search_files` |
 | **Services** | `manage_service`, `get_service_status`, `list_services`, `get_journal_logs`, `manage_firewall` |
 | **Users** | `list_users`, `get_user_info`, `create_user`, `delete_user`, `set_user_password`, `modify_user`, `manage_ssh_keys` |
@@ -84,18 +86,19 @@ AI Client → HTTPS → IP Whitelist → API Key/JWT → Rate Limit → Scope Ch
 | Layer | Details |
 |---|---|
 | **HTTPS/TLS** | TLS 1.2+ with strong cipher suites |
-| **IP Whitelist** | Per-key or global CIDR restrictions (IPv4) |
-| **API Key** | 32-byte cryptographically random hex keys |
-| **JWT Tokens** | HS256-signed, IP-bound, 8h expiry |
-| **Rate Limiting** | 60 req/min global, 10/15min auth |
+| **Privilege Separation** | Tools run as the mapped Unix user UID/GID (never root for users) |
+| **IP Whitelist** | Per-key or global CIDR restrictions (IPv4 & IPv6) |
+| **API Key** | Persistently stored, SHA-256 hashed |
+| **JWT Tokens** | HS256-signed, IP-bound, short-lived bearer |
+| **Rate & Session Limit** | Global, auth limits, and concurrent session capping |
 | **Scope Enforcement** | Per-key tool access control |
-| **Path Sandbox** | Users restricted to `/home/{username}`, symlink-safe |
-| **Audit Logs** | Structured JSON, 30-day retention, sensitive fields redacted |
+| **Path Sandbox** | Symlink-safe, users restricted to `/home/{username}` and private temp dirs |
+| **Audit Logs** | Tamper-evident structured JSON with secret redaction |
 
 ## 📁 Project Structure
 
 ```
-├── server.js              # Main MCP server (Express + SSE)
+├── server.js              # Main MCP server (Express + Streamable HTTP)
 ├── security.js            # All auth & security middleware
 ├── audit.js               # Structured audit logging
 ├── keygen.js              # API key generator
@@ -140,10 +143,10 @@ node keygen.js alice user run_command,read_file,write_file
 tail -f logs/audit-$(date +%Y-%m-%d).log | jq
 
 # View active sessions
-curl http://localhost:4444/admin/sessions -H "X-API-Key: YOUR_KEY"
+curl -k https://localhost:4444/admin/sessions -H "X-API-Key: YOUR_KEY"
 
 # Health check
-curl http://localhost:4444/health
+curl -k https://localhost:4444/health
 ```
 
 ## Requirements

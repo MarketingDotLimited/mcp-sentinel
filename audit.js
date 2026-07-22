@@ -5,15 +5,32 @@ import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+import crypto from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOG_DIR = process.env.AUDIT_LOG_DIR || path.join(__dirname, 'logs');
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 });
+}
+
+let lastHash = crypto.createHash('sha256').update('init').digest('hex');
+let seqNo = 0;
+const tamperFormat = winston.format((info) => {
+  seqNo++;
+  info.seqNo = seqNo;
+  const data = JSON.stringify(info) + lastHash;
+  lastHash = crypto.createHash('sha256').update(data).digest('hex');
+  info.hash = lastHash;
+  return info;
+});
 
 // Audit logger - security events
 const auditLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
+    tamperFormat(),
     winston.format.json()
   ),
   transports: [
@@ -23,6 +40,7 @@ const auditLogger = winston.createLogger({
       maxFiles: `${process.env.AUDIT_LOG_KEEP_DAYS || 30}d`,
       zippedArchive: true,
       level: 'info',
+      options: { mode: 0o600 },
     }),
     new winston.transports.Console({
       format: winston.format.combine(
@@ -49,6 +67,7 @@ const errorLogger = winston.createLogger({
       datePattern: 'YYYY-MM-DD',
       maxFiles: '30d',
       zippedArchive: true,
+      options: { mode: 0o600 },
     }),
   ],
 });
@@ -108,6 +127,14 @@ export function logServerStart({ port, host, https }) {
   });
 }
 
+export function shutdownLoggers(cb) {
+  auditLogger.on('finish', () => {
+    errorLogger.on('finish', cb);
+    errorLogger.end();
+  });
+  auditLogger.end();
+}
+
 // ── Helpers ────────────────────────────────────────────────
 
 function maskKey(key) {
@@ -117,15 +144,33 @@ function maskKey(key) {
 
 function sanitizeArgs(args) {
   if (!args) return {};
-  const safe = { ...args };
-  // Redact sensitive fields
-  const sensitiveKeys = ['password', 'publicKey', 'apiKey', 'key', 'secret', 'token'];
-  for (const k of sensitiveKeys) {
-    if (k in safe) safe[k] = '[REDACTED]';
+  
+  function deepSanitize(obj) {
+    if (typeof obj !== 'object' || obj === null) return obj;
+    if (Array.isArray(obj)) return obj.map(deepSanitize);
+    
+    const safe = { ...obj };
+    const sensitiveKeys = ['password', 'publicKey', 'apiKey', 'key', 'secret', 'token', 'authorization'];
+    for (const k of Object.keys(safe)) {
+      if (sensitiveKeys.includes(k) || k.toLowerCase().includes('password')) {
+        safe[k] = '[REDACTED]';
+      } else if (typeof safe[k] === 'object') {
+        safe[k] = deepSanitize(safe[k]);
+      } else if (typeof safe[k] === 'string') {
+        // Regex match common secret patterns
+        safe[k] = safe[k].replace(/(-p|--password=)[\S]+/g, '$1[REDACTED]');
+        safe[k] = safe[k].replace(/(mysql:\/\/[^:]+:)[^@]+(@)/g, '$1[REDACTED]$2');
+        safe[k] = safe[k].replace(/(Bearer )[\w\.\-]+/g, '$1[REDACTED]');
+      }
+    }
+    return safe;
   }
+  
+  const safe = deepSanitize(args);
+  
   // Truncate large content
   if (safe.content && safe.content.length > 200) safe.content = safe.content.slice(0, 100) + '...[TRUNCATED]';
-  if (safe.command && safe.command.length > 500) safe.command = safe.command.slice(0, 200) + '...[TRUNCATED]';
+  if (safe.command && safe.command.length > 500) safe.command = safe.command.slice(0, 500) + '...[TRUNCATED]';
   return safe;
 }
 
