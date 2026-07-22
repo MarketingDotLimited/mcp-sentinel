@@ -112,74 +112,163 @@
   function showGenerateModal() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
+    
+    // Available scope groups
+    const availableScopes = ['*', 'system.*', 'files.*', 'services.*', 'users.*', 'docker.*', 'git.*', 'db.*'];
+    
+    let scopesHtml = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">';
+    availableScopes.forEach(scope => {
+      scopesHtml += `
+        <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; font-size: 13px; cursor: pointer;">
+          <input type="checkbox" class="scope-checkbox" value="${scope}" ${scope === '*' ? 'checked' : ''}>
+          ${scope}
+        </label>
+      `;
+    });
+    scopesHtml += '</div>';
+
     overlay.innerHTML = `
       <div class="modal">
         <h3 class="modal-title">Generate API Key</h3>
-        <div class="input-group" style="margin-bottom: 10px;">
-          <label>Key</label>
+        
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>Generated Key</label>
           <div style="display: flex; gap: 10px;">
-            <input type="text" id="gen-key" class="input-field" style="flex: 1;" readonly>
-            <button id="btn-regen" class="btn btn-ghost">Regenerate</button>
+            <input type="text" id="gen-key" class="input-field" style="flex: 1; opacity: 0.8; font-family: monospace;" readonly>
+            <button id="btn-regen" class="btn btn-ghost" title="Regenerate">↺</button>
           </div>
         </div>
-        <div class="input-group" style="margin-bottom: 10px;">
-          <label>User ID</label>
-          <input type="text" id="gen-user" class="input-field">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="input-group" style="margin-bottom: 12px;">
+            <label>User Identifier</label>
+            <select id="gen-user" class="input-field">
+              <option value="agent-1">agent-1 (Standard AI)</option>
+              <option value="agent-2">agent-2 (Secondary AI)</option>
+              <option value="monitoring">monitoring (Metrics)</option>
+              <option value="admin">admin (Full Access)</option>
+              <option value="custom">-- Custom Name --</option>
+            </select>
+          </div>
+          <div class="input-group" style="margin-bottom: 12px;">
+            <label>Privilege Role</label>
+            <select id="gen-role" class="input-field">
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
         </div>
-        <div class="input-group" style="margin-bottom: 10px;">
-          <label>Role</label>
-          <select id="gen-role" class="input-field">
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
+
+        <div class="input-group" style="margin-bottom: 12px; display: none;" id="custom-user-group">
+          <label>Custom User ID</label>
+          <input type="text" id="gen-user-custom" class="input-field" placeholder="e.g. specialized-agent">
+        </div>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>Label / Description</label>
+          <select id="gen-label-select" class="input-field" style="margin-bottom: 8px;">
+            <option value="Primary AI Assistant">Primary AI Assistant</option>
+            <option value="Code Review Agent">Code Review Agent</option>
+            <option value="CI/CD Pipeline">CI/CD Pipeline</option>
+            <option value="System Monitor">System Monitor</option>
+            <option value="custom">-- Custom Label --</option>
           </select>
+          <input type="text" id="gen-label-custom" class="input-field" placeholder="Enter custom label" style="display: none;">
         </div>
-        <div class="input-group" style="margin-bottom: 10px;">
-          <label>Label</label>
-          <input type="text" id="gen-label" class="input-field">
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>Allowed Scopes</label>
+          ${scopesHtml}
         </div>
-        <div class="input-group" style="margin-bottom: 10px;">
-          <label>Scopes</label>
-          <input type="text" id="gen-scopes" class="input-field" placeholder="* for all, or tool names">
+
+        <div class="input-group" style="margin-bottom: 24px;">
+          <label>Allowed IPs (Optional)</label>
+          <input type="text" id="gen-ips" class="input-field" placeholder="Empty = all IPs allowed (e.g. 192.168.1.100)">
         </div>
-        <div class="input-group" style="margin-bottom: 20px;">
-          <label>Allowed IPs</label>
-          <input type="text" id="gen-ips" class="input-field" placeholder="empty = all">
-        </div>
+
         <div class="modal-actions" style="text-align: right;">
           <button class="btn btn-ghost" id="btn-cancel">Cancel</button>
-          <button class="btn btn-primary" id="btn-submit">Generate</button>
+          <button class="btn btn-primary" id="btn-submit">Save Key</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
 
-    const inputKey = overlay.querySelector('#gen-key');
-    inputKey.value = generateRandomKey();
+    const keyField = overlay.querySelector('#gen-key');
+    keyField.value = generateRandomKey();
 
     overlay.querySelector('#btn-regen').onclick = () => {
-      inputKey.value = generateRandomKey();
+      keyField.value = generateRandomKey();
     };
+
+    // Toggle custom user input
+    const userSelect = overlay.querySelector('#gen-user');
+    const customUserGroup = overlay.querySelector('#custom-user-group');
+    userSelect.addEventListener('change', () => {
+      customUserGroup.style.display = userSelect.value === 'custom' ? 'block' : 'none';
+    });
+
+    // Toggle custom label input
+    const labelSelect = overlay.querySelector('#gen-label-select');
+    const customLabelInput = overlay.querySelector('#gen-label-custom');
+    labelSelect.addEventListener('change', () => {
+      customLabelInput.style.display = labelSelect.value === 'custom' ? 'block' : 'none';
+    });
+
+    // Handle * scope checkbox logic
+    const scopeCheckboxes = overlay.querySelectorAll('.scope-checkbox');
+    scopeCheckboxes.forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        if (e.target.value === '*' && e.target.checked) {
+          scopeCheckboxes.forEach(other => { if (other.value !== '*') other.checked = false; });
+        } else if (e.target.value !== '*' && e.target.checked) {
+          overlay.querySelector('.scope-checkbox[value="*"]').checked = false;
+        }
+      });
+    });
 
     overlay.querySelector('#btn-cancel').onclick = () => {
       document.body.removeChild(overlay);
     };
 
     overlay.querySelector('#btn-submit').onclick = async () => {
-      const key = inputKey.value;
-      const userId = overlay.querySelector('#gen-user').value.trim();
+      const key = keyField.value;
       const role = overlay.querySelector('#gen-role').value;
-      const label = overlay.querySelector('#gen-label').value.trim();
-      const scopesStr = overlay.querySelector('#gen-scopes').value.trim();
-      const ipsStr = overlay.querySelector('#gen-ips').value.trim();
+      
+      let userId = userSelect.value;
+      if (userId === 'custom') userId = overlay.querySelector('#gen-user-custom').value.trim();
+      
+      let label = labelSelect.value;
+      if (label === 'custom') label = customLabelInput.value.trim();
 
-      const scopes = scopesStr ? scopesStr.split(',').map(s => s.trim()).filter(Boolean) : [];
-      const allowedIPs = ipsStr ? ipsStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const ips = overlay.querySelector('#gen-ips').value;
+      
+      const selectedScopes = Array.from(scopeCheckboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
 
-      document.body.removeChild(overlay);
+      if (!userId) {
+        if (window.Toast) window.Toast.error('User ID is required');
+        return;
+      }
+      if (selectedScopes.length === 0) {
+        if (window.Toast) window.Toast.error('At least one scope must be selected');
+        return;
+      }
+
+      const payload = {
+        key,
+        userId,
+        role,
+        label,
+        scopes: selectedScopes,
+      };
+      if (ips) payload.allowedIPs = ips.split(',').map(s => s.trim()).filter(Boolean);
 
       try {
-        await window.API.post('/admin/keys', { key, userId, role, label, scopes, allowedIPs });
-        if (window.Toast) window.Toast.success('API key generated successfully');
+        await window.API.post('/admin/keys', payload);
+        if (window.Toast) window.Toast.success('API key generated successfully!');
+        document.body.removeChild(overlay);
         loadKeys();
       } catch (err) {
         if (window.Toast) window.Toast.error('Failed to generate key: ' + err.message);
