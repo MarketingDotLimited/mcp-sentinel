@@ -11,15 +11,23 @@ let keyStore = {};
 export async function loadKeystore() {
   try {
     const data = await fs.readFile(KEYS_FILE, 'utf8');
-    keyStore = JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      throw new Error('keys.json must contain an object');
+    }
+    keyStore = parsed;
   } catch (err) {
-    if (err.code !== 'ENOENT') console.error('Error reading keys.json:', err.message);
-    keyStore = {};
+    if (err.code === 'ENOENT') {
+      keyStore = {};
+      return;
+    }
+    throw new Error(`Unable to load keystore: ${err.message}`);
   }
 }
 
 async function saveKeystore() {
   await fs.writeFile(KEYS_FILE, JSON.stringify(keyStore, null, 2), { mode: 0o600 });
+  await fs.chmod(KEYS_FILE, 0o600);
 }
 
 export function hashKey(key) {
@@ -28,6 +36,9 @@ export function hashKey(key) {
 
 export async function addKeyEntry(key, entryData) {
   const hash = hashKey(key);
+  if (keyStore[hash]) {
+    throw new Error('An entry for this API key already exists');
+  }
   keyStore[hash] = {
     keyId: crypto.randomUUID(),
     version: 1,

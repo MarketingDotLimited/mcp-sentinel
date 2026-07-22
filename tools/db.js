@@ -30,8 +30,12 @@ async function getDbConfig(alias) {
 
 export async function executeQuery({ alias, query, params = [], confirm }, identity) {
   const config = await getDbConfig(alias);
+  if (typeof query !== 'string' || !query.trim()) throw new Error('query is required');
+  if (!Array.isArray(params)) throw new Error('params must be an array');
+  const normalizedQuery = query.trim().replace(/;\s*$/, '');
+  if (normalizedQuery.includes(';')) throw new Error('Only one SQL statement may be executed per request');
 
-  const isWrite = query.trim().match(/^(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE)/i);
+  const isWrite = !/^(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i.test(normalizedQuery);
   if (isWrite && !config.allowWrite) {
     throw new Error(`Database connection '${alias}' is read-only. Writes are not permitted.`);
   }
@@ -54,7 +58,7 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
       if (!isWrite) await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY');
       
       const res = await client.query({
-        text: query,
+        text: normalizedQuery,
         values: params,
         rowMode: 'array',
       });
@@ -80,7 +84,7 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
     try {
       if (!isWrite) await conn.query('SET SESSION TRANSACTION READ ONLY');
       
-      const [rows, fields] = await conn.execute(query, params);
+      const [rows, fields] = await conn.execute(normalizedQuery, params);
       
       if (Array.isArray(rows)) {
         const resultRows = rows.slice(0, maxRows);
