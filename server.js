@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import https from 'https';
 import http from 'http';
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
@@ -69,10 +70,17 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
     },
   },
   hsts: USE_HTTPS ? { maxAge: 31536000, includeSubDomains: true } : false,
 }));
+
+// Serve static Web UI files
+app.use(express.static(path.join(__dirname, 'public')));
 
 // CORS - origin policy (this is NOT IP access control)
 app.use(cors({
@@ -157,7 +165,7 @@ app.post('/auth/token', authLimiter, authenticate, issueToken);
 
 // ── Admin Key Management (admin only) ─────────────────────
 
-app.post('/admin/keys', authenticate, async (req, res) => {
+app.post('/admin/keys', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -172,7 +180,7 @@ app.post('/admin/keys', authenticate, async (req, res) => {
   }
 });
 
-app.post('/admin/keys/revoke', authenticate, async (req, res) => {
+app.post('/admin/keys/revoke', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -183,14 +191,14 @@ app.post('/admin/keys/revoke', authenticate, async (req, res) => {
   return res.json({ success: revoked, message: revoked ? 'Key revoked' : 'Key not found' });
 });
 
-app.get('/admin/keys', authenticate, (req, res) => {
+app.get('/admin/keys', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
   return res.json({ keys: listApiKeys() });
 });
 
-app.get('/admin/sessions', authenticate, (req, res) => {
+app.get('/admin/sessions', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -202,6 +210,147 @@ app.get('/admin/sessions', authenticate, (req, res) => {
     connectedAt: s.connectedAt,
   }));
   return res.json({ sessions, count: sessions.length });
+});
+
+// ── Admin Web UI API Endpoints ─────────────────────────────
+
+app.get('/admin/stats', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  const stats = monitor.getLatestStats();
+  const sessions = activeTransports.size;
+  const keys = listApiKeys();
+  return res.json({
+    ...stats,
+    activeSessions: sessions,
+    totalKeys: keys.length,
+    serverUptime: process.uptime(),
+  });
+});
+
+app.get('/admin/logs', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  const limit = Math.min(parseInt(req.query.limit || '200', 10), 1000);
+  const logDir = process.env.AUDIT_LOG_DIR || path.join(__dirname, 'logs');
+  try {
+    const files = (await fsPromises.readdir(logDir))
+      .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
+      .sort()
+      .reverse();
+    if (files.length === 0) return res.json({ logs: [] });
+    const content = await fsPromises.readFile(path.join(logDir, files[0]), 'utf8');
+    const lines = content.trim().split('\n').filter(Boolean).reverse().slice(0, limit);
+    const logs = lines.map(line => {
+      try { return JSON.parse(line); } catch { return { raw: line }; }
+    });
+    return res.json({ logs });
+  } catch (e) {
+    return res.json({ logs: [], error: e.message });
+  }
+});
+
+app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('data: {"type":"connected"}\n\n');
+
+  const logDir = process.env.AUDIT_LOG_DIR || path.join(__dirname, 'logs');
+  let lastSize = 0;
+  let currentFile = null;
+
+  const pollInterval = setInterval(async () => {
+    try {
+      const files = (await fsPromises.readdir(logDir))
+        .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
+        .sort()
+        .reverse();
+      if (files.length === 0) return;
+      const filePath = path.join(logDir, files[0]);
+      if (currentFile !== filePath) {
+        currentFile = filePath;
+        const stat = await fsPromises.stat(filePath);
+        lastSize = stat.size;
+        return;
+      }
+      const stat = await fsPromises.stat(filePath);
+      if (stat.size > lastSize) {
+        const fd = await fsPromises.open(filePath, 'r');
+        const buf = Buffer.alloc(stat.size - lastSize);
+        await fd.read(buf, 0, buf.length, lastSize);
+        await fd.close();
+        const newLines = buf.toString('utf8').trim().split('\n').filter(Boolean);
+        for (const line of newLines) {
+          try {
+            const parsed = JSON.parse(line);
+            res.write(`data: ${JSON.stringify(parsed)}\n\n`);
+          } catch {}
+        }
+        lastSize = stat.size;
+      }
+    } catch {}
+  }, 2000);
+
+  req.on('close', () => {
+    clearInterval(pollInterval);
+  });
+});
+
+app.delete('/admin/sessions/:id', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  const sessionId = req.params.id;
+  const session = activeTransports.get(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  try {
+    if (session.mcpServer) session.mcpServer.close().catch(() => {});
+    monitor.unsubscribeAll(sessionId);
+    activeTransports.delete(sessionId);
+    logSecurityEvent({ ip: req.clientIP, event: 'SESSION_FORCE_CLOSED', detail: { sessionId, by: req.identity.userId } });
+    return res.json({ success: true, message: `Session ${sessionId} disconnected` });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/admin/backups', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  const { filePath } = req.query;
+  if (!filePath) return res.status(400).json({ error: 'filePath query param required' });
+  try {
+    const result = await listConfigBackups({ filePath }, req.identity);
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/admin/backups/restore', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  const { filePath, timestamp, confirm } = req.body;
+  if (!confirm) return res.status(400).json({ error: 'confirm: true required' });
+  try {
+    const result = await restoreConfig({ filePath, timestamp }, req.identity);
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 });
 
 // ── MCP Endpoint (Streamable HTTP) ─────────────────────────
