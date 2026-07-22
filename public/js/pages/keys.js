@@ -130,10 +130,12 @@
     // Fetch OS users
     let osUsersHtml = '<option value="admin">admin (Full Access)</option>';
     try {
-      const users = await window.API.get('/admin/os-users');
-      if (Array.isArray(users)) {
-        users.forEach(u => {
-          if (u.username !== 'admin') {
+      const response = await window.API.get('/admin/os-users');
+      const userList = response.users || [];
+      if (Array.isArray(userList)) {
+        userList.forEach(u => {
+          // Only list users with a valid shell (SSH access)
+          if (u.username !== 'admin' && !u.shell.includes('false') && !u.shell.includes('nologin')) {
             osUsersHtml += `<option value="${u.username}">${u.username} (OS User)</option>`;
           }
         });
