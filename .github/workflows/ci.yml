@@ -6,23 +6,41 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   lint-and-check:
     name: Lint & Syntax Check
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 22.x]
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
+
+      - name: Check for secrets in code
+        run: |
+          # Fail if any hardcoded secrets patterns found
+          if grep -rniE "password\s*=\s*['\"].+" --exclude-dir=node_modules .; then
+            echo "❌ Possible hardcoded password found!"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found"
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Security audit
+        run: npm audit --audit-level=high || echo "Ignoring audit failures for now"
 
       - name: Check syntax — all modules
         run: |
@@ -36,15 +54,6 @@ jobs:
           node --check tools/services.js
           node --check tools/users.js
           echo "✅ All files passed syntax check"
-
-      - name: Check for secrets in code
-        run: |
-          # Fail if any hardcoded secrets patterns found
-          if grep -rn "password\s*=\s*['\"].\+" --include="*.js" .; then
-            echo "❌ Possible hardcoded password found!"
-            exit 1
-          fi
-          echo "✅ No hardcoded secrets found"
 
       - name: Check .env is gitignored
         run: |
@@ -60,3 +69,17 @@ jobs:
             [ -f "$f" ] || (echo "❌ Missing: $f" && exit 1)
           done
           echo "✅ All required files present"
+
+      - name: Smoke test
+        run: |
+          cp .env.example .env
+          export PORT=4445
+          export JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+          export ADMIN_API_KEY=mcp_test_key_1234567890
+          export USE_HTTPS=false
+          node server.js &
+          SERVER_PID=$!
+          sleep 3
+          curl -s http://127.0.0.1:4445/health | grep -q '"status":"ok"' || (echo "Smoke test failed" && kill $SERVER_PID && exit 1)
+          echo "✅ Smoke test passed"
+          kill $SERVER_PID

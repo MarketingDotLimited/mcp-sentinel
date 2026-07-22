@@ -1,59 +1,69 @@
-// ============================================================
-//  security.js - All Security Middleware
-// ============================================================
 import jwt from 'jsonwebtoken';
 import { logAuth, logSecurityEvent } from './audit.js';
 import { isIP } from 'net';
+import ipaddr from 'ipaddr.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { loadKeystore, addKeyEntry, revokeKeyEntry, getKeyEntry, getKeys, getKeyById } from './keystore.js';
+import { randomUUID } from 'crypto';
 
-// ── In-memory key store (load from .env / DB in production) ─
-// Format: { apiKey: { userId, role, allowedIPs, scopes, active } }
-const API_KEYS = new Map();
+const execFileAsync = promisify(execFile);
+
+// Load keystore
+await loadKeystore();
 
 // Initialize from environment
 if (process.env.ADMIN_API_KEY) {
-  API_KEYS.set(process.env.ADMIN_API_KEY, {
-    userId: 'admin',
-    role: 'admin',         // admin | user
-    allowedIPs: [],        // empty = use global whitelist
-    scopes: ['*'],         // '*' = all tools
-    active: true,
-    label: 'Master Admin Key',
-  });
+  const existing = getKeyEntry(process.env.ADMIN_API_KEY);
+  if (!existing) {
+    await addKeyEntry(process.env.ADMIN_API_KEY, {
+      userId: 'admin',
+      role: 'admin',
+      allowedIPs: [],
+      scopes: ['*'],
+      active: true,
+      label: 'Master Admin Key',
+    });
+  }
 }
+
+const JWT_DENYLIST = new Set();
 
 // ── IP Whitelist ───────────────────────────────────────────
 
 /**
- * Parse CIDR or plain IP and check membership.
- * Supports IPv4 only for simplicity; extend with 'ipaddr.js' for IPv6 if needed.
+ * Parse CIDR or plain IP and check membership using ipaddr.js.
  */
 function ipInCidr(ip, cidr) {
-  // Skip check if IP is IPv6 and CIDR is IPv4 (or vice versa)
-  const ipVersion = isIP(ip);
-  if (ipVersion === 0) return false; // invalid IP
-  if (!cidr.includes('/')) return ip === cidr;
-  const [base, bits] = cidr.split('/');
-  const baseVersion = isIP(base);
-  if (ipVersion !== baseVersion) return false; // version mismatch
-  if (ipVersion === 6) return false; // IPv6 CIDR not supported, reject
-  const mask = ~((1 << (32 - parseInt(bits))) - 1) >>> 0;
-  const ipNum = ipToNum(ip);
-  const baseNum = ipToNum(base);
-  return (ipNum & mask) === (baseNum & mask);
-}
-
-function ipToNum(ip) {
-  return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0) >>> 0;
+  try {
+    const parsedIP = ipaddr.process(ip);
+    
+    if (!cidr.includes('/')) {
+      return parsedIP.toString() === ipaddr.process(cidr).toString();
+    }
+    
+    const [rangeIpStr, bitsStr] = cidr.split('/');
+    const rangeIp = ipaddr.process(rangeIpStr);
+    const bits = parseInt(bitsStr, 10);
+    
+    if (parsedIP.kind() !== rangeIp.kind()) return false;
+    
+    return parsedIP.match(rangeIp, bits);
+  } catch (err) {
+    return false; // invalid IP or CIDR
+  }
 }
 
 function getClientIP(req) {
+  const directIp = (req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
   if (process.env.TRUST_PROXY === 'true' && req.headers['x-forwarded-for']) {
-    return req.headers['x-forwarded-for'].split(',')[0].trim().replace('::ffff:', '');
+    const trustedProxies = (process.env.TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean);
+    const isTrusted = trustedProxies.length === 0 || trustedProxies.some(p => ipInCidr(directIp, p));
+    if (isTrusted) {
+      return req.headers['x-forwarded-for'].split(',')[0].trim().replace(/^::ffff:/, '');
+    }
   }
-  return (
-    req.socket?.remoteAddress ||
-    ''
-  ).replace('::ffff:', '');
+  return directIp;
 }
 
 function isIPAllowed(ip, keyEntry) {
@@ -100,7 +110,7 @@ export function authenticate(req, res, next) {
     return res.status(401).json({ error: 'Missing API key' });
   }
 
-  const keyEntry = API_KEYS.get(apiKey);
+  const keyEntry = getKeyEntry(apiKey);
 
   if (!keyEntry || !keyEntry.active) {
     logSecurityEvent({ ip, event: 'INVALID_API_KEY', detail: { key: apiKey.slice(0, 8) + '...' } });
@@ -120,6 +130,8 @@ export function authenticate(req, res, next) {
     userId: keyEntry.userId,
     role: keyEntry.role,
     scopes: keyEntry.scopes,
+    keyVersion: keyEntry.version,
+    keyId: keyEntry.keyId,
   };
 
   logAuth({ ip, apiKey, userId: keyEntry.userId, event: 'AUTH_SUCCESS' });
@@ -144,11 +156,25 @@ export function issueToken(req, res) {
     role: req.identity.role,
     scopes: req.identity.scopes,
     ip, // Bind token to issuing IP
+    keyVersion: req.identity.keyVersion,
+    keyId: req.identity.keyId,
+    jti: randomUUID(),
   };
+
+  let expiresIn = process.env.JWT_EXPIRY || '8h';
+  const match = expiresIn.match(/^(\\d+)([hmd])$/);
+  if (match) {
+    let val = parseInt(match[1]);
+    let unit = match[2];
+    let hours = unit === 'd' ? val * 24 : unit === 'm' ? val / 60 : val;
+    if (hours > 24) expiresIn = '24h';
+  } else {
+    expiresIn = '8h';
+  }
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
     algorithm: 'HS256',
-    expiresIn: process.env.JWT_EXPIRY || '8h',
+    expiresIn,
     issuer: 'mcp-server',
     audience: 'mcp-client',
   });
@@ -157,7 +183,7 @@ export function issueToken(req, res) {
 
   return res.json({
     token,
-    expires_in: process.env.JWT_EXPIRY || '8h',
+    expires_in: expiresIn,
     token_type: 'Bearer',
   });
 }
@@ -181,6 +207,17 @@ export function authenticateJWT(req, res, next) {
       audience: 'mcp-client',
       algorithms: ['HS256'],
     });
+
+    if (JWT_DENYLIST.has(decoded.jti)) {
+      logSecurityEvent({ ip, event: 'TOKEN_DENYLISTED', detail: { jti: decoded.jti } });
+      return res.status(401).json({ error: 'Token revoked' });
+    }
+
+    const keyEntry = getKeyById(decoded.keyId);
+    if (!keyEntry || !keyEntry.active || keyEntry.version !== decoded.keyVersion) {
+      logSecurityEvent({ ip, event: 'TOKEN_KEY_REVOKED', detail: { keyId: decoded.keyId } });
+      return res.status(401).json({ error: 'Token invalidated (key revoked or changed)' });
+    }
 
     // Optional: enforce IP binding
     if (decoded.ip && decoded.ip !== ip) {
@@ -220,37 +257,38 @@ export function requireScope(toolName) {
 
 // ── API Key Management ─────────────────────────────────────
 
-export function addApiKey(key, options) {
-  API_KEYS.set(key, {
+export async function addApiKey(key, options) {
+  if (!key || key.length < 32) throw new Error("Key must be at least 32 characters");
+  if (!['admin', 'user'].includes(options.role)) throw new Error("Invalid role");
+
+  if (options.userId !== 'admin') {
+    try {
+      await execFileAsync('id', [options.userId]);
+    } catch (err) {
+      throw new Error(`Invalid user: Unix account '${options.userId}' does not exist on this system.`);
+    }
+  }
+
+  await addKeyEntry(key, {
     userId: options.userId,
     role: options.role || 'user',
     allowedIPs: options.allowedIPs || [],
     scopes: options.scopes || [],
-    active: true,
     label: options.label || '',
-    createdAt: new Date().toISOString(),
   });
+  logSecurityEvent({ ip: 'internal', event: 'API_KEY_CREATED', detail: { userId: options.userId } });
 }
 
-export function revokeApiKey(key) {
-  const entry = API_KEYS.get(key);
-  if (entry) {
-    entry.active = false;
-    return true;
+export async function revokeApiKey(key) {
+  const success = await revokeKeyEntry(key);
+  if (success) {
+    logSecurityEvent({ ip: 'internal', event: 'API_KEY_REVOKED', detail: {} });
   }
-  return false;
+  return success;
 }
 
 export function listApiKeys() {
-  return Array.from(API_KEYS.entries()).map(([key, entry]) => ({
-    key: maskKey(key),
-    ...entry,
-  }));
-}
-
-function maskKey(key) {
-  if (!key || key.length < 8) return '***';
-  return key.slice(0, 4) + '***' + key.slice(-4);
+  return getKeys();
 }
 
 export { getClientIP };

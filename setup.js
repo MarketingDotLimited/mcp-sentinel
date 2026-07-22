@@ -28,10 +28,23 @@ async function main() {
   const adminKey = `mcp_${randomBytes(32).toString('hex')}`;
 
   // 2. Ask configuration
-  const port = await ask('Port [4444]: ') || '4444';
+  let portStr = await ask('Port [4444]: ') || '4444';
+  const port = parseInt(portStr, 10);
+  if (isNaN(port) || port < 1 || port > 65535) {
+    console.error('Invalid port. Must be an integer between 1 and 65535.');
+    process.exit(1);
+  }
   const useHttps = (await ask('Use HTTPS? (recommended) [Y/n]: ')).toLowerCase() !== 'n';
   const allowedIPs = await ask('Allowed IPs (comma-separated, empty = all): ');
+  if (!/^[0-9a-fA-F:\.,\s/]*$/.test(allowedIPs)) {
+    console.error('Invalid characters in Allowed IPs');
+    process.exit(1);
+  }
   const allowedOrigins = await ask('Allowed CORS origins (comma-separated, empty = all): ');
+  if (/[<>"'\n\r]/.test(allowedOrigins)) {
+    console.error('Invalid characters in Allowed Origins');
+    process.exit(1);
+  }
 
   // 3. Generate self-signed cert if HTTPS
   if (useHttps) {
@@ -54,7 +67,17 @@ async function main() {
     }
   }
 
-  // 4. Write .env
+  // 4. Check if .env exists
+  try {
+    await fs.access(path.join(__dirname, '.env'));
+    const overwrite = (await ask('\\n⚠️  .env already exists. Overwrite and generate new secrets? [y/N]: ')).toLowerCase() === 'y';
+    if (!overwrite) {
+      console.log('Setup aborted. Existing .env preserved.');
+      process.exit(0);
+    }
+  } catch (err) { /* .env doesn't exist, proceed */ }
+
+  // 5. Write .env
   const envContent = `# MCP Server Control - Auto-generated configuration
 # Generated: ${new Date().toISOString()}
 
@@ -81,17 +104,16 @@ AUDIT_LOG_DIR=./logs
 AUDIT_LOG_KEEP_DAYS=30
 
 MAX_OUTPUT_SIZE=1048576
-SUDO_ALLOWED_USERS=root
 `;
 
   await fs.writeFile(path.join(__dirname, '.env'), envContent, { mode: 0o600 });
   console.log('\n✅ .env file created (permissions: 600)');
 
-  // 5. Create logs directory
+  // 6. Create logs directory
   await fs.mkdir(path.join(__dirname, 'logs'), { recursive: true });
   console.log('✅ ./logs directory created');
 
-  // 6. Create systemd service file
+  // 7. Create systemd service file
   const serviceFile = `[Unit]
 Description=MCP Server Control
 After=network.target
@@ -120,7 +142,7 @@ WantedBy=multi-user.target
   await fs.writeFile(path.join(__dirname, 'mcp-server.service'), serviceFile);
   console.log('✅ systemd service file created: ./mcp-server.service');
 
-  // 7. Print summary
+  // 8. Print summary
   const protocol = useHttps ? 'https' : 'http';
   console.log(`
 ╔══════════════════════════════════════════════════════╗

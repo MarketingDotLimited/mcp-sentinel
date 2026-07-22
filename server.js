@@ -30,7 +30,7 @@ import {
 
 import { logAccess, logError, logServerStart, logSecurityEvent } from './audit.js';
 
-import { runCommand, getSystemInfo, getProcesses, killProcess } from './tools/system.js';
+import { getSystemInfo, getProcesses, killProcess } from './tools/system.js';
 import { readFile, writeFile, deleteFile, listDirectory, moveFile, copyFile, getFileInfo, searchFiles } from './tools/files.js';
 import { manageService, getServiceStatus, listServices, getJournalLogs, manageFirewall } from './tools/services.js';
 import { listUsers, getUserInfo, createUser, deleteUser, setUserPassword, modifyUser, manageSshKeys } from './tools/users.js';
@@ -45,6 +45,16 @@ const activeTransports = new Map(); // sessionId -> { transport, identity, ip }
 
 // ── Express App ───────────────────────────────────────────
 
+process.on('uncaughtException', (err) => {
+  logError({ ip: 'internal', userId: 'system', tool: 'uncaughtException', error: err });
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logError({ ip: 'internal', userId: 'system', tool: 'unhandledRejection', error: reason });
+  console.error('Unhandled Rejection:', reason);
+});
+
 const app = express();
 
 // Security headers
@@ -58,7 +68,7 @@ app.use(helmet({
   hsts: USE_HTTPS ? { maxAge: 31536000, includeSubDomains: true } : false,
 }));
 
-// CORS - restrict to known AI cloud service IPs (or configure your own)
+// CORS - origin policy (this is NOT IP access control)
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (direct API calls) or from trusted origins
@@ -71,10 +81,9 @@ app.use(cors({
   },
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID'],
+  exposedHeaders: ['Mcp-Session-Id'],
   credentials: false,
 }));
-
-app.use(express.json({ limit: '5mb' }));
 
 // IP extraction middleware
 app.use(ipWhitelist);
@@ -93,9 +102,15 @@ const globalLimiter = rateLimit({
   },
 });
 
+app.use(globalLimiter);
+
+// Now parse bodies (AFTER rate limiting and IP checking)
+app.use(express.json({ limit: '5mb' }));
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 auth attempts per 15 min
+  skipSuccessfulRequests: true,
   keyGenerator: (req) => getClientIP(req),
   handler: (req, res) => {
     logSecurityEvent({ ip: getClientIP(req), event: 'AUTH_RATE_LIMIT', detail: {} });
@@ -103,7 +118,21 @@ const authLimiter = rateLimit({
   },
 });
 
-app.use(globalLimiter);
+const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER || '5', 10);
+const IDLE_TIMEOUT_MS = parseInt(process.env.IDLE_TIMEOUT_MS || '1800000', 10); // 30 min default
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, session] of activeTransports.entries()) {
+    if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
+      logSecurityEvent({ ip: session.ip, event: 'SESSION_IDLE_TIMEOUT', detail: { sessionId: id, userId: session.identity?.userId } });
+      if (session.mcpServer) {
+        session.mcpServer.close().catch(() => {});
+      }
+      activeTransports.delete(id);
+    }
+  }
+}, 60000);
 
 // ── Health Check (unauthenticated) ─────────────────────────
 
@@ -111,7 +140,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     server: 'mcp-sentinel',
-    version: '1.0.0',
+    version: process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
     timestamp: new Date().toISOString(),
   });
 });
@@ -123,22 +152,29 @@ app.post('/auth/token', authLimiter, authenticate, issueToken);
 
 // ── Admin Key Management (admin only) ─────────────────────
 
-app.post('/admin/keys', authenticate, (req, res) => {
+app.post('/admin/keys', authenticate, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { key, userId, role, allowedIPs, scopes, label } = req.body;
   if (!key || !userId) return res.status(400).json({ error: 'key and userId required' });
 
-  addApiKey(key, { userId, role, allowedIPs, scopes, label });
-  return res.json({ success: true, message: `Key added for user '${userId}'` });
+  try {
+    await addApiKey(key, { userId, role, allowedIPs, scopes, label });
+    return res.json({ success: true, message: `Key added for user '${userId}'` });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
-app.delete('/admin/keys/:key', authenticate, (req, res) => {
+app.post('/admin/keys/revoke', authenticate, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const revoked = revokeApiKey(req.params.key);
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ error: 'key required in body' });
+  
+  const revoked = await revokeApiKey(key);
   return res.json({ success: revoked, message: revoked ? 'Key revoked' : 'Key not found' });
 });
 
@@ -170,16 +206,27 @@ app.get('/mcp', authenticateJWT, (req, res) => {
   const identity = req.identity;
   const ip = req.clientIP;
 
-  // Enforce connection limit
-  if (activeTransports.size >= MAX_SSE_CONNECTIONS) {
-    return res.status(503).json({ error: 'Too many active connections' });
+  // Enforce global connection limit
+  const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
+  if (activeTransports.size >= maxConns) {
+    return res.status(503).json({ error: 'Too many active connections globally' });
+  }
+
+  // Enforce per-user limit
+  let userCount = 0;
+  for (const s of activeTransports.values()) {
+    if (s.identity?.userId === identity.userId) userCount++;
+  }
+  if (userCount >= MAX_SESSIONS_PER_USER) {
+    return res.status(429).json({ error: 'Too many active connections for this user' });
   }
 
   // Create a per-session MCP server instance
   const mcpServer = createMcpServer(identity, ip);
 
   const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => sessionId
+    sessionIdGenerator: () => sessionId,
+    enableDnsRebindingProtection: true
   });
 
   activeTransports.set(sessionId, {
@@ -187,6 +234,8 @@ app.get('/mcp', authenticateJWT, (req, res) => {
     identity,
     ip,
     connectedAt: new Date().toISOString(),
+    lastActivity: Date.now(),
+    mcpServer,
   });
 
   res.on('close', () => {
@@ -219,6 +268,8 @@ app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
     return res.status(403).json({ error: 'Session does not belong to you' });
   }
 
+  session.lastActivity = Date.now();
+
   try {
     await session.transport.handleRequest(req, res);
   } catch (err) {
@@ -234,8 +285,12 @@ app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
 function createMcpServer(identity, ip) {
   const server = new McpServer({
     name: 'server-control',
-    version: '1.0.0',
+    version: process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
   });
+
+  server.onerror = (err) => {
+    logError({ ip, userId: identity.userId, tool: 'MCP_SERVER_ERROR', error: err });
+  };
 
   // ── Helper: wrap tool calls with audit logging ───────────
   function tool(name, description, schema, handler) {
@@ -264,13 +319,6 @@ function createMcpServer(identity, ip) {
   }
 
   // ── System Tools ───────────────────────────────────────
-
-  tool('run_command', 'Execute a shell command on the server. Supports working directory and running as a specific user (admin only).', {
-    command: z.string().max(4096).describe('The shell command to execute'),
-    workingDir: z.string().max(4096).optional().describe('Working directory for the command'),
-    timeout: z.number().optional().describe('Timeout in seconds (max 300 for admin, 60 for users)'),
-    asUser: z.string().max(4096).optional().describe('(Admin only) Run command as this user'),
-  }, runCommand);
 
   tool('get_system_info', 'Get comprehensive system information: CPU, memory, disk, network, uptime, logged-in users.', {}, getSystemInfo);
 
@@ -416,7 +464,7 @@ function createHttpsServer() {
   const keyPath = process.env.TLS_KEY_PATH || path.join(__dirname, 'certs', 'server.key');
 
   if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-    console.error('\n⚠️  TLS cert/key not found. Set USE_HTTPS=false or generate certs with setup.sh\n');
+    console.error('\n⚠️  TLS cert/key not found. Set USE_HTTPS=false or generate certs with setup.js\n');
     process.exit(1);
   }
 
@@ -436,15 +484,60 @@ function createHttpsServer() {
 
 // ── Start Server ───────────────────────────────────────────
 
+function validateConfig() {
+  const jwtSecret = process.env.JWT_SECRET || '';
+  if (jwtSecret.length < 64 || jwtSecret.includes('CHANGE_ME')) {
+    console.error('FATAL: JWT_SECRET must be at least 64 characters and not a placeholder.');
+    process.exit(1);
+  }
+  const adminKey = process.env.ADMIN_API_KEY || '';
+  if (!adminKey || adminKey.includes('CHANGE_ME')) {
+    console.error('FATAL: ADMIN_API_KEY must be set and not a placeholder.');
+    process.exit(1);
+  }
+  const port = parseInt(process.env.PORT || '4444', 10);
+  if (isNaN(port) || port < 1 || port > 65535) {
+    console.error('FATAL: PORT must be a valid integer between 1 and 65535.');
+    process.exit(1);
+  }
+  const jwtExpiry = process.env.JWT_EXPIRY || '8h';
+  const expiryMatch = jwtExpiry.match(/^(\d+)([hmd])$/);
+  if (expiryMatch) {
+    const val = parseInt(expiryMatch[1], 10);
+    const unit = expiryMatch[2];
+    const maxHours = 24;
+    let hours = val;
+    if (unit === 'd') hours = val * 24;
+    if (unit === 'm') hours = val / 60;
+    if (hours > maxHours) {
+      console.error('FATAL: JWT_EXPIRY cannot exceed 24 hours.');
+      process.exit(1);
+    }
+  } else {
+    console.error('FATAL: Invalid JWT_EXPIRY format. Use formats like 8h, 30m.');
+    process.exit(1);
+  }
+  const rlMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60', 10);
+  const rlWindow = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
+  if (isNaN(rlMax) || rlMax <= 0 || isNaN(rlWindow) || rlWindow <= 0) {
+    console.error('FATAL: Rate limit values must be positive integers.');
+    process.exit(1);
+  }
+}
+
+validateConfig();
+
 const server = USE_HTTPS ? createHttpsServer() : http.createServer(app);
 
 server.listen(PORT, HOST, () => {
   const protocol = USE_HTTPS ? 'https' : 'http';
   logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
 
+  const currentVersion = process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
+
   console.log(`
 ╔══════════════════════════════════════════════════════╗
-║           MCP Sentinel - v1.0.0                      ║
+║           MCP Sentinel - v${currentVersion.padEnd(27)}║
 ╠══════════════════════════════════════════════════════╣
 ║  Status  : ✅ Running                                ║
 ║  Protocol: ${protocol.toUpperCase().padEnd(43)}║

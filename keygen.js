@@ -19,10 +19,10 @@ console.log(`
 ║  Scopes : ${(scopes || '*').padEnd(52)}  ║
 ╚═════════════════════════════════════════════════════════════════╝
 
-Add to your .env:
+${role === 'admin' ? `Add to your .env (for master key):
   ADMIN_API_KEY=${key}
 
-Or add via API (admin only):
+Or add via API (for additional keys):` : `Add via API (admin only):`}
   POST /admin/keys
   {
     "key": "${key}",

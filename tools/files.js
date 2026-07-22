@@ -6,8 +6,17 @@ import path from 'path';
 // fs streams available if needed for future large-file streaming
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { logSecurityEvent } from '../audit.js';
 
 const execFileAsync = promisify(execFile);
+
+async function enforceOwnership(safePath, identity) {
+  if (identity.role !== 'admin') {
+    try {
+      await execFileAsync('chown', ['-R', identity.userId, safePath]);
+    } catch (e) {}
+  }
+}
 
 // Paths that are NEVER accessible, regardless of role
 const ABSOLUTE_FORBIDDEN_PATHS = [
@@ -28,43 +37,66 @@ const ADMIN_ONLY_PATHS = [
 ];
 
 async function resolveSafePath(inputPath, identity) {
-  const resolved = path.resolve(inputPath);
+  let resolved = path.resolve(inputPath);
 
-  // Check absolute forbidden
+  if (identity.role !== 'admin') {
+    if (resolved === '/tmp' || resolved.startsWith('/tmp/') || resolved === '/var/tmp' || resolved.startsWith('/var/tmp/')) {
+      const privateTmp = `/tmp/mcp-${identity.userId}`;
+      await fs.mkdir(privateTmp, { recursive: true, mode: 0o700 });
+      try { await execFileAsync('chown', [identity.userId, privateTmp]); } catch (e) {}
+      
+      if (resolved === '/tmp' || resolved === '/var/tmp') {
+        resolved = privateTmp;
+      } else if (resolved.startsWith('/tmp/')) {
+        resolved = path.join(privateTmp, resolved.slice(5));
+      } else if (resolved.startsWith('/var/tmp/')) {
+        resolved = path.join(privateTmp, resolved.slice(9));
+      }
+    }
+  }
+
   for (const p of ABSOLUTE_FORBIDDEN_PATHS) {
     if (resolved === p || resolved.startsWith(p + '/')) {
       throw new Error(`Access to '${resolved}' is permanently forbidden`);
     }
   }
 
-  // Prevent symlink escapes by checking realpath
   let real = resolved;
   try {
     real = await fs.realpath(resolved);
   } catch {
-    try {
-      const parentDir = path.dirname(resolved);
-      real = await fs.realpath(parentDir);
-      real = path.join(real, path.basename(resolved));
-    } catch {
-      // Fallback if neither exists
+    let current = resolved;
+    let parent = path.dirname(current);
+    while (current !== parent) {
+      try {
+        const parentReal = await fs.realpath(parent);
+        real = path.join(parentReal, resolved.slice(parent.length));
+        break;
+      } catch {
+        current = parent;
+        parent = path.dirname(current);
+      }
     }
   }
 
-  // Non-admin path restrictions
+  for (const p of ABSOLUTE_FORBIDDEN_PATHS) {
+    if (real === p || real.startsWith(p + '/')) {
+      throw new Error(`Access to '${real}' is permanently forbidden via symlink`);
+    }
+  }
+
   if (identity.role !== 'admin') {
-    // Users can only access their home dir and /tmp
-    const allowed = [`/home/${identity.userId}`, '/tmp', '/var/tmp'];
+    const privateTmp = `/tmp/mcp-${identity.userId}`;
+    const allowed = [`/home/${identity.userId}`, privateTmp];
     const isResolvedAllowed = allowed.some(a => resolved === a || resolved.startsWith(a + '/'));
     const isRealAllowed = allowed.some(a => real === a || real.startsWith(a + '/'));
     if (!isResolvedAllowed || !isRealAllowed) {
       throw new Error(`Access to '${resolved}' is not permitted for your role`);
     }
   } else {
-    // Admin: block admin-only paths for safety unless explicitly admin
     for (const p of ADMIN_ONLY_PATHS) {
       if (real === p || real.startsWith(p + '/')) {
-        // Admin can access but we log it
+        logSecurityEvent({ ip: 'internal', event: 'ADMIN_SENSITIVE_ACCESS', detail: { userId: identity.userId, path: real } });
         return resolved;
       }
     }
@@ -82,13 +114,14 @@ export async function readFile({ filePath, encoding = 'utf8', maxBytes = 1048576
   const stat = await fs.stat(safe);
   if (stat.isDirectory()) throw new Error(`'${safe}' is a directory, use list_directory instead`);
 
+  const actualMaxBytes = Math.min(maxBytes, 50 * 1024 * 1024);
   const size = stat.size;
-  if (size > maxBytes) {
+  if (size > actualMaxBytes) {
     // Return first maxBytes
-    const buf = Buffer.alloc(maxBytes);
+    const buf = Buffer.alloc(actualMaxBytes);
     const fh = await fs.open(safe, 'r');
     try {
-      await fh.read(buf, 0, maxBytes, 0);
+      await fh.read(buf, 0, actualMaxBytes, 0);
     } finally {
       await fh.close();
     }
@@ -96,7 +129,7 @@ export async function readFile({ filePath, encoding = 'utf8', maxBytes = 1048576
       content: buf.toString(encoding),
       truncated: true,
       size,
-      read_bytes: maxBytes,
+      read_bytes: actualMaxBytes,
     };
   }
 
@@ -121,6 +154,8 @@ export async function writeFile({ filePath, content, mode = 'overwrite', encodin
   } else {
     await fs.writeFile(safe, content, { encoding, flag: 'w' });
   }
+
+  await enforceOwnership(safe, identity);
 
   const stat = await fs.stat(safe);
   return {
@@ -171,7 +206,7 @@ export async function listDirectory({ dirPath, showHidden = false, detailed = tr
     visible.map(async entry => {
       try {
         const fullPath = path.join(safe, entry.name);
-        const stat = await fs.stat(fullPath);
+        const stat = await fs.lstat(fullPath);
         return {
           name: entry.name,
           type: entry.isSymbolicLink() ? 'symlink' : entry.isDirectory() ? 'directory' : 'file',
@@ -186,7 +221,8 @@ export async function listDirectory({ dirPath, showHidden = false, detailed = tr
     })
   );
 
-  return { path: safe, count: details.length, entries: details };
+  const limitedDetails = details.slice(0, 10000);
+  return { path: safe, count: details.length, entries: limitedDetails };
 }
 
 // ── Tool: move_file ────────────────────────────────────────
@@ -197,6 +233,7 @@ export async function moveFile({ sourcePath, destPath }, identity) {
   const safeDst = await resolveSafePath(destPath, identity);
 
   await fs.rename(safeSrc, safeDst);
+  await enforceOwnership(safeDst, identity);
   return { success: true, from: safeSrc, to: safeDst };
 }
 
@@ -208,6 +245,7 @@ export async function copyFile({ sourcePath, destPath }, identity) {
   const safeDst = await resolveSafePath(destPath, identity);
 
   await fs.cp(safeSrc, safeDst, { recursive: true });
+  await enforceOwnership(safeDst, identity);
   return { success: true, from: safeSrc, to: safeDst };
 }
 
