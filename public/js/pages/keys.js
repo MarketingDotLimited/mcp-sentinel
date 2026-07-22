@@ -109,7 +109,7 @@
     return 'mcp_' + Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
-  function showGenerateModal() {
+  async function showGenerateModal() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     
@@ -127,6 +127,22 @@
     });
     scopesHtml += '</div>';
 
+    // Fetch OS users
+    let osUsersHtml = '<option value="admin">admin (Full Access)</option>';
+    try {
+      const users = await window.API.get('/admin/os-users');
+      if (Array.isArray(users)) {
+        users.forEach(u => {
+          if (u.username !== 'admin') {
+            osUsersHtml += `<option value="${u.username}">${u.username} (OS User)</option>`;
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to load OS users:', e);
+    }
+    osUsersHtml += '<option value="custom">-- Custom Name --</option>';
+
     overlay.innerHTML = `
       <div class="modal">
         <h3 class="modal-title">Generate API Key</h3>
@@ -143,11 +159,7 @@
           <div class="input-group" style="margin-bottom: 12px;">
             <label>User Identifier</label>
             <select id="gen-user" class="input-field">
-              <option value="agent-1">agent-1 (Standard AI)</option>
-              <option value="agent-2">agent-2 (Secondary AI)</option>
-              <option value="monitoring">monitoring (Metrics)</option>
-              <option value="admin">admin (Full Access)</option>
-              <option value="custom">-- Custom Name --</option>
+              ${osUsersHtml}
             </select>
           </div>
           <div class="input-group" style="margin-bottom: 12px;">
