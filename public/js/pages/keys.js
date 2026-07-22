@@ -1,10 +1,13 @@
-(function() {
+import { API } from "../api.js";
+import { Toast } from "../toast.js";
+import { Router } from "../router.js";
+(function () {
   let rootContainer = null;
 
   async function loadKeys() {
     try {
       const response = await window.API.get('/admin/keys');
-      const keys = Array.isArray(response) ? response : (response.keys || response.data || []);
+      const keys = Array.isArray(response) ? response : response.keys || response.data || [];
       renderTable(keys);
     } catch (err) {
       if (window.Toast) window.Toast.error('Failed to load API keys: ' + err.message);
@@ -15,7 +18,7 @@
     const tableBody = rootContainer.querySelector('#keys-tbody');
     if (!tableBody) return;
     tableBody.innerHTML = '';
-    
+
     if (keys.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
@@ -29,21 +32,21 @@
 
     keys.forEach(keyItem => {
       const tr = document.createElement('tr');
-      
+
       const tdLabel = document.createElement('td');
       tdLabel.textContent = keyItem.label || 'N/A';
-      
+
       const tdUser = document.createElement('td');
       tdUser.textContent = keyItem.userId || 'Unknown';
-      
+
       const tdRole = document.createElement('td');
       const roleBadge = document.createElement('span');
       roleBadge.className = 'badge ' + (keyItem.role === 'admin' ? 'badge-admin' : 'badge-user');
       roleBadge.textContent = keyItem.role || 'user';
       tdRole.appendChild(roleBadge);
-      
+
       const tdScopes = document.createElement('td');
-      const scopes = Array.isArray(keyItem.scopes) ? keyItem.scopes : (keyItem.scopes ? keyItem.scopes.split(',') : []);
+      const scopes = Array.isArray(keyItem.scopes) ? keyItem.scopes : keyItem.scopes ? keyItem.scopes.split(',') : [];
       scopes.forEach(scope => {
         const pill = document.createElement('span');
         pill.className = 'badge';
@@ -52,19 +55,19 @@
         tdScopes.appendChild(pill);
       });
       if (scopes.length === 0) tdScopes.textContent = 'None';
-      
+
       const tdCreated = document.createElement('td');
       tdCreated.textContent = new Date(keyItem.createdAt || Date.now()).toLocaleString();
       const tdApproval = document.createElement('td');
       tdApproval.textContent = keyItem.requireApproval ? 'Required' : 'Not required';
-      
+
       const tdActions = document.createElement('td');
       const btnRevoke = document.createElement('button');
       btnRevoke.className = 'btn btn-danger btn-sm';
       btnRevoke.textContent = 'Revoke';
       btnRevoke.onclick = () => showRevokeModal(keyItem);
       tdActions.appendChild(btnRevoke);
-      
+
       tr.appendChild(tdLabel);
       tr.appendChild(tdUser);
       tr.appendChild(tdRole);
@@ -72,7 +75,7 @@
       tr.appendChild(tdCreated);
       tr.appendChild(tdApproval);
       tr.appendChild(tdActions);
-      
+
       tableBody.appendChild(tr);
     });
   }
@@ -109,16 +112,21 @@
   }
 
   function generateRandomKey() {
-    return 'mcp_' + Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, '0')).join('');
+    return (
+      'mcp_' +
+      Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+    );
   }
 
   async function showGenerateModal() {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
-    
+
     // Available scope groups
     const availableScopes = ['*', 'system.*', 'files.*', 'services.*', 'users.*', 'docker.*', 'git.*', 'db.*'];
-    
+
     let scopesHtml = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">';
     availableScopes.forEach(scope => {
       scopesHtml += `
@@ -151,7 +159,9 @@
     let teamOptions = '<option value="">No team restriction</option>';
     try {
       const response = await window.API.get('/admin/organizations');
-      (response.teams || []).forEach(team => { teamOptions += `<option value="${team.id}">${team.name} (${team.role})</option>`; });
+      (response.teams || []).forEach(team => {
+        teamOptions += `<option value="${team.id}">${team.name} (${team.role})</option>`;
+      });
     } catch (e) {
       console.warn('Failed to load teams:', e);
     }
@@ -259,9 +269,11 @@
     // Handle * scope checkbox logic
     const scopeCheckboxes = overlay.querySelectorAll('.scope-checkbox');
     scopeCheckboxes.forEach(cb => {
-      cb.addEventListener('change', (e) => {
+      cb.addEventListener('change', e => {
         if (e.target.value === '*' && e.target.checked) {
-          scopeCheckboxes.forEach(other => { if (other.value !== '*') other.checked = false; });
+          scopeCheckboxes.forEach(other => {
+            if (other.value !== '*') other.checked = false;
+          });
         } else if (e.target.value !== '*' && e.target.checked) {
           overlay.querySelector('.scope-checkbox[value="*"]').checked = false;
         }
@@ -275,15 +287,15 @@
     overlay.querySelector('#btn-submit').onclick = async () => {
       const key = keyField.value;
       const role = overlay.querySelector('#gen-role').value;
-      
+
       let userId = userSelect.value;
       if (userId === 'custom') userId = overlay.querySelector('#gen-user-custom').value.trim();
-      
+
       let label = labelSelect.value;
       if (label === 'custom') label = customLabelInput.value.trim();
 
       const ips = overlay.querySelector('#gen-ips').value;
-      
+
       const selectedScopes = Array.from(scopeCheckboxes)
         .filter(cb => cb.checked)
         .map(cb => cb.value);
@@ -308,7 +320,11 @@
       if (!useTemplate) payload.scopes = selectedScopes;
       const teamId = overlay.querySelector('#gen-team').value;
       if (teamId) payload.teamId = teamId;
-      if (ips) payload.allowedIPs = ips.split(',').map(s => s.trim()).filter(Boolean);
+      if (ips)
+        payload.allowedIPs = ips
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
 
       try {
         await window.API.post('/admin/keys', payload);
@@ -324,15 +340,16 @@
   function render(container) {
     rootContainer = container;
     container.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>API Keys</h2>
-        <div>
-          <button id="btn-refresh" class="btn btn-ghost" style="margin-right: 10px;">↻ Refresh</button>
+      <div class="page-header">
+        <div><h1>API Keys</h1>
+        <p class="page-subtitle">Issue narrowly scoped keys and require approvals.</p></div>
+        <div style="display:flex;gap:8px">
+          <button id="btn-refresh" class="btn btn-ghost">↻ Refresh</button>
           <button id="btn-generate" class="btn btn-primary">Generate Key</button>
         </div>
       </div>
-      <div class="card">
-        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+      <div class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Label</th>

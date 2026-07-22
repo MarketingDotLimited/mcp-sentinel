@@ -235,9 +235,20 @@ app.use(
   })
 );
 
-// Serve static Web UI files
-app.use(express.static(path.join(__dirname, 'public')));
+import compression from 'compression';
 
+// Apply HTTP compression
+app.use(compression());
+
+// Serve static Web UI files with aggressive caching for immutable assets
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1d', // 1 day cache for static assets
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache'); // Always revalidate HTML
+    }
+  }
+}));
 // Prevent Cloudflare from aggressively caching CORS preflight responses
 app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {

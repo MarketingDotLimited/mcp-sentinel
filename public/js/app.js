@@ -1,3 +1,23 @@
+import { API } from "./api.js";
+import { Auth } from "./auth.js";
+import { Router } from "./router.js";
+import { Toast } from "./toast.js";
+import "./pages/administration.js";
+import "./pages/approvals.js";
+import "./pages/automations.js";
+import "./pages/connect.js";
+import { DashboardPage } from "./pages/dashboard.js";
+import "./pages/keys.js";
+import "./pages/logs.js";
+import "./pages/oauth.js";
+import "./pages/operations.js";
+import "./pages/projects.js";
+import "./pages/rollbacks.js";
+import "./pages/security.js";
+import "./pages/sessions.js";
+import "./pages/teams.js";
+import "./pages/workflows.js";
+
 // ============================================================
 //  app.js - Application initialization & login page
 // ============================================================
@@ -41,7 +61,7 @@ const LoginPage = {
     // Form
     const form = document.createElement('form');
     form.className = 'login-form';
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', async e => {
       e.preventDefault();
       const btn = form.querySelector('.btn-primary');
       const input = form.querySelector('.input-field');
@@ -115,21 +135,21 @@ const LoginPage = {
 
   // Register routes
   Router.register('/login', LoginPage);
-  Router.register('/dashboard', window.DashboardPage);
-  Router.register('/workflows', window.WorkflowsPage);
-  Router.register('/approvals', window.ApprovalsPage);
-  Router.register('/projects', window.ProjectsPage);
-  Router.register('/automations', window.AutomationsPage);
-  Router.register('/operations', window.OperationsPage);
-  Router.register('/connect', window.ConnectPage);
-  Router.register('/teams', window.TeamsPage);
-  Router.register('/security', window.SecurityPage);
-  Router.register('/logs', window.LogsPage);
-  Router.register('/sessions', window.SessionsPage);
-  Router.register('/keys', window.KeysPage);
-  Router.register('/oauth', window.OAuthPage);
-  Router.register('/rollbacks', window.RollbacksPage);
-  Router.register('/administration', window.AdministrationPage);
+  Router.register('/dashboard', DashboardPage);
+  Router.register('/workflows', WorkflowsPage);
+  Router.register('/approvals', ApprovalsPage);
+  Router.register('/projects', ProjectsPage);
+  Router.register('/automations', AutomationsPage);
+  Router.register('/operations', OperationsPage);
+  Router.register('/connect', ConnectPage);
+  Router.register('/teams', TeamsPage);
+  Router.register('/security', SecurityPage);
+  Router.register('/logs', LogsPage);
+  Router.register('/sessions', SessionsPage);
+  Router.register('/keys', KeysPage);
+  Router.register('/oauth', OAuthPage);
+  Router.register('/rollbacks', RollbacksPage);
+  Router.register('/administration', AdministrationPage);
 
   // Logout button
   const logoutBtn = document.getElementById('logout-btn');
@@ -140,18 +160,63 @@ const LoginPage = {
     });
   }
 
-  // Mobile toggle
+  // Mobile toggle with backdrop
   const mobileToggle = document.getElementById('mobile-toggle');
   const sidebar = document.getElementById('sidebar');
-  if (mobileToggle && sidebar) {
+  const backdrop = document.getElementById('sidebar-backdrop');
+
+  function openSidebar() {
+    if (sidebar) sidebar.classList.add('sidebar-open');
+    if (backdrop) backdrop.classList.add('visible');
+    if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'true');
+    if (sidebar) sidebar.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('navigation-open');
+  }
+
+  function closeSidebar() {
+    if (sidebar) sidebar.classList.remove('sidebar-open');
+    if (backdrop) backdrop.classList.remove('visible');
+    if (mobileToggle) mobileToggle.setAttribute('aria-expanded', 'false');
+    if (sidebar && window.innerWidth <= 768) sidebar.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('navigation-open');
+  }
+
+  if (mobileToggle) {
+    mobileToggle.setAttribute('aria-controls', 'sidebar');
+    mobileToggle.setAttribute('aria-expanded', 'false');
     mobileToggle.addEventListener('click', () => {
-      sidebar.classList.toggle('sidebar-open');
+      if (sidebar && sidebar.classList.contains('sidebar-open')) {
+        closeSidebar();
+      } else {
+        openSidebar();
+      }
     });
+  }
+
+  if (backdrop) {
+    backdrop.addEventListener('click', closeSidebar);
+  }
+
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && sidebar?.classList.contains('sidebar-open')) {
+      closeSidebar();
+      mobileToggle?.focus();
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+      closeSidebar();
+      sidebar?.setAttribute('aria-hidden', 'false');
+    }
+  });
+
+  if (sidebar) {
     // Close sidebar when a nav link is clicked on mobile
     sidebar.querySelectorAll('.nav-link').forEach(link => {
       link.addEventListener('click', () => {
         if (window.innerWidth <= 768) {
-          sidebar.classList.remove('sidebar-open');
+          closeSidebar();
         }
       });
     });

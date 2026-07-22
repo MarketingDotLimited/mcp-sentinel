@@ -1,3 +1,4 @@
+import { Auth } from "./auth.js";
 // ============================================================
 //  router.js - Hash-based SPA routing
 // ============================================================
@@ -38,9 +39,12 @@ const Router = {
 
     // Show/hide sidebar based on login state
     const sidebar = document.getElementById('sidebar');
+    const mobileToggle = document.getElementById('mobile-toggle');
     if (sidebar) {
       sidebar.style.display = path === '/login' ? 'none' : '';
+      sidebar.setAttribute('aria-hidden', path === '/login' || window.innerWidth <= 768 ? 'true' : 'false');
     }
+    if (mobileToggle) mobileToggle.hidden = path === '/login';
     if (this.mainContent) {
       this.mainContent.className = path === '/login' ? 'main-content main-content-full' : 'main-content';
     }
@@ -64,4 +68,4 @@ const Router = {
   },
 };
 
-window.Router = Router;
+export { Router };

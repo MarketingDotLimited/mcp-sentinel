@@ -47,10 +47,18 @@ const Toast = {
     }
   },
 
-  success(msg) { this.show(msg, 'success'); },
-  error(msg) { this.show(msg, 'error', 6000); },
-  info(msg) { this.show(msg, 'info'); },
-  warning(msg) { this.show(msg, 'warning', 5000); },
+  success(msg) {
+    this.show(msg, 'success');
+  },
+  error(msg) {
+    this.show(msg, 'error', 6000);
+  },
+  info(msg) {
+    this.show(msg, 'info');
+  },
+  warning(msg) {
+    this.show(msg, 'warning', 5000);
+  },
 };
 
-window.Toast = Toast;
+export { Toast };
