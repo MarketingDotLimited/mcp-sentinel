@@ -27,15 +27,19 @@ This project follows the [Contributor Covenant](https://www.contributor-covenant
 ## How to Contribute
 
 ### 🐛 Bug reports
+
 Open an [issue](https://github.com/MarketingDotLimited/mcp-sentinel/issues) with the **Bug Report** template.
 
 ### 💡 Feature requests
+
 Open an [issue](https://github.com/MarketingDotLimited/mcp-sentinel/issues) with the **Feature Request** template.
 
 ### 🔒 Security issues
+
 **Do NOT open a public issue.** See [SECURITY.md](SECURITY.md).
 
 ### 📝 Code contributions
+
 Fork → Branch → PR (see below).
 
 ---
@@ -90,9 +94,14 @@ mcp-sentinel/
 4. **Register the tool** in `server.js` inside `createMcpServer()`:
 
 ```js
-tool('your_tool_name', 'Description for the AI', {
-  param: z.string().describe('What this param does'),
-}, yourToolFunction);
+tool(
+  'your_tool_name',
+  'Description for the AI',
+  {
+    param: z.string().describe('What this param does'),
+  },
+  yourToolFunction
+);
 ```
 
 4. **Follow security practices:**
@@ -102,6 +111,7 @@ tool('your_tool_name', 'Description for the AI', {
    - Never expose secrets in output
 
 5. **Test it:**
+
 ```bash
 # Get a JWT token
 TOKEN=$(curl -k -s -X POST https://localhost:4444/auth/token \
@@ -122,6 +132,7 @@ TOKEN=$(curl -k -s -X POST https://localhost:4444/auth/token \
 6. **Reference any related issues**: `Closes #42`
 
 ### PR Checklist
+
 - [ ] Code follows existing patterns
 - [ ] No secrets or credentials in code
 - [ ] New tools have role checks where appropriate
@@ -133,6 +144,7 @@ TOKEN=$(curl -k -s -X POST https://localhost:4444/auth/token \
 ## Reporting Bugs
 
 Include in your bug report:
+
 - **OS and Node.js version** (`uname -a`, `node -v`)
 - **Steps to reproduce**
 - **Expected vs actual behavior**

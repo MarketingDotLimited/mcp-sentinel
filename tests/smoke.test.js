@@ -6,7 +6,6 @@ import { setUserPassword, manageSshKeys } from '../tools/users.js';
 import { runSandboxedCode } from '../tools/docker.js';
 
 describe('MCP Sentinel Security Sandbox Tests', () => {
-  
   it('Should reject reading /etc/shadow for non-admin', async () => {
     try {
       await readFile({ filePath: '/etc/shadow' }, { userId: 'testuser', role: 'user' });
@@ -50,5 +49,4 @@ describe('MCP Sentinel Security Sandbox Tests', () => {
       /Invalid filename/
     );
   });
-
 });

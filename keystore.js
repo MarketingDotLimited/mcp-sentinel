@@ -79,17 +79,31 @@ export function getKeyById(keyId) {
 }
 
 export function getKeys() {
-  return Object.values(keyStore).map(({ active, createdAt, role, userId, scopes, label, keyId, requireApproval, projectIds, organizationId, teamId }) => ({
-    keyId,
-    active,
-    createdAt,
-    role,
-    userId,
-    scopes,
-    label,
-    requireApproval: requireApproval === true,
-    projectIds: Array.isArray(projectIds) ? projectIds : [],
-    organizationId: organizationId || null,
-    teamId: teamId || null,
-  }));
+  return Object.values(keyStore).map(
+    ({
+      active,
+      createdAt,
+      role,
+      userId,
+      scopes,
+      label,
+      keyId,
+      requireApproval,
+      projectIds,
+      organizationId,
+      teamId,
+    }) => ({
+      keyId,
+      active,
+      createdAt,
+      role,
+      userId,
+      scopes,
+      label,
+      requireApproval: requireApproval === true,
+      projectIds: Array.isArray(projectIds) ? projectIds : [],
+      organizationId: organizationId || null,
+      teamId: teamId || null,
+    })
+  );
 }

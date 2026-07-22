@@ -15,7 +15,10 @@ async function ensureBackupDir() {
   await fs.mkdir(BACKUP_DIR, { recursive: true, mode: 0o700 });
 }
 
-export async function applyConfig({ filePath, newContent, serviceName, syntaxCheckCmd, healthCheckTimeout = 15 }, identity) {
+export async function applyConfig(
+  { filePath, newContent, serviceName, syntaxCheckCmd, healthCheckTimeout = 15 },
+  identity
+) {
   requireAdmin(identity);
   if (!filePath || !newContent || !serviceName) {
     throw new Error('filePath, newContent, and serviceName are required');
@@ -40,14 +43,17 @@ export async function applyConfig({ filePath, newContent, serviceName, syntaxChe
     originalStat = await fs.stat(filePath);
     originalContent = await fs.readFile(filePath);
     await fs.writeFile(backupPath, originalContent);
-    await fs.writeFile(metaPath, JSON.stringify({
-      originalPath: filePath,
-      mode: originalStat.mode,
-      uid: originalStat.uid,
-      gid: originalStat.gid,
-      timestamp: new Date(parseInt(timestamp)).toISOString(),
-      userId: identity.userId,
-    }));
+    await fs.writeFile(
+      metaPath,
+      JSON.stringify({
+        originalPath: filePath,
+        mode: originalStat.mode,
+        uid: originalStat.uid,
+        gid: originalStat.gid,
+        timestamp: new Date(parseInt(timestamp)).toISOString(),
+        userId: identity.userId,
+      })
+    );
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
     // File doesn't exist yet, that's fine.
@@ -58,16 +64,16 @@ export async function applyConfig({ filePath, newContent, serviceName, syntaxChe
     // Write to a temp file and run check
     const tmpPath = `/tmp/mcp_config_test_${crypto.randomBytes(4).toString('hex')}`;
     await fs.writeFile(tmpPath, newContent);
-    
+
     // Replace %s in cmd with tmpPath if requested, else append tmpPath
-    const cmd = syntaxCheckCmd.map(arg => arg === '%s' ? tmpPath : arg);
+    const cmd = syntaxCheckCmd.map(arg => (arg === '%s' ? tmpPath : arg));
     try {
       await secureExec(cmd, identity, { timeout: 10000 });
     } catch (e) {
-      await fs.unlink(tmpPath).catch(()=>{});
+      await fs.unlink(tmpPath).catch(() => {});
       throw new Error(`Syntax check failed: ${e.stderr || e.message}`);
     }
-    await fs.unlink(tmpPath).catch(()=>{});
+    await fs.unlink(tmpPath).catch(() => {});
   }
 
   // 3. Write new content
@@ -86,9 +92,9 @@ export async function applyConfig({ filePath, newContent, serviceName, syntaxChe
   }
 
   // 5. Poll for health
-  const endTime = Date.now() + (timeoutSecs * 1000);
+  const endTime = Date.now() + timeoutSecs * 1000;
   let isHealthy = false;
-  
+
   while (Date.now() < endTime) {
     try {
       const { stdout } = await secureExec(['systemctl', 'is-active', serviceName], identity, { timeout: 5000 });
@@ -105,17 +111,21 @@ export async function applyConfig({ filePath, newContent, serviceName, syntaxChe
   // 6. Rollback if failed
   if (!isHealthy) {
     await rollback(filePath, originalContent, originalStat);
-    
+
     // Fetch logs
     let logs = '';
     try {
-      const { stdout } = await secureExec(['journalctl', '-u', serviceName, '-n', '50', '--no-pager'], identity, { timeout: 10000 });
+      const { stdout } = await secureExec(['journalctl', '-u', serviceName, '-n', '50', '--no-pager'], identity, {
+        timeout: 10000,
+      });
       logs = stdout.trim();
     } catch (e) {}
 
-    await secureExec(['systemctl', 'restart', serviceName], identity, { timeout: 30000 }).catch(()=>{});
+    await secureExec(['systemctl', 'restart', serviceName], identity, { timeout: 30000 }).catch(() => {});
 
-    throw new Error(`Service '${serviceName}' failed to reach active state within ${timeoutSecs}s. Configuration rolled back.\nLogs:\n${logs}`);
+    throw new Error(
+      `Service '${serviceName}' failed to reach active state within ${timeoutSecs}s. Configuration rolled back.\nLogs:\n${logs}`
+    );
   }
 
   // Cleanup old backups (keep last 10)
@@ -124,8 +134,8 @@ export async function applyConfig({ filePath, newContent, serviceName, syntaxChe
     const metas = files.filter(f => f.endsWith('.meta.json')).sort();
     if (metas.length > 10) {
       for (const m of metas.slice(0, metas.length - 10)) {
-        await fs.unlink(path.join(fileBackupDir, m)).catch(()=>{});
-        await fs.unlink(path.join(fileBackupDir, m.replace('.meta.json', '.bak'))).catch(()=>{});
+        await fs.unlink(path.join(fileBackupDir, m)).catch(() => {});
+        await fs.unlink(path.join(fileBackupDir, m.replace('.meta.json', '.bak'))).catch(() => {});
       }
     }
   } catch (e) {}
@@ -141,7 +151,7 @@ async function rollback(filePath, originalContent, originalStat) {
       await fs.chmod(filePath, originalStat.mode);
     }
   } else {
-    await fs.unlink(filePath).catch(()=>{});
+    await fs.unlink(filePath).catch(() => {});
   }
 }
 
@@ -155,7 +165,7 @@ export async function listConfigBackups({ filePath }, identity) {
   try {
     const files = await fs.readdir(fileBackupDir);
     const metas = files.filter(f => f.endsWith('.meta.json'));
-    
+
     const backups = [];
     for (const m of metas) {
       try {

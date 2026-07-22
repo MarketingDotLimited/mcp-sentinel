@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] — 2026-07-22
 
 ### 🔒 Security Update
+
 This release implements a comprehensive 10-phase security remediation plan to harden the server architecture, enforce privilege separation, and eliminate critical vulnerabilities.
 
 #### Changed / Fixed
+
 - **Phase 1: CI/CD Supply Chain** — Pinned GitHub actions to SHAs, removed self-hosted runner risks, added strict `npm audit`.
 - **Phase 2: Configuration Validation** — Server now fail-closes on placeholder secrets or invalid configurations.
 - **Phase 3: Privilege Separation** — Non-admin tools now rigorously execute as the mapped UNIX `userId` instead of root.
@@ -31,6 +33,7 @@ This release implements a comprehensive 10-phase security remediation plan to ha
 ### 🎉 Initial Release
 
 #### Added
+
 - **HTTP/SSE MCP transport** — accessible by any AI cloud service (Claude, ChatGPT, Gemini, Cursor, etc.)
 - **20 MCP tools** across 4 categories:
   - **System**: `run_command`, `get_system_info`, `get_processes`, `kill_process`

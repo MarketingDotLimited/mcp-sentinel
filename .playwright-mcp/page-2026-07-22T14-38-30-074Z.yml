@@ -1,0 +1,10 @@
+- main [ref=e3]:
+    - generic [ref=e5]:
+        - heading "MCP Sentinel" [level=1] [ref=e11]
+        - paragraph [ref=e12]: Secure Server Administration
+        - generic [ref=e13]:
+            - generic [ref=e14]:
+                - generic [ref=e15]: Admin API Key
+                - textbox "Enter your API key..." [ref=e16]
+            - button "Sign In" [ref=e17] [cursor=pointer]
+        - paragraph [ref=e18]: Your API key is never stored. A short-lived JWT is used for the session.

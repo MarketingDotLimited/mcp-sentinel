@@ -17,32 +17,27 @@ async function enforceOwnership(safePath, identity) {
 }
 
 // Paths that are NEVER accessible, regardless of role
-const ABSOLUTE_FORBIDDEN_PATHS = [
-  '/proc/kcore',
-  '/dev/mem',
-  '/dev/kmem',
-];
+const ABSOLUTE_FORBIDDEN_PATHS = ['/proc/kcore', '/dev/mem', '/dev/kmem'];
 
 // Paths restricted to admin only
-const ADMIN_ONLY_PATHS = [
-  '/etc/shadow',
-  '/etc/gshadow',
-  '/etc/sudoers',
-  '/root',
-  '/boot',
-  '/sys',
-  '/proc',
-];
+const ADMIN_ONLY_PATHS = ['/etc/shadow', '/etc/gshadow', '/etc/sudoers', '/root', '/boot', '/sys', '/proc'];
 
 async function resolveSafePath(inputPath, identity) {
   let resolved = path.resolve(inputPath);
 
   if (identity.role !== 'admin') {
-    if (resolved === '/tmp' || resolved.startsWith('/tmp/') || resolved === '/var/tmp' || resolved.startsWith('/var/tmp/')) {
+    if (
+      resolved === '/tmp' ||
+      resolved.startsWith('/tmp/') ||
+      resolved === '/var/tmp' ||
+      resolved.startsWith('/var/tmp/')
+    ) {
       const privateTmp = `/tmp/mcp-${identity.userId}`;
       await fs.mkdir(privateTmp, { recursive: true, mode: 0o700 });
-      try { await secureExec(['chown', identity.userId, privateTmp], { role: 'admin' }); } catch (e) {}
-      
+      try {
+        await secureExec(['chown', identity.userId, privateTmp], { role: 'admin' });
+      } catch (e) {}
+
       if (resolved === '/tmp' || resolved === '/var/tmp') {
         resolved = privateTmp;
       } else if (resolved.startsWith('/tmp/')) {
@@ -94,7 +89,11 @@ async function resolveSafePath(inputPath, identity) {
   } else {
     for (const p of ADMIN_ONLY_PATHS) {
       if (real === p || real.startsWith(p + '/')) {
-        logSecurityEvent({ ip: 'internal', event: 'ADMIN_SENSITIVE_ACCESS', detail: { userId: identity.userId, path: real } });
+        logSecurityEvent({
+          ip: 'internal',
+          event: 'ADMIN_SENSITIVE_ACCESS',
+          detail: { userId: identity.userId, path: real },
+        });
         return resolved;
       }
     }
@@ -253,10 +252,7 @@ export async function getFileInfo({ filePath }, identity) {
   if (!filePath) throw new Error('filePath is required');
   const safe = await resolveSafePath(filePath, identity);
 
-  const [stat, lstat] = await Promise.all([
-    fs.stat(safe).catch(() => null),
-    fs.lstat(safe).catch(() => null),
-  ]);
+  const [stat, lstat] = await Promise.all([fs.stat(safe).catch(() => null), fs.lstat(safe).catch(() => null)]);
 
   if (!stat) throw new Error(`Path '${safe}' does not exist`);
 
@@ -266,7 +262,9 @@ export async function getFileInfo({ filePath }, identity) {
     try {
       const { stdout } = await secureExec(['sha256sum', safe], identity);
       checksum = stdout.split(' ')[0];
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   return {
@@ -305,7 +303,11 @@ export async function searchFiles({ searchPath, pattern, maxResults = 50, fileTy
 
 function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0, val = bytes;
-  while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+  let i = 0,
+    val = bytes;
+  while (val >= 1024 && i < units.length - 1) {
+    val /= 1024;
+    i++;
+  }
   return `${val.toFixed(1)} ${units[i]}`;
 }

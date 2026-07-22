@@ -1,0 +1,4 @@
+- main [ref=f10e2]:
+    - heading "OAuth and MCP connection succeeded" [level=1] [ref=f10e3]
+    - paragraph [ref=f10e4]: The live server exchanged the code and accepted the access token for MCP initialization.
+    - paragraph [ref=f10e5]: You may close this window.

@@ -18,6 +18,8 @@ import { AcmeManager } from './lib/acme.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
+import authRouter from './routes/auth.js';
+import coreRouter from './routes/core.js';
 
 import {
   ipWhitelist,
@@ -333,16 +335,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 auth attempts per 15 min
-  skipSuccessfulRequests: true,
-  keyGenerator: req => getClientIP(req),
-  handler: (req, res) => {
-    logSecurityEvent({ ip: getClientIP(req), event: 'AUTH_RATE_LIMIT', detail: {} });
-    res.status(429).json({ error: 'Too many authentication attempts' });
-  },
-});
+// authLimiter moved to routes/auth.js
 
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER || '5', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.IDLE_TIMEOUT_MS || '1800000', 10); // 30 min default
@@ -365,21 +358,11 @@ setInterval(() => {
 }, 60000);
 
 // ── Health Check (unauthenticated) ─────────────────────────
-
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    server: 'mcp-sentinel',
-    version:
-      process.env.npm_package_version ||
-      JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
-  });
-});
+app.use('/', coreRouter);
 
 // ── Auth Endpoints ─────────────────────────────────────────
 
-// Exchange API key for JWT token
-app.post('/auth/token', authLimiter, authenticate, issueToken);
+app.use('/auth', authRouter);
 
 // ── Admin Key Management (admin only) ─────────────────────
 

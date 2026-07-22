@@ -33,11 +33,7 @@ export async function manageService({ service, action }, identity) {
     throw new Error(`Invalid action. Use one of: ${allowedActions.join(', ')}`);
   }
 
-  const { stdout, stderr } = await secureExec(
-    ['systemctl', action, '--', service],
-    identity,
-    { timeout: 30000 }
-  );
+  const { stdout, stderr } = await secureExec(['systemctl', action, '--', service], identity, { timeout: 30000 });
 
   return {
     service,
@@ -77,8 +73,9 @@ export async function listServices({ filter, state }, identity) {
   const args = ['list-units', '--type=service', '--no-pager', '--all', '--plain'];
   if (state) args.push(`--state=${state}`);
 
-  const { stdout } = await secureExec(['systemctl', ...args], identity, { timeout: 15000 })
-    .catch(err => ({ stdout: err.stdout || '' }));
+  const { stdout } = await secureExec(['systemctl', ...args], identity, { timeout: 15000 }).catch(err => ({
+    stdout: err.stdout || '',
+  }));
 
   let lines = stdout.trim().split('\n').filter(Boolean);
 
@@ -107,8 +104,10 @@ export async function getJournalLogs({ service, lines = 50, since, priority }, i
   }
   if (priority) args.push('-p', priority); // emerg,alert,crit,err,warning,notice,info,debug
 
-  const { stdout, stderr } = await secureExec(['journalctl', ...args], identity, { timeout: 20000 })
-    .catch(err => ({ stdout: err.stdout || '', stderr: err.stderr || '' }));
+  const { stdout, stderr } = await secureExec(['journalctl', ...args], identity, { timeout: 20000 }).catch(err => ({
+    stdout: err.stdout || '',
+    stderr: err.stderr || '',
+  }));
 
   return { logs: stdout.trim() || 'No logs found', stderr: stderr?.trim() };
 }

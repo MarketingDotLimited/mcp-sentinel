@@ -17,13 +17,18 @@ function freePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => { const { port } = server.address(); server.close(error => error ? reject(error) : resolve(port)); });
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(error => (error ? reject(error) : resolve(port)));
+    });
   });
 }
 
 async function waitFor(url) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    try { if ((await fetch(url)).ok) return; } catch {}
+    try {
+      if ((await fetch(url)).ok) return;
+    } catch {}
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('Timed out waiting for the UI server');
@@ -40,7 +45,19 @@ describe('dashboard UX', { skip: !enabled }, () => {
     const baseUrl = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, ['server.js'], {
       cwd: process.cwd(),
-      env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', USE_HTTPS: 'false', ADMIN_API_KEY: key, JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef', KEYS_FILE: path.join(tmp, 'keys.json'), KEYSTORE_FILE: path.join(tmp, 'keys.json'), CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'), MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'), AUDIT_LOG_DIR: path.join(tmp, 'logs') },
+      env: {
+        ...process.env,
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ADMIN_API_KEY: key,
+        JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef',
+        KEYS_FILE: path.join(tmp, 'keys.json'),
+        KEYSTORE_FILE: path.join(tmp, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'),
+        AUDIT_LOG_DIR: path.join(tmp, 'logs'),
+      },
       stdio: 'ignore',
     });
     await waitFor(`${baseUrl}/health`);
@@ -67,7 +84,15 @@ describe('dashboard UX', { skip: !enabled }, () => {
       await page.locator('a[href="#/connect"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Connect your AI'));
       const connectText = await page.locator('body').innerText();
-      for (const platform of ['ChatGPT (web)', 'Claude (web)', 'Claude Desktop', 'Claude Code CLI', 'Codex CLI', 'Antigravity CLI / IDE', 'Any other MCP-capable tool']) {
+      for (const platform of [
+        'ChatGPT (web)',
+        'Claude (web)',
+        'Claude Desktop',
+        'Claude Code CLI',
+        'Codex CLI',
+        'Antigravity CLI / IDE',
+        'Any other MCP-capable tool',
+      ]) {
         assert.match(connectText, new RegExp(platform.replace(/[()]/g, '\\$&')));
       }
       assert.match(connectText, /What this does — and why it is safer/);

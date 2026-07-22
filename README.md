@@ -48,6 +48,7 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 > **Note:** The examples use `https://`. HTTPS is **required** for production use to protect your credentials and data.
 
 ### Claude Desktop
+
 ```json
 {
   "mcpServers": {
@@ -61,6 +62,7 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 ```
 
 ### Cursor / VS Code
+
 ```json
 {
   "mcpServers": {
@@ -75,13 +77,13 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 
 ## 🛠️ Available Tools
 
-| Category | Tools |
-|---|---|
-| **Server Care (default)** | health, services, logs, safe configuration changes, approvals, and audit review |
-| **Developer Work (default)** | approved project inspection, constrained file work, Git operations, and deployment plans |
-| **Advanced System Administration** | users, SSH keys, firewall rules, and process signals; disabled by default |
-| **Advanced Data Access** | raw SQL against configured aliases; disabled by default |
-| **Advanced Execution** | sandbox execution and direct deployment; disabled by default |
+| Category                           | Tools                                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Server Care (default)**          | health, services, logs, safe configuration changes, approvals, and audit review          |
+| **Developer Work (default)**       | approved project inspection, constrained file work, Git operations, and deployment plans |
+| **Advanced System Administration** | users, SSH keys, firewall rules, and process signals; disabled by default                |
+| **Advanced Data Access**           | raw SQL against configured aliases; disabled by default                                  |
+| **Advanced Execution**             | sandbox execution and direct deployment; disabled by default                             |
 
 ## 🔐 Security Architecture
 
@@ -89,17 +91,17 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 AI Client → HTTPS → IP Whitelist → API Key/JWT → Rate Limit → Scope Check → Sandbox → Tool
 ```
 
-| Layer | Details |
-|---|---|
-| **HTTPS/TLS** | TLS 1.2+ with strong cipher suites |
-| **Privilege Separation** | Tools run as the mapped Unix user UID/GID (never root for users) |
-| **IP Whitelist** | Per-key or global CIDR restrictions (IPv4 & IPv6) |
-| **API Key** | Persistently stored, SHA-256 hashed |
-| **JWT Tokens** | HS256-signed, IP-bound, short-lived bearer |
-| **Rate & Session Limit** | Global, auth limits, and concurrent session capping |
-| **Scope Enforcement** | Per-key tool access control |
-| **Path Sandbox** | Symlink-safe, users restricted to `/home/{username}` and private temp dirs |
-| **Audit Logs** | Tamper-evident structured JSON with secret redaction |
+| Layer                    | Details                                                                    |
+| ------------------------ | -------------------------------------------------------------------------- |
+| **HTTPS/TLS**            | TLS 1.2+ with strong cipher suites                                         |
+| **Privilege Separation** | Tools run as the mapped Unix user UID/GID (never root for users)           |
+| **IP Whitelist**         | Per-key or global CIDR restrictions (IPv4 & IPv6)                          |
+| **API Key**              | Persistently stored, SHA-256 hashed                                        |
+| **JWT Tokens**           | HS256-signed, IP-bound, short-lived bearer                                 |
+| **Rate & Session Limit** | Global, auth limits, and concurrent session capping                        |
+| **Scope Enforcement**    | Per-key tool access control                                                |
+| **Path Sandbox**         | Symlink-safe, users restricted to `/home/{username}` and private temp dirs |
+| **Audit Logs**           | Tamper-evident structured JSON with secret redaction                       |
 
 ## 📁 Project Structure
 
@@ -218,6 +220,7 @@ The live test verifies a low-privilege MCP identity can read system health but c
 ## Contributing
 
 Contributions are very welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
 - Development setup
 - Adding new MCP tools
 - Submitting pull requests

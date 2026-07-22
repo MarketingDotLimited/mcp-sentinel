@@ -12,7 +12,9 @@ const { O_NOFOLLOW } = fsConstants;
 
 function validateExistingUsername(username) {
   if (!username || !/^[a-z_][a-z0-9_-]{0,31}$/.test(username)) {
-    throw new Error(`Invalid username: '${username}'. Use lowercase letters, digits, underscore, hyphen. Max 32 chars.`);
+    throw new Error(
+      `Invalid username: '${username}'. Use lowercase letters, digits, underscore, hyphen. Max 32 chars.`
+    );
   }
 }
 
@@ -24,10 +26,30 @@ function requireAdmin(identity) {
 
 function validateUsername(username) {
   if (!username || !/^[a-z_][a-z0-9_\-]{0,31}$/.test(username)) {
-    throw new Error(`Invalid username: '${username}'. Use lowercase letters, digits, underscore, hyphen. Max 32 chars.`);
+    throw new Error(
+      `Invalid username: '${username}'. Use lowercase letters, digits, underscore, hyphen. Max 32 chars.`
+    );
   }
   // Prevent dangerous reserved names
-  const reserved = ['root', 'daemon', 'bin', 'sys', 'nobody', 'www-data', 'sshd', 'messagebus', 'systemd-network', 'systemd-resolve', '_apt', 'postfix', 'mail', 'backup', 'list', 'proxy', 'gnats'];
+  const reserved = [
+    'root',
+    'daemon',
+    'bin',
+    'sys',
+    'nobody',
+    'www-data',
+    'sshd',
+    'messagebus',
+    'systemd-network',
+    'systemd-resolve',
+    '_apt',
+    'postfix',
+    'mail',
+    'backup',
+    'list',
+    'proxy',
+    'gnats',
+  ];
   if (reserved.includes(username)) {
     throw new Error(`Cannot modify reserved system user: '${username}'`);
   }
@@ -113,9 +135,7 @@ export async function getUserInfo({ username }, identity) {
     secureExec(['id', username], identity),
     secureExec(['groups', username], identity),
     secureExec(['lastlog', '-u', username], identity),
-    fs.readFile('/etc/passwd', 'utf8').then(c =>
-      c.split('\n').find(l => l.startsWith(username + ':'))
-    ),
+    fs.readFile('/etc/passwd', 'utf8').then(c => c.split('\n').find(l => l.startsWith(username + ':'))),
   ]);
 
   const entry = passwdEntry.value;
@@ -126,13 +146,19 @@ export async function getUserInfo({ username }, identity) {
   try {
     const authKeysPath = path.join(home || `/home/${username}`, '.ssh', 'authorized_keys');
     const keyContent = await fs.readFile(authKeysPath, 'utf8');
-    sshKeys = keyContent.trim().split('\n').filter(Boolean).map((k, i) => ({
-      index: i,
-      type: k.split(' ')[0],
-      comment: k.split(' ')[2] || '',
-      truncated_key: k.split(' ')[1]?.slice(0, 20) + '...',
-    }));
-  } catch { /* no SSH keys or no access */ }
+    sshKeys = keyContent
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((k, i) => ({
+        index: i,
+        type: k.split(' ')[0],
+        comment: k.split(' ')[2] || '',
+        truncated_key: k.split(' ')[1]?.slice(0, 20) + '...',
+      }));
+  } catch {
+    /* no SSH keys or no access */
+  }
 
   return {
     username,
@@ -151,7 +177,10 @@ export async function getUserInfo({ username }, identity) {
 
 // ── Tool: create_user ─────────────────────────────────────
 
-export async function createUser({ username, password, groups, shell = '/bin/bash', comment, createHome = true }, identity) {
+export async function createUser(
+  { username, password, groups, shell = '/bin/bash', comment, createHome = true },
+  identity
+) {
   requireAdmin(identity);
   validateUsername(username);
   validateGroups(groups);
@@ -168,8 +197,10 @@ export async function createUser({ username, password, groups, shell = '/bin/bas
   if (comment) args.push('-c', comment);
   if (groups) args.push('-G', groups); // comma-separated supplementary groups
 
-  const { stdout, stderr } = await secureExec(['useradd', ...args], identity, { timeout: 15000 })
-    .catch(err => ({ stdout: '', stderr: err.stderr || err.message }));
+  const { stdout, stderr } = await secureExec(['useradd', ...args], identity, { timeout: 15000 }).catch(err => ({
+    stdout: '',
+    stderr: err.stderr || err.message,
+  }));
 
   if (stderr && !stdout) {
     // Check if it's a fatal error
@@ -187,7 +218,10 @@ export async function createUser({ username, password, groups, shell = '/bin/bas
     }
   }
 
-  const passwdLine = await fs.readFile('/etc/passwd', 'utf8').then(c => c.split('\n').find(l => l.startsWith(username + ':'))).catch(()=>'');
+  const passwdLine = await fs
+    .readFile('/etc/passwd', 'utf8')
+    .then(c => c.split('\n').find(l => l.startsWith(username + ':')))
+    .catch(() => '');
   const actualHome = passwdLine ? passwdLine.split(':')[5] : `/home/${username}`;
 
   return {
@@ -207,8 +241,9 @@ export async function deleteUser({ username, removeHome = false }, identity) {
   const args = [username];
   if (removeHome) args.push('-r');
 
-  const { stdout, stderr } = await secureExec(['userdel', ...args], identity, { timeout: 15000 })
-    .catch(err => { throw new Error(`Failed to delete user: ${err.stderr || err.message}`); });
+  const { stdout, stderr } = await secureExec(['userdel', ...args], identity, { timeout: 15000 }).catch(err => {
+    throw new Error(`Failed to delete user: ${err.stderr || err.message}`);
+  });
 
   return {
     success: true,
@@ -244,7 +279,10 @@ export async function setUserPassword({ username, password }, identity) {
 
 // ── Tool: modify_user ─────────────────────────────────────
 
-export async function modifyUser({ username, addGroups, removeGroups, shell, lockAccount, unlockAccount, expireDate }, identity) {
+export async function modifyUser(
+  { username, addGroups, removeGroups, shell, lockAccount, unlockAccount, expireDate },
+  identity
+) {
   requireAdmin(identity);
   validateUsername(username);
   validateGroups(addGroups, 'addGroups');
@@ -328,7 +366,14 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
 
     const normalizedKey = publicKey.trim();
     const keyParts = normalizedKey.split(/\s+/);
-    const validTypes = ['ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'sk-ssh-ed25519@openssh.com'];
+    const validTypes = [
+      'ssh-rsa',
+      'ssh-ed25519',
+      'ecdsa-sha2-nistp256',
+      'ecdsa-sha2-nistp384',
+      'ecdsa-sha2-nistp521',
+      'sk-ssh-ed25519@openssh.com',
+    ];
     if (!validTypes.includes(keyParts[0])) {
       throw new Error(`Invalid SSH key type: '${keyParts[0]}'`);
     }
@@ -339,7 +384,11 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
     await fs.mkdir(sshDir, { recursive: true, mode: 0o700 });
     const sshStat = await fs.lstat(sshDir);
     if (!sshStat.isDirectory() || sshStat.isSymbolicLink()) throw new Error('.ssh must be a directory, not a symlink');
-    const file = await fs.open(authKeysPath, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_APPEND | O_NOFOLLOW, 0o600);
+    const file = await fs.open(
+      authKeysPath,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_APPEND | O_NOFOLLOW,
+      0o600
+    );
     try {
       await file.writeFile(`${normalizedKey}\n`);
     } finally {
@@ -355,13 +404,17 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
   if (action === 'list') {
     try {
       const content = await fs.readFile(authKeysPath, 'utf8');
-      const keys = content.trim().split('\n').filter(Boolean).map((k, i) => ({
-        index: i,
-        type: k.split(' ')[0],
-        comment: k.split(' ')[2] || '(no comment)',
-        preview: k.split(' ')[1]?.slice(0, 20) + '...',
-        fingerprint: sshFingerprint(k),
-      }));
+      const keys = content
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((k, i) => ({
+          index: i,
+          type: k.split(' ')[0],
+          comment: k.split(' ')[2] || '(no comment)',
+          preview: k.split(' ')[1]?.slice(0, 20) + '...',
+          fingerprint: sshFingerprint(k),
+        }));
       return { username, keys, count: keys.length };
     } catch {
       return { username, keys: [], count: 0, message: 'No authorized_keys file found' };
@@ -369,24 +422,26 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
   }
 
   if (action === 'remove') {
-    if (!publicKey && keyIndex === undefined) throw new Error('publicKey (exact key or fingerprint) or keyIndex is required for remove action');
+    if (!publicKey && keyIndex === undefined)
+      throw new Error('publicKey (exact key or fingerprint) or keyIndex is required for remove action');
 
     const content = await fs.readFile(authKeysPath, 'utf8');
     const keys = content.trim().split('\n').filter(Boolean);
 
-    const targetKeyIndex = keyIndex !== undefined
-      ? keyIndex
-      : keys.findIndex(k => {
-        const fp = sshFingerprint(k);
-        return k === publicKey.trim() || fp === publicKey || `SHA256:${fp}` === publicKey;
-      });
+    const targetKeyIndex =
+      keyIndex !== undefined
+        ? keyIndex
+        : keys.findIndex(k => {
+            const fp = sshFingerprint(k);
+            return k === publicKey.trim() || fp === publicKey || `SHA256:${fp}` === publicKey;
+          });
 
     if (!Number.isInteger(targetKeyIndex) || targetKeyIndex < 0 || targetKeyIndex >= keys.length) {
       throw new Error(`Key not found in authorized_keys`);
     }
 
     const removed = keys.splice(targetKeyIndex, 1)[0];
-    
+
     const newContent = keys.join('\n') + (keys.length ? '\n' : '');
     const sshStat = await fs.lstat(sshDir);
     if (!sshStat.isDirectory() || sshStat.isSymbolicLink()) throw new Error('.ssh must be a directory, not a symlink');
