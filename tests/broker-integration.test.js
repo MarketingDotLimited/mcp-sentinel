@@ -56,7 +56,7 @@ else if (name === 'systemctl' && args[0] === 'is-enabled') process.stdout.write(
 else if (name === 'systemctl' && args[0] === 'status') process.stdout.write('service status\\n');
 else if (name === 'journalctl') process.stdout.write('journal entry\\n');
 else if (name === 'ufw') process.stdout.write('Status: active\\n');
-else if (name === 'systemd-run') process.stdout.write('managed command\\n');
+else if (name === 'systemd-run') process.stdout.write('managed command\\n' + JSON.stringify(args) + '\\n');
 `,
   { mode: 0o755 }
 );
@@ -187,8 +187,42 @@ describe('broker operational integration', () => {
       target: 'target.test',
     });
     assert.match(test.stdout, /managed command/);
+    for (const property of [
+      '--property=PrivateNetwork=yes',
+      '--property=PrivateDevices=yes',
+      '--property=PrivateMounts=yes',
+      '--property=ProtectSystem=strict',
+      '--property=ProtectHome=tmpfs',
+      '--property=CapabilityBoundingSet=',
+      '--property=AmbientCapabilities=',
+      '--property=DevicePolicy=closed',
+      '--property=RestrictAddressFamilies=AF_INET AF_INET6',
+      `--property=InaccessiblePaths=-${path.join(projectRoot, '.env')}`,
+      '--property=InaccessiblePaths=-/run/docker.sock',
+      '--property=InaccessiblePaths=-/var/run/docker.sock',
+    ])
+      assert.match(test.stdout, new RegExp(property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(test.stdout, /--property=TemporaryFileSystem=/);
+    assert.match(test.stdout, /--property=BindPaths=/);
     assert.equal((await call('project.cancel', { runId: '22222222-2222-4222-8222-222222222222' })).exitCode, 0);
-    assert.match((await call('project.git', { projectId, action: 'status', args: {} })).stdout, /managed command/);
+    const gitStatus = await call('project.git', { projectId, action: 'status', args: {} });
+    assert.match(gitStatus.stdout, /managed command/);
+    assert.match(gitStatus.stdout, /--property=PrivateNetwork=yes/);
+    for (const argument of [
+      'core.hooksPath=/dev/null',
+      'core.fsmonitor=false',
+      'credential.helper=',
+      'protocol.ext.allow=never',
+      'protocol.file.allow=never',
+      'core.sshCommand=/usr/bin/ssh -F /dev/null -oBatchMode=yes -oStrictHostKeyChecking=yes -oForwardAgent=no -oClearAllForwardings=yes -oPermitLocalCommand=no -oRequestTTY=no',
+      '--setenv=HOME=',
+      '--setenv=GIT_CONFIG_NOSYSTEM=1',
+      '--setenv=GIT_TERMINAL_PROMPT=0',
+      '--setenv=GIT_ASKPASS=/bin/false',
+    ])
+      assert.match(gitStatus.stdout, new RegExp(argument.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    const gitDiff = await call('project.git', { projectId, action: 'diff', args: {} });
+    assert.match(gitDiff.stdout, /--no-ext-diff/);
     await assert.rejects(
       call('project.git', { projectId, action: 'add', args: { files: ['.'] } }),
       /Whole-repository staging/
@@ -202,8 +236,14 @@ describe('broker operational integration', () => {
       ['commit', { message: 'test commit' }],
       ['pull', {}],
       ['push', {}],
-    ])
-      assert.match((await call('project.git', { projectId, action, args })).stdout, /managed command/);
+    ]) {
+      const gitResult = await call('project.git', { projectId, action, args });
+      assert.match(gitResult.stdout, /managed command/);
+      assert.match(
+        gitResult.stdout,
+        new RegExp(`--property=PrivateNetwork=${action === 'pull' || action === 'push' ? 'no' : 'yes'}`)
+      );
+    }
     assert.match(
       (
         await call('project.test', {
@@ -374,6 +414,17 @@ describe('broker operational integration', () => {
     const allEntries = await call('project.file.list', { projectId, path: '.', showHidden: true });
     assert.ok(allEntries.entries.some(entry => entry.name === '.env.testing'));
     assert.equal((await call('project.file.info', { projectId, path: 'directory' })).type, 'directory');
+    await fs.rm(path.join(projectRoot, '.env.testing'));
+    await fs.symlink('/etc/passwd', path.join(projectRoot, '.env.testing'));
+    await assert.rejects(
+      call('project.test', {
+        runId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        projectId,
+        runner: 'artisan',
+        target: 'target.test',
+      }),
+      /symbolic link|ELOOP/i
+    );
   });
 
   it('serves newline-delimited typed requests on the protected Unix socket', async () => {

@@ -357,6 +357,69 @@ function registeredProject(projectId) {
   }
 }
 
+function projectSandboxProperties(project, root, { allowNetwork = false } = {}) {
+  const vhostRoot = '/var/www/vhosts';
+  const isolationRoot = root.startsWith(`${vhostRoot}${path.sep}`) ? vhostRoot : path.dirname(root);
+  if (isolationRoot === path.parse(isolationRoot).root)
+    throw new Error('Project root is too broad for filesystem isolation');
+
+  const inaccessible = new Set([path.join(root, '.env'), '/run/docker.sock', '/var/run/docker.sock']);
+  for (const entry of fs.readdirSync(root)) {
+    if (entry.startsWith('.env') && entry !== '.env.testing') inaccessible.add(path.join(root, entry));
+  }
+  for (const protectedPath of project.protectedPaths || []) {
+    if (typeof protectedPath !== 'string' || path.isAbsolute(protectedPath)) continue;
+    const normalized = path.normalize(protectedPath);
+    if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) continue;
+    inaccessible.add(path.join(root, normalized));
+  }
+
+  const networkCredentialPaths = [];
+  if (allowNetwork) {
+    const user = passwdRecord(project.runAsUser);
+    const home = fs.existsSync(user.home) ? fs.realpathSync(user.home) : user.home;
+    const sshDirectory = path.join(home, '.ssh');
+    if (fs.existsSync(sshDirectory)) {
+      const sshStat = fs.lstatSync(sshDirectory);
+      const realSshDirectory = fs.realpathSync(sshDirectory);
+      if (
+        !sshStat.isDirectory() ||
+        sshStat.isSymbolicLink() ||
+        sshStat.uid !== user.uid ||
+        !(realSshDirectory === home || realSshDirectory.startsWith(`${home}${path.sep}`))
+      )
+        throw new Error('Project SSH credential directory is unsafe');
+      networkCredentialPaths.push(`--property=BindReadOnlyPaths=${realSshDirectory}:${sshDirectory}`);
+    }
+  }
+
+  return [
+    '--property=NoNewPrivileges=yes',
+    '--property=PrivateTmp=yes',
+    '--property=PrivateDevices=yes',
+    '--property=PrivateMounts=yes',
+    `--property=PrivateNetwork=${allowNetwork ? 'no' : 'yes'}`,
+    '--property=ProtectSystem=strict',
+    '--property=ProtectHome=tmpfs',
+    '--property=ProtectKernelTunables=yes',
+    '--property=ProtectKernelModules=yes',
+    '--property=ProtectKernelLogs=yes',
+    '--property=ProtectControlGroups=yes',
+    '--property=RestrictSUIDSGID=yes',
+    '--property=RestrictRealtime=yes',
+    '--property=LockPersonality=yes',
+    '--property=CapabilityBoundingSet=',
+    '--property=AmbientCapabilities=',
+    '--property=DevicePolicy=closed',
+    '--property=RestrictAddressFamilies=AF_INET AF_INET6',
+    `--property=TemporaryFileSystem=${isolationRoot}:ro`,
+    `--property=BindPaths=${root}:${root}`,
+    ...networkCredentialPaths,
+    ...[...inaccessible].map(hiddenPath => `--property=InaccessiblePaths=-${hiddenPath}`),
+    `--property=ReadWritePaths=${root}`,
+  ];
+}
+
 function projectFileTarget(projectId, relativePath, { allowRoot = false, mustExist = true } = {}) {
   const project = registeredProject(projectId);
   if (
@@ -460,11 +523,19 @@ function projectFileInfo(location) {
   };
 }
 
-function parseTestingEnvironment(project) {
-  const envFile = path.join(project.rootPath, '.env.testing');
+function parseTestingEnvironment(project, root) {
+  const envFile = path.join(root, '.env.testing');
+  const descriptor = fs.openSync(envFile, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+  let contents;
+  try {
+    const stat = fs.fstatSync(descriptor);
+    if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error('.env.testing must be a bounded regular file');
+    contents = fs.readFileSync(descriptor, 'utf8');
+  } finally {
+    fs.closeSync(descriptor);
+  }
   const values = Object.fromEntries(
-    fs
-      .readFileSync(envFile, 'utf8')
+    contents
       .split(/\r?\n/)
       .filter(line => line && !line.trimStart().startsWith('#') && line.includes('='))
       .map(line => {
@@ -520,7 +591,7 @@ function projectTestCommand(parameters) {
     else if (recipe.filterSeparator) argv.push('--', parameters.filter);
     else throw new Error('This recipe does not accept a filter');
   }
-  const testing = recipe.laravel ? parseTestingEnvironment(project) : {};
+  const testing = recipe.laravel ? parseTestingEnvironment(project, root) : {};
   return { project, root, argv, testing };
 }
 
@@ -548,13 +619,31 @@ function projectGitCommand(parameters) {
   const permitted = project.permittedGitActions || ['status', 'diff', 'log', 'branch'];
   if (!permitted.includes(parameters.action)) throw new Error('Git recipe is not registered for this project');
   const args = parameters.args || {};
-  const argv = ['git', '-C', repo];
+  const argv = [
+    'git',
+    '-c',
+    'core.hooksPath=/dev/null',
+    '-c',
+    'core.fsmonitor=false',
+    '-c',
+    'core.pager=cat',
+    '-c',
+    'credential.helper=',
+    '-c',
+    'protocol.ext.allow=never',
+    '-c',
+    'protocol.file.allow=never',
+    '-c',
+    'core.sshCommand=/usr/bin/ssh -F /dev/null -oBatchMode=yes -oStrictHostKeyChecking=yes -oForwardAgent=no -oClearAllForwardings=yes -oPermitLocalCommand=no -oRequestTTY=no',
+    '-C',
+    repo,
+  ];
   if (parameters.action === 'status') {
     exactObject(args, [], []);
     argv.push('status', '--short', '--');
   } else if (parameters.action === 'diff') {
     exactObject(args, [], []);
-    argv.push('diff', '--');
+    argv.push('diff', '--no-ext-diff', '--');
   } else if (parameters.action === 'log') {
     exactObject(args, ['n'], []);
     const count = Number(args.n || 10);
@@ -1084,16 +1173,12 @@ const operations = {
       '--service-type=exec',
       `--uid=${project.runAsUser}`,
       `--working-directory=${root}`,
-      '--property=NoNewPrivileges=yes',
-      '--property=PrivateTmp=yes',
-      '--property=PrivateNetwork=yes',
       '--property=KillMode=control-group',
       '--property=MemoryMax=1G',
       '--property=CPUQuota=100%',
       '--property=TasksMax=256',
       '--property=RuntimeMaxSec=900',
-      '--property=ProtectSystem=strict',
-      `--property=ReadWritePaths=${root}`,
+      ...projectSandboxProperties(project, root),
       ...Object.entries(environment).map(([key, value]) => `--setenv=${key}=${value}`),
       '--',
       ...argv,
@@ -1111,6 +1196,7 @@ const operations = {
   },
   async 'project.git'(parameters) {
     const { project, repo, argv } = projectGitCommand(parameters);
+    const user = passwdRecord(project.runAsUser);
     const networkAction = ['pull', 'push'].includes(parameters.action);
     const unit = `mcp-project-git-${crypto.randomUUID()}`;
     const systemdArguments = [
@@ -1122,16 +1208,16 @@ const operations = {
       '--service-type=exec',
       `--uid=${project.runAsUser}`,
       `--working-directory=${repo}`,
-      '--property=NoNewPrivileges=yes',
-      '--property=PrivateTmp=yes',
-      `--property=PrivateNetwork=${networkAction ? 'no' : 'yes'}`,
       '--property=KillMode=control-group',
       '--property=MemoryMax=1G',
       '--property=CPUQuota=100%',
       '--property=TasksMax=256',
       '--property=RuntimeMaxSec=120',
-      '--property=ProtectSystem=strict',
-      `--property=ReadWritePaths=${repo}`,
+      ...projectSandboxProperties(project, repo, { allowNetwork: networkAction }),
+      `--setenv=HOME=${user.home}`,
+      '--setenv=GIT_CONFIG_NOSYSTEM=1',
+      '--setenv=GIT_TERMINAL_PROMPT=0',
+      '--setenv=GIT_ASKPASS=/bin/false',
       '--',
       ...argv,
     ];
