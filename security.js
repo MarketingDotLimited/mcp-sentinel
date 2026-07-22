@@ -12,8 +12,13 @@ import {
   getKeyEntry,
   getKeys,
   getKeyById,
+  updateKeyEntry,
 } from './keystore.js';
 import { randomUUID } from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import { readOAuthMappings } from './lib/oauth-mappings-store.js';
+import { DatabaseSync } from 'node:sqlite';
 
 const execFileAsync = promisify(execFile);
 
@@ -35,7 +40,66 @@ if (process.env.ADMIN_API_KEY) {
   }
 }
 
-const JWT_DENYLIST = new Set();
+const JWT_REVOCATION_FILE = process.env.JWT_REVOCATION_FILE || '/var/lib/mcp-sentinel/jwt-revocations.json';
+const SECURITY_STATE_DB = process.env.MCP_STATE_DB || '/var/lib/mcp-sentinel/state.sqlite3';
+const USE_LEGACY_REVOCATIONS = Boolean(
+  !process.env.MCP_STATE_DB &&
+  (process.env.JWT_REVOCATION_FILE || process.env.KEYSTORE_FILE || process.env.CONTROL_PLANE_STATE_FILE)
+);
+const JWT_DENYLIST = new Map();
+let revocationDatabase;
+if (USE_LEGACY_REVOCATIONS) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(JWT_REVOCATION_FILE, 'utf8'));
+    for (const item of saved.revocations || []) {
+      if (typeof item.jti === 'string' && Number(item.expiresAt) > Date.now())
+        JWT_DENYLIST.set(item.jti, item.expiresAt);
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw new Error(`Invalid JWT revocation state: ${error.message}`);
+  }
+} else {
+  fs.mkdirSync(path.dirname(SECURITY_STATE_DB), { recursive: true, mode: 0o700 });
+  revocationDatabase = new DatabaseSync(SECURITY_STATE_DB);
+  revocationDatabase.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;');
+  revocationDatabase.exec(`CREATE TABLE IF NOT EXISTS jwt_revocations (
+    jti TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL,
+    revoked_at TEXT NOT NULL
+  ) STRICT;`);
+  revocationDatabase.prepare('DELETE FROM jwt_revocations WHERE expires_at <= ?').run(Date.now());
+  for (const row of revocationDatabase.prepare('SELECT jti, expires_at FROM jwt_revocations').all())
+    JWT_DENYLIST.set(row.jti, row.expires_at);
+  fs.chmodSync(SECURITY_STATE_DB, 0o600);
+}
+
+function persistJwtRevocations() {
+  const now = Date.now();
+  for (const [jti, expiresAt] of JWT_DENYLIST) if (expiresAt <= now) JWT_DENYLIST.delete(jti);
+  if (!USE_LEGACY_REVOCATIONS) {
+    const insert = revocationDatabase.prepare(
+      'INSERT OR REPLACE INTO jwt_revocations(jti, expires_at, revoked_at) VALUES (?, ?, ?)'
+    );
+    revocationDatabase.exec('BEGIN IMMEDIATE');
+    try {
+      revocationDatabase.prepare('DELETE FROM jwt_revocations WHERE expires_at <= ?').run(now);
+      for (const [jti, expiresAt] of JWT_DENYLIST) insert.run(jti, expiresAt, new Date().toISOString());
+      revocationDatabase.exec('COMMIT');
+    } catch (error) {
+      revocationDatabase.exec('ROLLBACK');
+      throw error;
+    }
+    return;
+  }
+  fs.mkdirSync(path.dirname(JWT_REVOCATION_FILE), { recursive: true, mode: 0o700 });
+  const temporary = `${JWT_REVOCATION_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(
+    temporary,
+    JSON.stringify({ version: 1, revocations: [...JWT_DENYLIST].map(([jti, expiresAt]) => ({ jti, expiresAt })) }),
+    { mode: 0o600 }
+  );
+  fs.renameSync(temporary, JWT_REVOCATION_FILE);
+}
 
 export const ROLE_TEMPLATES = {
   viewer: {
@@ -287,7 +351,7 @@ export function issueToken(req, res) {
   };
 
   let expiresIn = process.env.JWT_EXPIRY || '8h';
-  const match = expiresIn.match(/^(\\d+)([hmd])$/);
+  const match = expiresIn.match(/^(\d+)([hmd])$/);
   if (match) {
     let val = parseInt(match[1]);
     let unit = match[2];
@@ -323,7 +387,6 @@ let _jwksCacheTime = 0;
 const JWKS_CACHE_TTL = 3600000; // 1 hour
 const AUTHELIA_ISSUER = process.env.AUTHELIA_ISSUER || '';
 const AUTHELIA_JWKS_URL = process.env.AUTHELIA_JWKS_URL || '';
-const MAPPINGS_FILE = process.env.AUTHELIA_MAPPINGS_FILE || '/etc/authelia/user-mappings.json';
 
 async function getAutheliaJWKS(forceRefresh = false) {
   if (!AUTHELIA_JWKS_URL) return null;
@@ -346,9 +409,7 @@ async function getAutheliaJWKS(forceRefresh = false) {
 
 async function loadUserMappings() {
   try {
-    const fs = await import('fs/promises');
-    const data = await fs.default.readFile(MAPPINGS_FILE, 'utf8');
-    return JSON.parse(data);
+    return await readOAuthMappings();
   } catch {
     return {};
   }
@@ -408,6 +469,8 @@ export function authenticateJWT(req, res, next) {
       projectIds: Array.isArray(decoded.projectIds) ? decoded.projectIds : undefined,
       organizationId: decoded.organizationId || undefined,
       teamId: decoded.teamId || undefined,
+      jti: decoded.jti,
+      tokenExpiresAt: decoded.exp ? decoded.exp * 1000 : Date.now(),
     };
 
     return next();
@@ -433,7 +496,8 @@ export function authenticateJWT(req, res, next) {
       try {
         result = await jwtVerify(token, jwks, {
           issuer: AUTHELIA_ISSUER,
-          algorithms: ['RS256', 'ES256', 'ES384', 'ES512'],
+          audience: (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, ''),
+          algorithms: ['RS256'],
         });
       } catch (verifyErr) {
         // Force refresh JWKS and retry once (handles key rotation)
@@ -443,16 +507,20 @@ export function authenticateJWT(req, res, next) {
         }
         result = await jwtVerify(token, refreshedJwks, {
           issuer: AUTHELIA_ISSUER,
-          algorithms: ['RS256', 'ES256', 'ES384', 'ES512'],
+          audience: (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, ''),
+          algorithms: ['RS256'],
         });
       }
 
       const payload = result.payload;
+      const protectedType = String(result.protectedHeader?.typ || '').toLowerCase();
+      if (protectedType && !['jwt', 'at+jwt'].includes(protectedType)) throw new Error('Unsupported OAuth token type');
 
-      // Basic audience check: ensure the token is meant for an OIDC client
-      if (!payload.aud && !payload.client_id) {
-        throw new Error('Missing audience or client_id claim');
-      }
+      const configuredResource = (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, '');
+      if (!configuredResource) throw new Error('OAUTH_RESOURCE_URL must be configured for OAuth');
+      const tokenAudiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
+      if (!tokenAudiences.includes(configuredResource))
+        throw new Error('OAuth token audience does not match this resource');
 
       // Explicit Token Type Validation: prevent users from passing an id_token as a bearer token
       // Authelia access tokens usually include scopes or client_id differently than id_tokens.
@@ -482,35 +550,39 @@ export function authenticateJWT(req, res, next) {
       const mappings = await loadUserMappings();
 
       // Extract client_id from token (aud could be an array or string, or client_id could be present)
-      const configuredResource = (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, '');
-      const tokenAudiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
-      const clientId =
-        payload.client_id ||
-        payload.azp ||
-        tokenAudiences.find(audience => audience !== configuredResource) ||
-        tokenAudiences[0];
+      const clientId = payload.client_id || payload.azp;
+      if (typeof clientId !== 'string' || !clientId)
+        throw new Error('OAuth access token is missing its authorized client ID');
 
       const userMapping = mappings[oauthUsername];
       if (!userMapping) {
         throw new Error(`No mapping found for OAuth user: ${oauthUsername}`);
       }
 
-      // Check for client-specific scopes, fallback to global user scopes
-      let mappedUser = userMapping.linuxUser;
-      let mappedScopes = userMapping.scopes || [];
-
-      if (userMapping.clients && userMapping.clients[clientId]) {
-        mappedUser = userMapping.clients[clientId].linuxUser || mappedUser;
-        mappedScopes = userMapping.clients[clientId].scopes || mappedScopes;
-      } else if (userMapping.clients && !userMapping.scopes) {
-        // Strict client checking: if they have a 'clients' block but no global fallback, deny
-        throw new Error(`User not authorized for client: ${clientId}`);
-      }
+      const clientMapping = userMapping.clients?.[clientId];
+      if (!clientMapping) throw new Error(`User not authorized for client: ${clientId}`);
+      const mappedUser = clientMapping.linuxUser || userMapping.linuxUser;
+      const mappedScopes = clientMapping.scopes || userMapping.scopes || [];
+      const mappedRole = clientMapping.role || userMapping.role;
+      if (!mappedUser || !mappedRole || !Array.isArray(mappedScopes) || !mappedScopes.length)
+        throw new Error('OAuth mapping is incomplete');
+      if (mappedUser === 'root') throw new Error('OAuth identities cannot map directly to root');
+      if (!['viewer', 'auditor', 'developer', 'operator', 'user', 'admin'].includes(mappedRole))
+        throw new Error('OAuth mapping contains an invalid role');
 
       req.identity = {
         userId: mappedUser,
-        role: mappedScopes.includes('*') || mappedScopes.includes('admin') ? 'admin' : 'user',
+        role: mappedRole,
         scopes: mappedScopes,
+        requireApproval:
+          clientMapping.requireApproval === undefined
+            ? userMapping.requireApproval !== false
+            : clientMapping.requireApproval === true,
+        projectIds: clientMapping.projectIds || userMapping.projectIds,
+        organizationId: clientMapping.organizationId || userMapping.organizationId,
+        teamId: clientMapping.teamId || userMapping.teamId,
+        authorizationVersion: clientMapping.authorizationVersion || userMapping.authorizationVersion || 1,
+        oauthSubject: payload.sub,
         oauthUser: oauthUsername,
         oauthClient: clientId,
         oauthProvider: 'authelia',
@@ -524,6 +596,15 @@ export function authenticateJWT(req, res, next) {
       return sendUnauthorized(req, res, 'Invalid or expired token');
     }
   })();
+}
+
+export function revokeSessionToken(req, res) {
+  if (req.identity?.authType !== 'apiKey' || !req.identity.jti)
+    return res.status(400).json({ error: 'Only Sentinel session tokens can be revoked here' });
+  JWT_DENYLIST.set(req.identity.jti, req.identity.tokenExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
+  persistJwtRevocations();
+  logSecurityEvent({ ip: req.clientIP, event: 'TOKEN_REVOKED', detail: { jti: req.identity.jti } });
+  return res.json({ success: true });
 }
 
 // ── Authorization: Scope Check ─────────────────────────────
@@ -589,6 +670,12 @@ export async function revokeApiKeyById(keyId) {
   return success;
 }
 
+export async function updateApiKey(keyId, updates) {
+  const entry = await updateKeyEntry(keyId, updates);
+  logSecurityEvent({ ip: 'internal', event: 'API_KEY_UPDATED', detail: { keyId, updates } });
+  return entry;
+}
+
 export function listApiKeys() {
   return getKeys();
 }
@@ -599,10 +686,11 @@ export function getRoleTemplates() {
 
 export { getClientIP };
 
-export function scopeAllows(scopes, toolName) {
-  const groups = {
-    'system.*': ['get_system_info', 'get_processes', 'kill_process'],
-    'files.*': [
+export const SCOPE_GROUPS = {
+  'system.*': { label: 'System', tools: ['get_system_info', 'get_processes', 'kill_process'] },
+  'files.*': {
+    label: 'Files',
+    tools: [
       'read_file',
       'write_file',
       'delete_file',
@@ -612,8 +700,14 @@ export function scopeAllows(scopes, toolName) {
       'get_file_info',
       'search_files',
     ],
-    'services.*': ['manage_service', 'get_service_status', 'list_services', 'get_journal_logs', 'manage_firewall'],
-    'users.*': [
+  },
+  'services.*': {
+    label: 'Services',
+    tools: ['manage_service', 'get_service_status', 'list_services', 'get_journal_logs', 'manage_firewall'],
+  },
+  'users.*': {
+    label: 'Users',
+    tools: [
       'list_users',
       'get_user_info',
       'create_user',
@@ -622,22 +716,37 @@ export function scopeAllows(scopes, toolName) {
       'modify_user',
       'manage_ssh_keys',
     ],
-    'docker.*': ['run_sandboxed_code'],
-    'git.*': ['git_operation'],
-    'db.*': ['execute_query'],
-    'config.*': ['apply_config', 'list_config_backups', 'restore_config'],
-    'monitor.*': ['subscribe_to_alert', 'unsubscribe_from_alert', 'list_active_alerts'],
-    'workflows.*': ['list_guided_workflows', 'request_change_approval'],
-    'projects.*': ['list_projects', 'plan_project_deployment', 'deploy_project'],
-    'automations.*': ['list_automations', 'schedule_health_check'],
-    'security.*': ['get_security_posture'],
-    'fleet.*': ['list_fleet_servers', 'check_fleet_server'],
-    'backups.*': ['list_backup_targets', 'run_encrypted_backup'],
-    'webhooks.*': ['list_webhooks', 'deliver_webhook'],
-  };
+  },
+  'docker.*': { label: 'Docker', tools: ['run_sandboxed_code'] },
+  'git.*': { label: 'Git', tools: ['git_operation'] },
+  'db.*': { label: 'Database', tools: ['execute_query'] },
+  'config.*': { label: 'Config', tools: ['apply_config', 'list_config_backups', 'restore_config'] },
+  'monitor.*': { label: 'Monitor', tools: ['subscribe_to_alert', 'unsubscribe_from_alert', 'list_active_alerts'] },
+  'workflows.*': { label: 'Workflows', tools: ['list_guided_workflows', 'request_change_approval'] },
+  'projects.*': {
+    label: 'Projects',
+    tools: [
+      'list_projects',
+      'plan_project_deployment',
+      'deploy_project',
+      'run_project_tests',
+      'get_project_test_run',
+      'cancel_project_test_run',
+    ],
+  },
+  'automations.*': { label: 'Automations', tools: ['list_automations', 'schedule_health_check'] },
+  'security.*': { label: 'Security', tools: ['get_security_posture'] },
+  'fleet.*': { label: 'Fleet', tools: ['list_fleet_servers', 'check_fleet_server'] },
+  'backups.*': { label: 'Backups', tools: ['list_backup_targets', 'run_encrypted_backup'] },
+  'webhooks.*': { label: 'Webhooks', tools: ['list_webhooks', 'deliver_webhook'] },
+};
+
+export function scopeAllows(scopes, toolName) {
   return (
     scopes.includes('*') ||
     scopes.includes(toolName) ||
-    Object.entries(groups).some(([scope, tools]) => scopes.includes(scope) && tools.includes(toolName))
+    Object.entries(SCOPE_GROUPS).some(
+      ([scope, groupData]) => scopes.includes(scope) && groupData.tools.includes(toolName)
+    )
   );
 }

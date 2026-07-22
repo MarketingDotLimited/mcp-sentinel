@@ -1,6 +1,6 @@
-import { API } from "../api.js";
-import { Toast } from "../toast.js";
-import { Router } from "../router.js";
+import { API } from '../api.js';
+import { Toast } from '../toast.js';
+import { Router } from '../router.js';
 (function () {
   let rootContainer = null;
   let searchInput = null;

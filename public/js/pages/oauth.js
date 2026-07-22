@@ -1,6 +1,13 @@
-import { API } from "../api.js";
-import { Toast } from "../toast.js";
-import { Router } from "../router.js";
+import { API } from '../api.js';
+import { Toast } from '../toast.js';
+import { Router } from '../router.js';
+import {
+  loadScopeRegistry,
+  renderScopeSelector,
+  getSelectedScopes,
+  applyRoleTemplate,
+  ROLE_TEMPLATES,
+} from '../scope-registry.js';
 window.OAuthPage = (function () {
   let container = null;
   let refreshInterval = null;
@@ -56,7 +63,9 @@ window.OAuthPage = (function () {
     contentContainer.id = 'oauth-content';
     container.appendChild(contentContainer);
 
-    loadTabContent();
+    loadScopeRegistry().then(() => {
+      loadTabContent();
+    });
 
     refreshInterval = setInterval(() => {
       if (currentTab === 'health') {
@@ -157,6 +166,7 @@ window.OAuthPage = (function () {
                     <th>Email</th>
                     <th>Linux User</th>
                     <th>Groups</th>
+                    <th>Scopes</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -206,6 +216,17 @@ window.OAuthPage = (function () {
           });
         }
 
+        const tdScopes = document.createElement('td');
+        if (user.scopes && user.scopes.length) {
+          const badge = document.createElement('span');
+          badge.className = 'badge';
+          badge.textContent = user.scopes.length + ' scopes';
+          badge.title = user.scopes.join(', ');
+          tdScopes.appendChild(badge);
+        } else {
+          tdScopes.textContent = 'None';
+        }
+
         const tdActions = document.createElement('td');
 
         const editBtn = document.createElement('button');
@@ -227,33 +248,19 @@ window.OAuthPage = (function () {
         tr.appendChild(tdEmail);
         tr.appendChild(tdLinux);
         tr.appendChild(tdGroups);
+        tr.appendChild(tdScopes);
         tr.appendChild(tdActions);
 
         tbody.appendChild(tr);
       });
     } catch (err) {
-      window.Toast && Toast.error('Failed to load users: ' + err.message);
+      Toast.error('Failed to load users: ' + err.message);
     }
   }
 
   async function showUserModal(user) {
     const isEdit = !!user;
     const modal = createModal(isEdit ? 'Edit User' : 'Add User');
-
-    const scopesList = [
-      'read_file',
-      'write_file',
-      'delete_file',
-      'list_directory',
-      'get_system_info',
-      'get_processes',
-      'kill_process',
-      'manage_service',
-      'manage_firewall',
-      'execute_query',
-      'git_operation',
-      'run_code',
-    ];
 
     let osUsers = [];
     try {
@@ -291,11 +298,14 @@ window.OAuthPage = (function () {
                 </div>
             </div>
             <div class="input-group">
+                <label>Role Preset</label>
+                <select class="input-field" id="modal-role-preset">
+                    <option value="">-- Custom --</option>
+                </select>
+            </div>
+            <div class="input-group">
                 <label>MCP Scopes</label>
-                <div style="margin-top: 8px;">
-                    <label class="checkbox-label"><input type="checkbox" id="modal-scopes-all"> <b>Select All</b></label>
-                </div>
-                <div class="scopes-grid" id="modal-scopes-grid"></div>
+                <div id="modal-scopes-container"></div>
             </div>
         `;
 
@@ -307,24 +317,24 @@ window.OAuthPage = (function () {
       selLinux.appendChild(opt);
     });
 
-    const scopesGrid = modal.body.querySelector('#modal-scopes-grid');
-    scopesList.forEach(scope => {
-      const lbl = document.createElement('label');
-      lbl.className = 'checkbox-label';
-      const chk = document.createElement('input');
-      chk.type = 'checkbox';
-      chk.className = 'scope-chk';
-      chk.value = scope;
-      lbl.appendChild(chk);
-      lbl.appendChild(document.createTextNode(' ' + scope));
-      scopesGrid.appendChild(lbl);
+    const rolePresetSel = modal.body.querySelector('#modal-role-preset');
+    const templatesArray = Array.isArray(ROLE_TEMPLATES) ? ROLE_TEMPLATES : Object.values(ROLE_TEMPLATES);
+    templatesArray.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.label || t.id;
+      rolePresetSel.appendChild(opt);
     });
 
-    const chkAll = modal.body.querySelector('#modal-scopes-all');
-    chkAll.onchange = e => {
-      const boxes = modal.body.querySelectorAll('.scope-chk');
-      boxes.forEach(b => (b.checked = e.target.checked));
-    };
+    const scopesContainer = modal.body.querySelector('#modal-scopes-container');
+    const currentScopes = isEdit && user.scopes ? user.scopes : [];
+    renderScopeSelector(scopesContainer, currentScopes, 'hybrid');
+
+    rolePresetSel.addEventListener('change', e => {
+      if (e.target.value) {
+        applyRoleTemplate(scopesContainer, e.target.value);
+      }
+    });
 
     if (isEdit) {
       modal.body.querySelector('#modal-username').value = user.username;
@@ -332,11 +342,6 @@ window.OAuthPage = (function () {
       if (user.linuxUser) selLinux.value = user.linuxUser;
       modal.body.querySelector('#modal-group-admins').checked = (user.groups || []).includes('admins');
       modal.body.querySelector('#modal-group-users').checked = (user.groups || []).includes('users');
-
-      if (user.scopes) {
-        const boxes = modal.body.querySelectorAll('.scope-chk');
-        boxes.forEach(b => (b.checked = user.scopes.includes(b.value)));
-      }
     }
 
     const cancelBtn = document.createElement('button');
@@ -381,7 +386,7 @@ window.OAuthPage = (function () {
       if (modal.body.querySelector('#modal-group-admins').checked) data.groups.push('admins');
       if (modal.body.querySelector('#modal-group-users').checked) data.groups.push('users');
 
-      modal.body.querySelectorAll('.scope-chk:checked').forEach(b => data.scopes.push(b.value));
+      data.scopes = getSelectedScopes(modal.body.querySelector('#modal-scopes-container'));
 
       try {
         if (isEdit) {
@@ -552,7 +557,7 @@ window.OAuthPage = (function () {
         tbody.appendChild(tr);
       });
     } catch (err) {
-      window.Toast && Toast.error('Failed to load clients: ' + err.message);
+      Toast.error('Failed to load clients: ' + err.message);
     }
   }
 
@@ -569,10 +574,11 @@ window.OAuthPage = (function () {
       .catch(() => Toast.error('Could not copy this value.'));
   }
 
-  function showClientCredentials(client) {
+  async function showClientCredentials(client) {
+    const info = await API.get('/admin/connection-info');
     const modal = createModal('OAuth Client Created');
     const values = [
-      ['MCP Server URL', `${window.location.origin}/mcp`],
+      ['MCP Server URL', info.mcpUrl],
       ['OAuth Client ID', client.client_id],
       ['OAuth Client Secret', client.client_secret],
       ['Token endpoint auth method', client.token_endpoint_auth_method],
@@ -612,9 +618,10 @@ window.OAuthPage = (function () {
   async function showChatGPTSetup() {
     try {
       const health = await API.get('/admin/oauth-health');
+      const info = await API.get('/admin/connection-info');
       const issuer = health?.url;
       if (!issuer) throw new Error('Authelia issuer is not configured.');
-      const resource = window.location.origin;
+      const resource = info.mcpUrl.replace('/mcp', '');
       const modal = createModal('ChatGPT Setup Values');
       const intro = document.createElement('p');
       intro.className = 'modal-description';

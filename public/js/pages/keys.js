@@ -1,16 +1,23 @@
-import { API } from "../api.js";
-import { Toast } from "../toast.js";
-import { Router } from "../router.js";
+import { API } from '../api.js';
+import { Toast } from '../toast.js';
+import { Router } from '../router.js';
+import {
+  loadScopeRegistry,
+  renderScopeSelector,
+  getSelectedScopes,
+  applyRoleTemplate,
+  ROLE_TEMPLATES,
+} from '../scope-registry.js';
 (function () {
   let rootContainer = null;
 
   async function loadKeys() {
     try {
-      const response = await window.API.get('/admin/keys');
+      const response = await API.get('/admin/keys');
       const keys = Array.isArray(response) ? response : response.keys || response.data || [];
       renderTable(keys);
     } catch (err) {
-      if (window.Toast) window.Toast.error('Failed to load API keys: ' + err.message);
+      Toast.error('Failed to load API keys: ' + err.message);
     }
   }
 
@@ -62,6 +69,13 @@ import { Router } from "../router.js";
       tdApproval.textContent = keyItem.requireApproval ? 'Required' : 'Not required';
 
       const tdActions = document.createElement('td');
+      const btnEdit = document.createElement('button');
+      btnEdit.className = 'btn btn-ghost btn-sm';
+      btnEdit.style.marginRight = '8px';
+      btnEdit.textContent = 'Edit';
+      btnEdit.onclick = () => showEditKeyModal(keyItem);
+      tdActions.appendChild(btnEdit);
+
       const btnRevoke = document.createElement('button');
       btnRevoke.className = 'btn btn-danger btn-sm';
       btnRevoke.textContent = 'Revoke';
@@ -78,6 +92,93 @@ import { Router } from "../router.js";
 
       tableBody.appendChild(tr);
     });
+  }
+
+  async function showEditKeyModal(keyItem) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3 class="modal-title">Edit API Key</h3>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>Label / Description</label>
+          <input type="text" id="edit-label" class="input-field" value="${keyItem.label || ''}">
+        </div>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>Privilege Role</label>
+          <select id="edit-role" class="input-field">
+            <option value="viewer" ${keyItem.role === 'viewer' ? 'selected' : ''}>Viewer (read-only)</option>
+            <option value="developer" ${keyItem.role === 'developer' ? 'selected' : ''}>Developer</option>
+            <option value="operator" ${keyItem.role === 'operator' ? 'selected' : ''}>Operator</option>
+            <option value="auditor" ${keyItem.role === 'auditor' ? 'selected' : ''}>Auditor</option>
+            <option value="user" ${keyItem.role === 'user' ? 'selected' : ''}>User</option>
+            <option value="admin" ${keyItem.role === 'admin' ? 'selected' : ''}>Admin</option>
+          </select>
+        </div>
+
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label>Allowed Scopes</label>
+          <div id="edit-scopes-container"></div>
+        </div>
+
+        <div class="input-group" style="margin-bottom: 24px;">
+          <label>Allowed IPs (Optional)</label>
+          <input type="text" id="edit-ips" class="input-field" value="${(keyItem.allowedIPs || []).join(', ')}" placeholder="Empty = all IPs allowed (e.g. 192.168.1.100)">
+        </div>
+        <div class="input-group" style="margin-bottom: 24px;">
+          <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" id="edit-approval" ${keyItem.requireApproval ? 'checked' : ''}> Require approval for risky AI actions</label>
+        </div>
+
+        <div class="modal-actions" style="text-align: right;">
+          <button class="btn btn-ghost" id="btn-cancel">Cancel</button>
+          <button class="btn btn-primary" id="btn-submit">Save Changes</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const scopesContainer = overlay.querySelector('#edit-scopes-container');
+    renderScopeSelector(scopesContainer, keyItem.scopes || [], 'hybrid');
+
+    const roleSelect = overlay.querySelector('#edit-role');
+    roleSelect.addEventListener('change', e => {
+      applyRoleTemplate(scopesContainer, e.target.value);
+    });
+
+    overlay.querySelector('#btn-cancel').onclick = () => {
+      document.body.removeChild(overlay);
+    };
+
+    overlay.querySelector('#btn-submit').onclick = async () => {
+      const payload = {
+        label: overlay.querySelector('#edit-label').value.trim(),
+        role: roleSelect.value,
+        requireApproval: overlay.querySelector('#edit-approval').checked,
+        scopes: getSelectedScopes(scopesContainer),
+      };
+
+      const ips = overlay.querySelector('#edit-ips').value;
+      if (ips) {
+        payload.allowedIPs = ips
+          .split(',')
+          .map(s => s.trim())
+          .filter(Boolean);
+      } else {
+        payload.allowedIPs = [];
+      }
+
+      try {
+        await API.put('/admin/keys/' + keyItem.keyId, payload);
+        Toast.success('API key updated successfully!');
+        document.body.removeChild(overlay);
+        loadKeys();
+      } catch (err) {
+        Toast.error('Failed to update key: ' + err.message);
+      }
+    };
   }
 
   function showRevokeModal(keyItem) {
@@ -102,11 +203,13 @@ import { Router } from "../router.js";
     overlay.querySelector('#btn-confirm').onclick = async () => {
       document.body.removeChild(overlay);
       try {
-        await window.API.post('/admin/keys/revoke', { keyId: keyItem.keyId });
-        if (window.Toast) window.Toast.success('API key revoked');
-        loadKeys();
+        await API.post('/admin/keys/revoke', { keyId: keyItem.keyId });
+        Toast.success('API key revoked');
+        loadScopeRegistry().then(() => {
+          loadKeys();
+        });
       } catch (err) {
-        if (window.Toast) window.Toast.error('Failed to revoke key: ' + err.message);
+        Toast.error('Failed to revoke key: ' + err.message);
       }
     };
   }
@@ -124,24 +227,10 @@ import { Router } from "../router.js";
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
-    // Available scope groups
-    const availableScopes = ['*', 'system.*', 'files.*', 'services.*', 'users.*', 'docker.*', 'git.*', 'db.*'];
-
-    let scopesHtml = '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">';
-    availableScopes.forEach(scope => {
-      scopesHtml += `
-        <label style="display: flex; align-items: center; gap: 4px; font-weight: normal; font-size: 13px; cursor: pointer;">
-          <input type="checkbox" class="scope-checkbox" value="${scope}" ${scope === '*' ? 'checked' : ''}>
-          ${scope}
-        </label>
-      `;
-    });
-    scopesHtml += '</div>';
-
-    // Fetch OS users
+    let scopesHtml = '<div id="gen-scopes-container"></div>';
     let osUsersHtml = '<option value="admin">admin (Full Access)</option>';
     try {
-      const response = await window.API.get('/admin/os-users');
+      const response = await API.get('/admin/os-users');
       const userList = response.users || [];
       if (Array.isArray(userList)) {
         userList.forEach(u => {
@@ -158,7 +247,7 @@ import { Router } from "../router.js";
 
     let teamOptions = '<option value="">No team restriction</option>';
     try {
-      const response = await window.API.get('/admin/organizations');
+      const response = await API.get('/admin/organizations');
       (response.teams || []).forEach(team => {
         teamOptions += `<option value="${team.id}">${team.name} (${team.role})</option>`;
       });
@@ -266,19 +355,22 @@ import { Router } from "../router.js";
       customLabelInput.style.display = labelSelect.value === 'custom' ? 'block' : 'none';
     });
 
-    // Handle * scope checkbox logic
-    const scopeCheckboxes = overlay.querySelectorAll('.scope-checkbox');
-    scopeCheckboxes.forEach(cb => {
-      cb.addEventListener('change', e => {
-        if (e.target.value === '*' && e.target.checked) {
-          scopeCheckboxes.forEach(other => {
-            if (other.value !== '*') other.checked = false;
-          });
-        } else if (e.target.value !== '*' && e.target.checked) {
-          overlay.querySelector('.scope-checkbox[value="*"]').checked = false;
-        }
-      });
-    });
+    const scopesContainer = overlay.querySelector('#gen-scopes-container');
+    renderScopeSelector(scopesContainer, [], 'hybrid');
+
+    const roleSelect = overlay.querySelector('#gen-role');
+    const templateCheck = overlay.querySelector('#gen-template');
+
+    function updateScopesFromRole() {
+      if (templateCheck.checked && roleSelect.value) {
+        applyRoleTemplate(scopesContainer, roleSelect.value);
+      }
+    }
+
+    roleSelect.addEventListener('change', updateScopesFromRole);
+    templateCheck.addEventListener('change', updateScopesFromRole);
+    // Initial sync
+    setTimeout(updateScopesFromRole, 100);
 
     overlay.querySelector('#btn-cancel').onclick = () => {
       document.body.removeChild(overlay);
@@ -296,17 +388,15 @@ import { Router } from "../router.js";
 
       const ips = overlay.querySelector('#gen-ips').value;
 
-      const selectedScopes = Array.from(scopeCheckboxes)
-        .filter(cb => cb.checked)
-        .map(cb => cb.value);
+      const selectedScopes = getSelectedScopes(overlay.querySelector('#gen-scopes-container'));
 
       if (!userId) {
-        if (window.Toast) window.Toast.error('User ID is required');
+        Toast.error('User ID is required');
         return;
       }
       const useTemplate = overlay.querySelector('#gen-template').checked;
       if (!useTemplate && selectedScopes.length === 0) {
-        if (window.Toast) window.Toast.error('At least one scope must be selected');
+        Toast.error('At least one scope must be selected');
         return;
       }
 
@@ -327,12 +417,12 @@ import { Router } from "../router.js";
           .filter(Boolean);
 
       try {
-        await window.API.post('/admin/keys', payload);
-        if (window.Toast) window.Toast.success('API key generated successfully!');
+        await API.post('/admin/keys', payload);
+        Toast.success('API key generated successfully!');
         document.body.removeChild(overlay);
         loadKeys();
       } catch (err) {
-        if (window.Toast) window.Toast.error('Failed to generate key: ' + err.message);
+        Toast.error('Failed to generate key: ' + err.message);
       }
     };
   }

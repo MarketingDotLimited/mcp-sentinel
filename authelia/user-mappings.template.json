@@ -1,0 +1,30 @@
+{
+  "admin": {
+    "linuxUser": "root",
+    "role": "admin",
+    "requireApproval": false,
+    "authorizationVersion": 1,
+    "clients": {
+      "YOUR_ADMIN_CLIENT_ID": {
+        "role": "admin",
+        "scopes": ["*"],
+        "requireApproval": false
+      }
+    }
+  },
+  "developer": {
+    "linuxUser": "project-unix-user",
+    "role": "developer",
+    "requireApproval": true,
+    "projectIds": ["00000000-0000-4000-8000-000000000000"],
+    "authorizationVersion": 1,
+    "clients": {
+      "YOUR_CHATGPT_CLIENT_ID": {
+        "role": "developer",
+        "scopes": ["system.*", "files.*", "git.*", "projects.*", "workflows.*", "monitor.*"],
+        "requireApproval": true,
+        "projectIds": ["00000000-0000-4000-8000-000000000000"]
+      }
+    }
+  }
+}

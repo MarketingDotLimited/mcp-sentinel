@@ -1,7 +1,7 @@
 # Authelia Configuration Templates
 
-# These are reference templates. The live config files are deployed to /etc/authelia/
+# These are reference templates. Live config files are deployed to /etc/mcp-sentinel/.
 
-# During setup.js, these templates are copied to /etc/authelia/ and secrets are generated.
+# Deployment must inject rotated secrets and the OIDC signing key through protected configuration management.
 
 # DO NOT commit actual secrets or private keys to this directory.

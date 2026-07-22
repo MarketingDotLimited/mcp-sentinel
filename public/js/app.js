@@ -1,22 +1,22 @@
-import { API } from "./api.js";
-import { Auth } from "./auth.js";
-import { Router } from "./router.js";
-import { Toast } from "./toast.js";
-import "./pages/administration.js";
-import "./pages/approvals.js";
-import "./pages/automations.js";
-import "./pages/connect.js";
-import { DashboardPage } from "./pages/dashboard.js";
-import "./pages/keys.js";
-import "./pages/logs.js";
-import "./pages/oauth.js";
-import "./pages/operations.js";
-import "./pages/projects.js";
-import "./pages/rollbacks.js";
-import "./pages/security.js";
-import "./pages/sessions.js";
-import "./pages/teams.js";
-import "./pages/workflows.js";
+import { API } from './api.js';
+import { Auth } from './auth.js';
+import { Router } from './router.js';
+import { Toast } from './toast.js';
+import './pages/administration.js';
+import './pages/approvals.js';
+import './pages/automations.js';
+import './pages/connect.js';
+import { DashboardPage } from './pages/dashboard.js';
+import './pages/keys.js?v=20260722-1';
+import './pages/logs.js';
+import './pages/oauth.js';
+import './pages/operations.js';
+import './pages/projects.js';
+import './pages/rollbacks.js';
+import './pages/security.js';
+import './pages/sessions.js';
+import './pages/teams.js';
+import './pages/workflows.js';
 
 // ============================================================
 //  app.js - Application initialization & login page
@@ -136,20 +136,20 @@ const LoginPage = {
   // Register routes
   Router.register('/login', LoginPage);
   Router.register('/dashboard', DashboardPage);
-  Router.register('/workflows', WorkflowsPage);
-  Router.register('/approvals', ApprovalsPage);
-  Router.register('/projects', ProjectsPage);
-  Router.register('/automations', AutomationsPage);
-  Router.register('/operations', OperationsPage);
-  Router.register('/connect', ConnectPage);
-  Router.register('/teams', TeamsPage);
-  Router.register('/security', SecurityPage);
-  Router.register('/logs', LogsPage);
-  Router.register('/sessions', SessionsPage);
-  Router.register('/keys', KeysPage);
-  Router.register('/oauth', OAuthPage);
-  Router.register('/rollbacks', RollbacksPage);
-  Router.register('/administration', AdministrationPage);
+  Router.register('/workflows', window.WorkflowsPage);
+  Router.register('/approvals', window.ApprovalsPage);
+  Router.register('/projects', window.ProjectsPage);
+  Router.register('/automations', window.AutomationsPage);
+  Router.register('/operations', window.OperationsPage);
+  Router.register('/connect', window.ConnectPage);
+  Router.register('/teams', window.TeamsPage);
+  Router.register('/security', window.SecurityPage);
+  Router.register('/logs', window.LogsPage);
+  Router.register('/sessions', window.SessionsPage);
+  Router.register('/keys', window.KeysPage);
+  Router.register('/oauth', window.OAuthPage);
+  Router.register('/rollbacks', window.RollbacksPage);
+  Router.register('/administration', window.AdministrationPage);
 
   // Logout button
   const logoutBtn = document.getElementById('logout-btn');

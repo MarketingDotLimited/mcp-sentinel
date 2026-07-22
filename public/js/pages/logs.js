@@ -1,6 +1,6 @@
-import { API } from "../api.js";
-import { Toast } from "../toast.js";
-import { Router } from "../router.js";
+import { API } from '../api.js';
+import { Toast } from '../toast.js';
+import { Router } from '../router.js';
 window.LogsPage = (function () {
   let abortController = null;
   let containerEl = null;
@@ -145,7 +145,7 @@ window.LogsPage = (function () {
 
   async function loadInitialLogs() {
     try {
-      const data = await window.API.get('/admin/logs?limit=200');
+      const data = await API.get('/admin/logs?limit=200');
       if (data && Array.isArray(data)) {
         data.forEach(log => {
           const tr = createLogRow(log);
@@ -162,7 +162,7 @@ window.LogsPage = (function () {
     abortController = new AbortController();
 
     try {
-      const token = window.API ? window.API.getToken() : '';
+      const token = window.API ? API.getToken() : '';
       const response = await fetch('/admin/logs/stream', {
         headers: { Authorization: 'Bearer ' + token },
         signal: abortController.signal,

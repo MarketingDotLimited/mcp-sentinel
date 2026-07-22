@@ -17,6 +17,7 @@ process.env.BACKUP_ALLOWED_ROOTS = path.join(tempDir, 'backups');
 process.env.MCP_FLEET_ALLOWED_HOSTS = 'sentinel.example.test';
 process.env.WEBHOOK_ALLOWED_HOSTS = 'hooks.example.test';
 process.env.S3_ALLOWED_HOSTS = 's3.example.test';
+process.env.PROJECT_HEALTH_ALLOWED_HOSTS = 'example.test';
 await fs.writeFile(
   process.env.MCP_POLICY_FILE,
   JSON.stringify({
@@ -241,5 +242,137 @@ describe('approval control plane', () => {
       (await controlPlane.listWebhooks(admin)).find(item => item.id === webhook.id).url,
       'https://hooks.example.test/release'
     );
+  });
+
+  it('covers project lookup, validation, deployment, and approval edge cases', async () => {
+    const project = (await controlPlane.listProjects(admin))[0];
+    assert.equal((await controlPlane.getProject(project.id, admin)).id, project.id);
+    assert.equal((await controlPlane.getProjectByExactPath(project.rootPath, admin)).id, project.id);
+    assert.match(controlPlane.assertProjectHealthUrlAllowed(project), /^https:/);
+    assert.equal(controlPlane.assertProjectHealthUrlAllowed({}), null);
+    assert.equal(await controlPlane.assertRepositoryPermitted(project.repoPath, admin), null);
+    await assert.rejects(controlPlane.getProject('missing', requester), /not found/);
+    await assert.rejects(controlPlane.getProjectByExactPath('/missing', requester), /does not exactly match/);
+    await assert.rejects(
+      controlPlane.createProject({ name: 'Nope', repoPath: '/srv/example-app' }, requester),
+      /Only administrators/
+    );
+    for (const [input, message] of [
+      [{ name: 'x', repoPath: '/srv/example-app' }, /Project name/],
+      [{ name: 'Bad Root', repoPath: '/srv/example-app', rootPath: '/srv/other' }, /project root/],
+      [{ name: 'Bad User', repoPath: '/srv/example-app', runAsUser: 'bad/user' }, /runAsUser/],
+      [{ name: 'Bad Service', repoPath: '/srv/example-app', serviceName: 'bad/service' }, /systemd/],
+      [{ name: 'Bad Health', repoPath: '/srv/example-app', healthUrl: 'file:///etc/passwd' }, /healthUrl/],
+      [{ name: 'Bad Environment', repoPath: '/srv/example-app', environment: 'space' }, /environment/],
+      [{ name: 'Bad Tasks', repoPath: '/srv/example-app', permittedTasks: ['shell'] }, /permittedTasks/],
+      [{ name: 'Bad Database', repoPath: '/srv/example-app', testDatabase: 'bad name' }, /testDatabase/],
+      [{ name: 'Bad Git', repoPath: '/srv/example-app', permittedGitActions: ['force'] }, /permittedGitActions/],
+    ])
+      await assert.rejects(controlPlane.createProject(input, admin), message);
+    const duplicateName = project.name;
+    await assert.rejects(
+      controlPlane.createProject({ name: duplicateName, repoPath: '/srv/example-app' }, admin),
+      /already exists/
+    );
+
+    const proposed = await controlPlane.requestApproval({
+      tool: 'write_file',
+      args: { filePath: '/srv/example-app/app.js', content: 'const value = 1;' },
+      identity: requester,
+    });
+    assert.equal(
+      (
+        await controlPlane.requestApproval({
+          tool: 'write_file',
+          args: { filePath: '/srv/example-app/app.js', content: 'const value = 1;' },
+          identity: requester,
+        })
+      ).created,
+      false
+    );
+    await assert.rejects(
+      controlPlane.decideApproval({ id: proposed.approval.id, decision: 'maybe', identity: admin }),
+      /decision must/
+    );
+    await assert.rejects(
+      controlPlane.decideApproval({
+        id: proposed.approval.id,
+        decision: 'approved',
+        identity: { ...admin, userId: requester.userId },
+      }),
+      /different identities/
+    );
+    await controlPlane.decideApproval({ id: proposed.approval.id, decision: 'rejected', identity: admin, note: 12 });
+    assert.ok(
+      (await controlPlane.listApprovals(requester, { includeResolved: true })).some(item => item.status === 'rejected')
+    );
+  });
+
+  it('validates automations, organizations, teams, fleet checks, and webhook delivery', async () => {
+    await assert.rejects(controlPlane.createAutomation({ type: 'health_check' }, requester), /Only administrators/);
+    await assert.rejects(controlPlane.createAutomation({ type: 'shell' }, admin), /Only health_check/);
+    await assert.rejects(
+      controlPlane.createAutomation({ name: 'Bad interval', type: 'health_check', intervalMinutes: 1 }, admin),
+      /intervalMinutes/
+    );
+    await assert.rejects(
+      controlPlane.createAutomation(
+        { name: 'Backup job', type: 'backup', backupTargetId: 'missing', sourcePath: tempDir },
+        admin
+      ),
+      /Backup target not found/
+    );
+    assert.equal((await controlPlane.listAutomations(requester)).length, 0);
+
+    const project = (await controlPlane.listProjects(admin))[0];
+    const organization = (await controlPlane.listOrganizations(admin)).organizations[0];
+    assert.equal(
+      (await controlPlane.listOrganizations({ ...requester, organizationId: organization.id })).organizations.length,
+      1
+    );
+    await assert.rejects(controlPlane.createOrganization({ name: organization.name }, admin), /already exists/);
+    await assert.rejects(
+      controlPlane.createTeam({ name: 'Bad Role', organizationId: organization.id, role: 'admin' }, admin),
+      /Team role/
+    );
+    await assert.rejects(
+      controlPlane.createTeam({ name: 'Bad Project', organizationId: organization.id, projectIds: ['missing'] }, admin),
+      /must be registered/
+    );
+    await assert.rejects(controlPlane.validateKeyAssignment({ organizationId: 'missing' }), /Organization not found/);
+    await controlPlane.validateKeyAssignment({ organizationId: organization.id });
+
+    const fleet = await controlPlane.registerFleetServer(
+      { name: 'Primary Sentinel', healthUrl: 'https://sentinel.example.test/health', labels: ['prod', 'bad label'] },
+      admin
+    );
+    assert.equal((await controlPlane.listFleet(requester)).length, 0);
+    const originalFetch = global.fetch;
+    try {
+      global.fetch = async () => ({ ok: true, status: 200 });
+      assert.equal((await controlPlane.checkFleetServer(fleet.id, admin)).lastCheck.status, 'healthy');
+      const webhook = (await controlPlane.listWebhooks(admin))[0];
+      let signature;
+      global.fetch = async (_url, options) => {
+        signature = options.headers['x-mcp-sentinel-signature-256'];
+        return { ok: true, status: 202 };
+      };
+      const delivered = await controlPlane.deliverWebhook(
+        { webhookId: webhook.id, event: 'deployment.completed', payload: { revision: 'abc' } },
+        admin
+      );
+      assert.equal(delivered.status, 'delivered');
+      assert.match(signature, /^sha256=/);
+      await assert.rejects(
+        controlPlane.deliverWebhook({ webhookId: webhook.id, event: 'other' }, admin),
+        /not subscribed/
+      );
+    } finally {
+      global.fetch = originalFetch;
+    }
+    await assert.rejects(controlPlane.checkFleetServer('missing', admin), /not found/);
+    await assert.rejects(controlPlane.exportLegacyState(requester), /Only administrators/);
+    const exported = await controlPlane.exportLegacyState(admin);
+    assert.ok(Array.isArray(exported.webhooks));
   });
 });

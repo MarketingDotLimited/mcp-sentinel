@@ -1,6 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import { authenticate, issueToken, getClientIP } from '../security.js';
+import { authenticate, authenticateJWT, issueToken, getClientIP, revokeSessionToken } from '../security.js';
 import { logSecurityEvent } from '../audit.js';
 
 const router = express.Router();
@@ -17,5 +17,6 @@ const authLimiter = rateLimit({
 });
 
 router.post('/token', authLimiter, authenticate, issueToken);
+router.post('/logout', authenticateJWT, revokeSessionToken);
 
 export default router;

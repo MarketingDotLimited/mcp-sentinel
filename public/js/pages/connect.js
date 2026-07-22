@@ -1,6 +1,6 @@
-import { API } from "../api.js";
-import { Toast } from "../toast.js";
-import { Router } from "../router.js";
+import { API } from '../api.js';
+import { Toast } from '../toast.js';
+import { Router } from '../router.js';
 // Plain-language onboarding for every supported MCP client.
 (function () {
   let root;

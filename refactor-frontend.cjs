@@ -16,7 +16,9 @@ fs.writeFileSync(path.join(baseDir, 'toast.js'), toastCode);
 
 // auth.js
 let authCode = fs.readFileSync(path.join(baseDir, 'auth.js'), 'utf8');
-authCode = `import { API } from "./api.js";\nimport { Toast } from "./toast.js";\n` + authCode.replace('window.Auth =', 'export const Auth =');
+authCode =
+  `import { API } from "./api.js";\nimport { Toast } from "./toast.js";\n` +
+  authCode.replace('window.Auth =', 'export const Auth =');
 fs.writeFileSync(path.join(baseDir, 'auth.js'), authCode);
 
 // router.js
@@ -28,7 +30,9 @@ fs.writeFileSync(path.join(baseDir, 'router.js'), routerCode);
 const pages = fs.readdirSync(pagesDir).filter(f => f.endsWith('.js'));
 for (const page of pages) {
   let pageCode = fs.readFileSync(path.join(pagesDir, page), 'utf8');
-  pageCode = `import { API } from "../api.js";\nimport { Toast } from "../toast.js";\nimport { Router } from "../router.js";\n` + pageCode;
+  pageCode =
+    `import { API } from "../api.js";\nimport { Toast } from "../toast.js";\nimport { Router } from "../router.js";\n` +
+    pageCode;
   fs.writeFileSync(path.join(pagesDir, page), pageCode);
 }
 
@@ -39,7 +43,7 @@ let imports = [
   `import { API } from "./api.js";`,
   `import { Auth } from "./auth.js";`,
   `import { Router } from "./router.js";`,
-  `import { Toast } from "./toast.js";`
+  `import { Toast } from "./toast.js";`,
 ];
 for (const page of pages) {
   imports.push(`import "./pages/${page}";`);

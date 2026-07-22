@@ -160,45 +160,11 @@ AUTHELIA_JWKS_URL=
   await fs.mkdir(path.join(__dirname, 'logs'), { recursive: true });
   console.log('✅ ./logs directory created');
 
-  // 7. Create systemd service file
-  const serviceFile = `[Unit]
-Description=MCP Server Control
-After=network.target
-Wants=network.target
+  // Production units are checked-in under deploy/. The setup wizard never
+  // generates a root-running service from the current checkout.
+  console.log('✅ Hardened production service templates are available under deploy/');
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=${__dirname}
-ExecStart=/usr/bin/node ${path.join(__dirname, 'server.js')}
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=mcp-server
-
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_KILL CAP_SETGID CAP_SETUID CAP_SYS_ADMIN
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-MemoryMax=1G
-TasksMax=256
-
-# Sentinel updates its own state and the Authelia user/configuration files.
-# Keep ProtectSystem=strict while granting only these required paths.
-ReadWritePaths=${__dirname} /etc/authelia
-
-[Install]
-WantedBy=multi-user.target
-`;
-
-  await fs.writeFile(path.join(__dirname, 'mcp-server.service'), serviceFile);
-  console.log('✅ systemd service file created: ./mcp-server.service');
-
-  // 8. Print summary
+  // 7. Print summary
   const protocol = useHttps ? 'https' : 'http';
   console.log(`
 ╔══════════════════════════════════════════════════════╗
@@ -217,9 +183,8 @@ WantedBy=multi-user.target
 ╠══════════════════════════════════════════════════════╣
 ║  Next Steps:                                         ║
 ║  1. npm start                    (run server)        ║
-║  2. Install systemd service:                         ║
-║     cp mcp-server.service /etc/systemd/system/       ║
-║     systemctl enable --now mcp-server                ║
+║  2. For production, follow docs/REMEDIATION.md       ║
+║     and install both hardened systemd services.      ║
 ╚══════════════════════════════════════════════════════╝
 `);
 

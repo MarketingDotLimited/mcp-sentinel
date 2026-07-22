@@ -1,0 +1,18 @@
+[Unit]
+Description=Encrypted MCP Sentinel SQLite backup
+After=mcp-sentinel.service
+
+[Service]
+Type=oneshot
+User=mcp-sentinel
+Group=mcp-sentinel
+WorkingDirectory=/opt/mcp-sentinel
+ExecStart=/usr/bin/node /opt/mcp-sentinel/scripts/backup-state.js
+EnvironmentFile=/etc/mcp-sentinel/environment
+LoadCredential=state-backup-key:/etc/mcp-sentinel/credentials/state-backup-key
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mcp-sentinel

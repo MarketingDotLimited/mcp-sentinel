@@ -7,6 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
+import zlib from 'zlib';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOG_DIR = process.env.AUDIT_LOG_DIR || path.join(__dirname, 'logs');
@@ -14,45 +15,93 @@ if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 });
 }
 
-let lastHash = crypto.createHash('sha256').update('init').digest('hex');
+const CHECKPOINT_FILE = process.env.AUDIT_CHECKPOINT_FILE || '/var/lib/mcp-sentinel/audit-chain.json';
+let configuredHmacKey = process.env.AUDIT_HMAC_KEY || '';
+if (!configuredHmacKey && process.env.CREDENTIALS_DIRECTORY) {
+  try {
+    configuredHmacKey = fs.readFileSync(path.join(process.env.CREDENTIALS_DIRECTORY, 'audit-key'), 'utf8').trim();
+  } catch {}
+}
+const auditHmacKey = /^[a-f0-9]{64}$/i.test(configuredHmacKey)
+  ? Buffer.from(configuredHmacKey, 'hex')
+  : crypto.randomBytes(32);
+const persistentAuditChain = /^[a-f0-9]{64}$/i.test(configuredHmacKey);
+let lastHash = crypto.createHmac('sha256', auditHmacKey).update('mcp-sentinel-audit-v1').digest('hex');
 let seqNo = 0;
-const tamperFormat = winston.format(info => {
+if (persistentAuditChain) {
+  try {
+    const checkpoint = JSON.parse(fs.readFileSync(CHECKPOINT_FILE, 'utf8'));
+    if (Number.isSafeInteger(checkpoint.seqNo) && /^[a-f0-9]{64}$/i.test(checkpoint.hash)) {
+      seqNo = checkpoint.seqNo;
+      lastHash = checkpoint.hash;
+    }
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw new Error(`Invalid audit checkpoint: ${error.message}`);
+  }
+}
+
+function assertCheckpointMatchesLogTail() {
+  if (!persistentAuditChain || seqNo === 0) return;
+  const files = fs
+    .readdirSync(LOG_DIR)
+    .filter(name => /^audit-.*\.log(?:\.gz)?$/.test(name))
+    .sort();
+  if (!files.length) throw new Error('Audit checkpoint exists but the audit log is missing');
+  const latest = files.at(-1);
+  const raw = fs.readFileSync(path.join(LOG_DIR, latest));
+  const contents = latest.endsWith('.gz') ? zlib.gunzipSync(raw).toString('utf8') : raw.toString('utf8');
+  const line = contents.split(/\r?\n/).filter(Boolean).at(-1);
+  const tail = JSON.parse(line || '{}');
+  if (tail.seqNo !== seqNo || tail.hash !== lastHash)
+    throw new Error('Audit checkpoint does not match the durable audit log tail');
+}
+
+assertCheckpointMatchesLogTail();
+
+function persistCheckpoint() {
+  if (!persistentAuditChain) return;
+  fs.mkdirSync(path.dirname(CHECKPOINT_FILE), { recursive: true, mode: 0o700 });
+  const temporary = `${CHECKPOINT_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify({ version: 1, seqNo, hash: lastHash }), { mode: 0o600 });
+  fs.renameSync(temporary, CHECKPOINT_FILE);
+}
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map(key => [key, canonicalize(value[key])])
+    );
+  return value;
+}
+
+function writeAudit(level, message, metadata) {
+  const info = {
+    level,
+    message,
+    ...metadata,
+    timestamp: new Date().toISOString(),
+  };
   seqNo++;
   info.seqNo = seqNo;
-  const data = JSON.stringify(info) + lastHash;
-  lastHash = crypto.createHash('sha256').update(data).digest('hex');
+  info.previousHash = lastHash;
+  const data = `${lastHash}\n${JSON.stringify(canonicalize(info))}`;
+  lastHash = crypto.createHmac('sha256', auditHmacKey).update(data).digest('hex');
   info.hash = lastHash;
-  return info;
-});
-
-// Audit logger - security events
-const auditLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
-    tamperFormat(),
-    winston.format.json()
-  ),
-  transports: [
-    new DailyRotateFile({
-      filename: path.join(LOG_DIR, 'audit-%DATE%.log'),
-      datePattern: 'YYYY-MM-DD',
-      maxFiles: `${process.env.AUDIT_LOG_KEEP_DAYS || 30}d`,
-      zippedArchive: true,
-      level: 'info',
-      options: { mode: 0o600 },
-    }),
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.printf(({ timestamp, level, message, ...meta }) => {
-          const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
-          return `[${timestamp}] ${level}: ${message}${metaStr}`;
-        })
-      ),
-    }),
-  ],
-});
+  info.chainProtection = persistentAuditChain ? 'hmac-checkpointed' : 'ephemeral-unanchored';
+  const filename = path.join(LOG_DIR, `audit-${new Date().toISOString().slice(0, 10)}.log`);
+  const descriptor = fs.openSync(filename, fs.constants.O_APPEND | fs.constants.O_CREAT | fs.constants.O_WRONLY, 0o600);
+  try {
+    fs.writeSync(descriptor, `${JSON.stringify(info)}\n`);
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  persistCheckpoint();
+  if (process.env.AUDIT_CONSOLE !== 'false') console.error(`[${info.timestamp}] ${level}: ${message}`);
+}
 
 // Error logger
 const errorLogger = winston.createLogger({
@@ -75,7 +124,7 @@ const errorLogger = winston.createLogger({
 // ── Public API ─────────────────────────────────────────────
 
 export function logAccess({ ip, apiKey, userId, tool, args, result, duration }) {
-  auditLogger.info('TOOL_CALL', {
+  writeAudit('info', 'TOOL_CALL', {
     event: 'TOOL_CALL',
     ip,
     apiKey: apiKey ? maskKey(apiKey) : null,
@@ -88,7 +137,7 @@ export function logAccess({ ip, apiKey, userId, tool, args, result, duration }) 
 }
 
 export function logAuth({ ip, apiKey, userId, event, reason }) {
-  auditLogger.info(event, {
+  writeAudit('info', event, {
     event,
     ip,
     apiKey: apiKey ? maskKey(apiKey) : null,
@@ -98,7 +147,7 @@ export function logAuth({ ip, apiKey, userId, event, reason }) {
 }
 
 export function logSecurityEvent({ ip, event, detail }) {
-  auditLogger.warn('SECURITY_EVENT', {
+  writeAudit('warn', 'SECURITY_EVENT', {
     event: 'SECURITY_EVENT',
     subEvent: event,
     ip,
@@ -118,7 +167,7 @@ export function logError({ ip, userId, tool, error }) {
 }
 
 export function logServerStart({ port, host, https }) {
-  auditLogger.info('SERVER_START', {
+  writeAudit('info', 'SERVER_START', {
     event: 'SERVER_START',
     port,
     host,
@@ -128,11 +177,17 @@ export function logServerStart({ port, host, https }) {
 }
 
 export function shutdownLoggers(cb) {
-  auditLogger.on('finish', () => {
-    errorLogger.on('finish', cb);
-    errorLogger.end();
-  });
-  auditLogger.end();
+  errorLogger.on('finish', cb);
+  errorLogger.end();
+}
+
+export function getAuditChainStatus() {
+  return {
+    sequence: seqNo,
+    hash: lastHash,
+    protection: persistentAuditChain ? 'hmac-checkpointed' : 'ephemeral-unanchored',
+    externallyAnchored: false,
+  };
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -192,4 +247,4 @@ export function sanitizeArgs(args) {
   return safe;
 }
 
-export default auditLogger;
+export default { info: (message, metadata) => writeAudit('info', message, metadata) };

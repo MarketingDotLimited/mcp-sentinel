@@ -1,6 +1,6 @@
 {
   "name": "mcp-sentinel",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Secure MCP Server for remote server control via AI cloud services",
   "main": "server.js",
   "type": "module",
@@ -16,6 +16,9 @@
     "test:coverage": "c8 --reporter=html --reporter=text node --test tests/*.test.js",
     "test:live": "RUN_LIVE_E2E=true node --test tests/live-mcp-e2e.test.js",
     "test:ui": "RUN_UI_E2E=true node --test tests/ui-e2e.test.js",
+    "audit:verify": "node scripts/verify-audit.js",
+    "migrate:dry-run": "node scripts/migrate-state.js --dry-run",
+    "migrate:apply": "node scripts/migrate-state.js --apply",
     "update:authelia": "./scripts/update-authelia.sh"
   },
   "dependencies": {
@@ -36,13 +39,14 @@
     "pg": "^8.22.0",
     "winston": "^3.11.0",
     "winston-daily-rotate-file": "^4.7.1",
-    "zod": "^3.22.0"
+    "zod": "^3.22.0",
+    "zod-to-json-schema": "^3.25.2"
   },
   "overrides": {
     "@hono/node-server": "^2.0.5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
