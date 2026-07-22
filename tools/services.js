@@ -1,10 +1,7 @@
 // ============================================================
 //  tools/services.js - systemd Service Management (Admin Only)
 // ============================================================
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { secureExec } from '../lib/exec.js';
 
 function requireAdmin(identity) {
   if (identity.role !== 'admin') {
@@ -36,9 +33,9 @@ export async function manageService({ service, action }, identity) {
     throw new Error(`Invalid action. Use one of: ${allowedActions.join(', ')}`);
   }
 
-  const { stdout, stderr } = await execFileAsync(
-    'systemctl',
-    [action, '--', service],
+  const { stdout, stderr } = await secureExec(
+    ['systemctl', action, '--', service],
+    identity,
     { timeout: 30000 }
   );
 
@@ -57,10 +54,10 @@ export async function getServiceStatus({ service }, identity) {
   validateServiceName(service);
 
   const [statusOut, activeOut, enabledOut, logsOut] = await Promise.allSettled([
-    execFileAsync('systemctl', ['status', service, '--no-pager', '-l']),
-    execFileAsync('systemctl', ['is-active', service]),
-    execFileAsync('systemctl', ['is-enabled', service]),
-    execFileAsync('journalctl', ['-u', service, '-n', '20', '--no-pager', '--output=short']),
+    secureExec(['systemctl', 'status', service, '--no-pager', '-l'], identity),
+    secureExec(['systemctl', 'is-active', service], identity),
+    secureExec(['systemctl', 'is-enabled', service], identity),
+    secureExec(['journalctl', '-u', service, '-n', '20', '--no-pager', '--output=short'], identity),
   ]);
 
   return {
@@ -80,7 +77,7 @@ export async function listServices({ filter, state }, identity) {
   const args = ['list-units', '--type=service', '--no-pager', '--all', '--plain'];
   if (state) args.push(`--state=${state}`);
 
-  const { stdout } = await execFileAsync('systemctl', args, { timeout: 15000 })
+  const { stdout } = await secureExec(['systemctl', ...args], identity, { timeout: 15000 })
     .catch(err => ({ stdout: err.stdout || '' }));
 
   let lines = stdout.trim().split('\n').filter(Boolean);
@@ -110,7 +107,7 @@ export async function getJournalLogs({ service, lines = 50, since, priority }, i
   }
   if (priority) args.push('-p', priority); // emerg,alert,crit,err,warning,notice,info,debug
 
-  const { stdout, stderr } = await execFileAsync('journalctl', args, { timeout: 20000 })
+  const { stdout, stderr } = await secureExec(['journalctl', ...args], identity, { timeout: 20000 })
     .catch(err => ({ stdout: err.stdout || '', stderr: err.stderr || '' }));
 
   return { logs: stdout.trim() || 'No logs found', stderr: stderr?.trim() };
@@ -157,7 +154,7 @@ export async function manageFirewall({ action, port, protocol = 'tcp', rule }, i
     throw new Error('Invalid combination of action and parameters');
   }
 
-  const { stdout, stderr } = await execFileAsync(command, args, { timeout: 15000 });
+  const { stdout, stderr } = await secureExec([command, ...args], identity, { timeout: 15000 });
 
   return { action, output: stdout.trim() || stderr.trim() };
 }

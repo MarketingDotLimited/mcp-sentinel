@@ -1,12 +1,10 @@
 // ============================================================
 //  tools/users.js - User Management (Admin Only)
 // ============================================================
+import { secureExec } from '../lib/exec.js';
 import { execFile } from 'child_process';
-import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
-
-const execFileAsync = promisify(execFile);
 
 function requireAdmin(identity) {
   if (identity.role !== 'admin') {
@@ -59,7 +57,7 @@ export async function listUsers({ includeSystem = false }, identity) {
   const result = await Promise.all(
     filtered.map(async user => {
       try {
-        const { stdout } = await execFileAsync('lastlog', ['-u', user.username]);
+        const { stdout } = await secureExec(['lastlog', '-u', user.username], identity);
         const lastLogin = stdout.split('\n')[1]?.trim() || 'Never';
         return { ...user, last_login: lastLogin };
       } catch {
@@ -81,9 +79,9 @@ export async function getUserInfo({ username }, identity) {
   if (!username) throw new Error('username is required');
 
   const [idOut, groupsOut, lastlogOut, passwdEntry] = await Promise.allSettled([
-    execFileAsync('id', [username]),
-    execFileAsync('groups', [username]),
-    execFileAsync('lastlog', ['-u', username]),
+    secureExec(['id', username], identity),
+    secureExec(['groups', username], identity),
+    secureExec(['lastlog', '-u', username], identity),
     fs.readFile('/etc/passwd', 'utf8').then(c =>
       c.split('\n').find(l => l.startsWith(username + ':'))
     ),
@@ -126,7 +124,7 @@ export async function createUser({ username, password, groups, shell = '/bin/bas
   requireAdmin(identity);
   validateUsername(username);
 
-  const { stdout: idOut } = await execFileAsync('id', [username]).catch(() => ({ stdout: '' }));
+  const { stdout: idOut } = await secureExec(['id', username], identity).catch(() => ({ stdout: '' }));
   if (idOut) throw new Error(`User '${username}' already exists`);
 
   const args = [username];
@@ -135,12 +133,12 @@ export async function createUser({ username, password, groups, shell = '/bin/bas
   if (comment) args.push('-c', comment);
   if (groups) args.push('-G', groups); // comma-separated supplementary groups
 
-  const { stdout, stderr } = await execFileAsync('useradd', args, { timeout: 15000 })
+  const { stdout, stderr } = await secureExec(['useradd', ...args], identity, { timeout: 15000 })
     .catch(err => ({ stdout: '', stderr: err.stderr || err.message }));
 
   if (stderr && !stdout) {
     // Check if it's a fatal error
-    const { stdout: idOutPost } = await execFileAsync('id', [username]).catch(() => ({ stdout: '' }));
+    const { stdout: idOutPost } = await secureExec(['id', username], identity).catch(() => ({ stdout: '' }));
     if (!idOutPost) throw new Error(`Failed to create user: ${stderr}`);
   }
 
@@ -149,7 +147,7 @@ export async function createUser({ username, password, groups, shell = '/bin/bas
     try {
       await setUserPassword({ username, password }, identity);
     } catch (err) {
-      await execFileAsync('userdel', [username]).catch(() => {});
+      await secureExec(['userdel', username], identity).catch(() => {});
       throw err;
     }
   }
@@ -174,7 +172,7 @@ export async function deleteUser({ username, removeHome = false }, identity) {
   const args = [username];
   if (removeHome) args.push('-r');
 
-  const { stdout, stderr } = await execFileAsync('userdel', args, { timeout: 15000 })
+  const { stdout, stderr } = await secureExec(['userdel', ...args], identity, { timeout: 15000 })
     .catch(err => { throw new Error(`Failed to delete user: ${err.stderr || err.message}`); });
 
   return {
@@ -222,37 +220,37 @@ export async function modifyUser({ username, addGroups, removeGroups, shell, loc
   }
 
   if (addGroups) {
-    await execFileAsync('usermod', ['-aG', addGroups, username]);
+    await secureExec(['usermod', '-aG', addGroups, username], identity);
     results.push(`Added to groups: ${addGroups}`);
   }
 
   if (removeGroups) {
     // Get current groups, remove specified ones
-    const { stdout } = await execFileAsync('id', ['-nG', username]);
+    const { stdout } = await secureExec(['id', '-nG', username], identity);
     const currentGroups = stdout.trim().split(' ');
     const toRemove = removeGroups.split(',');
     const newGroups = currentGroups.filter(g => !toRemove.includes(g) && g !== username);
-    await execFileAsync('usermod', ['-G', newGroups.join(','), username]);
+    await secureExec(['usermod', '-G', newGroups.join(','), username], identity);
     results.push(`Removed from groups: ${removeGroups}`);
   }
 
   if (shell) {
-    await execFileAsync('usermod', ['-s', shell, username]);
+    await secureExec(['usermod', '-s', shell, username], identity);
     results.push(`Shell set to: ${shell}`);
   }
 
   if (lockAccount) {
-    await execFileAsync('usermod', ['-L', username]);
+    await secureExec(['usermod', '-L', username], identity);
     results.push('Account locked');
   }
 
   if (unlockAccount) {
-    await execFileAsync('usermod', ['-U', username]);
+    await secureExec(['usermod', '-U', username], identity);
     results.push('Account unlocked');
   }
 
   if (expireDate !== undefined) {
-    await execFileAsync('usermod', ['-e', expireDate === '' ? '' : expireDate, username]);
+    await secureExec(['usermod', '-e', expireDate === '' ? '' : expireDate, username], identity);
     results.push(`Expiry set to: ${expireDate || 'never'}`);
   }
 
@@ -292,7 +290,7 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
     }
 
     const cmd = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo "${publicKey.trim().replace(/"/g, '\\"')}" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`;
-    await execFileAsync('su', ['-s', '/bin/bash', username, '-c', cmd]);
+    await secureExec(['bash', '-c', cmd], { userId: username, role: 'user' });
 
     return { success: true, action: 'add', username, message: 'SSH key added' };
   }
@@ -334,7 +332,7 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
     // Write via su to preserve ownership safely
     const newContent = keys.join('\n') + (keys.length ? '\n' : '');
     const cmd = `echo -n "${newContent.replace(/"/g, '\\"')}" > ~/.ssh/authorized_keys`;
-    await execFileAsync('su', ['-s', '/bin/bash', username, '-c', cmd]);
+    await secureExec(['bash', '-c', cmd], { userId: username, role: 'user' });
 
     return { success: true, action: 'remove', removed_key_preview: removed.split(' ')[2] || removed.slice(0, 30) };
   }
