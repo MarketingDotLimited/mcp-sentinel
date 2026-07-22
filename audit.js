@@ -142,7 +142,7 @@ function maskKey(key) {
   return key.slice(0, 4) + '***' + key.slice(-4);
 }
 
-function sanitizeArgs(args) {
+export function sanitizeArgs(args) {
   if (!args) return {};
   
   function deepSanitize(obj) {
@@ -150,9 +150,10 @@ function sanitizeArgs(args) {
     if (Array.isArray(obj)) return obj.map(deepSanitize);
     
     const safe = { ...obj };
-    const sensitiveKeys = ['password', 'publicKey', 'apiKey', 'key', 'secret', 'token', 'authorization'];
+    const sensitiveKeys = ['password', 'publickey', 'apikey', 'key', 'secret', 'token', 'authorization', 'content', 'newcontent', 'code', 'connectionstring'];
     for (const k of Object.keys(safe)) {
-      if (sensitiveKeys.includes(k) || k.toLowerCase().includes('password')) {
+      const normalizedKey = k.toLowerCase();
+      if (sensitiveKeys.includes(normalizedKey) || normalizedKey.includes('password') || normalizedKey.includes('secret') || normalizedKey.includes('token')) {
         safe[k] = '[REDACTED]';
       } else if (typeof safe[k] === 'object') {
         safe[k] = deepSanitize(safe[k]);

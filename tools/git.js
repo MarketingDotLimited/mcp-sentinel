@@ -35,6 +35,9 @@ export async function gitOperation({ repoPath, action, args }, identity) {
       }
       cmdArgs.push('--force');
     }
+  } else if (action === 'pull') {
+    // Deployments must not create an implicit merge commit on a production host.
+    cmdArgs.push('--ff-only');
   }
 
   // Inject askpass for credentials

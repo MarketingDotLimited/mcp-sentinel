@@ -59,6 +59,10 @@ const API = {
     return this.request(url, { method: 'POST', body: JSON.stringify(body) });
   },
 
+  async put(url, body) {
+    return this.request(url, { method: 'PUT', body: JSON.stringify(body) });
+  },
+
   async del(url) {
     return this.request(url, { method: 'DELETE' });
   },

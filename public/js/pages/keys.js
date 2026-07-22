@@ -19,7 +19,7 @@
     if (keys.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 6;
+      td.colSpan = 7;
       td.style.textAlign = 'center';
       td.textContent = 'No API keys found';
       tr.appendChild(td);
@@ -55,6 +55,8 @@
       
       const tdCreated = document.createElement('td');
       tdCreated.textContent = new Date(keyItem.createdAt || Date.now()).toLocaleString();
+      const tdApproval = document.createElement('td');
+      tdApproval.textContent = keyItem.requireApproval ? 'Required' : 'Not required';
       
       const tdActions = document.createElement('td');
       const btnRevoke = document.createElement('button');
@@ -68,6 +70,7 @@
       tr.appendChild(tdRole);
       tr.appendChild(tdScopes);
       tr.appendChild(tdCreated);
+      tr.appendChild(tdApproval);
       tr.appendChild(tdActions);
       
       tableBody.appendChild(tr);
@@ -96,7 +99,7 @@
     overlay.querySelector('#btn-confirm').onclick = async () => {
       document.body.removeChild(overlay);
       try {
-        await window.API.post('/admin/keys/revoke', { key: keyItem.key });
+        await window.API.post('/admin/keys/revoke', { keyId: keyItem.keyId });
         if (window.Toast) window.Toast.success('API key revoked');
         loadKeys();
       } catch (err) {
@@ -145,6 +148,14 @@
     }
     osUsersHtml += '<option value="custom">-- Custom Name --</option>';
 
+    let teamOptions = '<option value="">No team restriction</option>';
+    try {
+      const response = await window.API.get('/admin/organizations');
+      (response.teams || []).forEach(team => { teamOptions += `<option value="${team.id}">${team.name} (${team.role})</option>`; });
+    } catch (e) {
+      console.warn('Failed to load teams:', e);
+    }
+
     overlay.innerHTML = `
       <div class="modal">
         <h3 class="modal-title">Generate API Key</h3>
@@ -165,8 +176,16 @@
             </select>
           </div>
           <div class="input-group" style="margin-bottom: 12px;">
+            <label>Team restriction</label>
+            <select id="gen-team" class="input-field">${teamOptions}</select>
+          </div>
+          <div class="input-group" style="margin-bottom: 12px;">
             <label>Privilege Role</label>
             <select id="gen-role" class="input-field">
+              <option value="viewer">Viewer (read-only)</option>
+              <option value="developer">Developer</option>
+              <option value="operator">Operator</option>
+              <option value="auditor">Auditor</option>
               <option value="user">User</option>
               <option value="admin">Admin</option>
             </select>
@@ -195,9 +214,17 @@
           ${scopesHtml}
         </div>
 
+        <div class="input-group" style="margin-bottom: 12px;">
+          <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" id="gen-template" checked> Use the secure permission template for this role</label>
+          <small style="color: var(--text-muted);">Turn this off only when you need a custom list of tools.</small>
+        </div>
+
         <div class="input-group" style="margin-bottom: 24px;">
           <label>Allowed IPs (Optional)</label>
           <input type="text" id="gen-ips" class="input-field" placeholder="Empty = all IPs allowed (e.g. 192.168.1.100)">
+        </div>
+        <div class="input-group" style="margin-bottom: 24px;">
+          <label style="display: flex; gap: 8px; align-items: center;"><input type="checkbox" id="gen-approval" checked> Require approval for risky AI actions</label>
         </div>
 
         <div class="modal-actions" style="text-align: right;">
@@ -265,7 +292,8 @@
         if (window.Toast) window.Toast.error('User ID is required');
         return;
       }
-      if (selectedScopes.length === 0) {
+      const useTemplate = overlay.querySelector('#gen-template').checked;
+      if (!useTemplate && selectedScopes.length === 0) {
         if (window.Toast) window.Toast.error('At least one scope must be selected');
         return;
       }
@@ -275,8 +303,11 @@
         userId,
         role,
         label,
-        scopes: selectedScopes,
+        requireApproval: overlay.querySelector('#gen-approval').checked,
       };
+      if (!useTemplate) payload.scopes = selectedScopes;
+      const teamId = overlay.querySelector('#gen-team').value;
+      if (teamId) payload.teamId = teamId;
       if (ips) payload.allowedIPs = ips.split(',').map(s => s.trim()).filter(Boolean);
 
       try {
@@ -309,11 +340,12 @@
               <th>Role</th>
               <th>Scopes</th>
               <th>Created</th>
+              <th>Approvals</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="keys-tbody">
-            <tr><td colspan="6" style="text-align: center;">Loading...</td></tr>
+            <tr><td colspan="7" style="text-align: center;">Loading...</td></tr>
           </tbody>
         </table>
       </div>

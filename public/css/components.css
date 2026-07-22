@@ -169,6 +169,18 @@
 .badge-error { background-color: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
 .badge-warning { background-color: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
 
+.workflow-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 20px; }
+.workflow-card { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.workflow-card h2 { font-size: 18px; color: var(--text-primary); }
+.workflow-description { color: var(--text-secondary); min-height: 48px; }
+.workflow-steps { color: var(--text-secondary); padding-left: 18px; flex: 1; }
+.workflow-steps li { margin-bottom: 6px; }
+.project-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: center; }
+.project-card h2 { font-size: 18px; margin-bottom: 6px; }
+.project-card p { color: var(--text-secondary); margin-bottom: 12px; }
+.connection-url, .connection-json { margin: 12px 0; padding: 12px; background: rgba(0,0,0,.25); border-radius: var(--radius-md); overflow: auto; color: #c4b5fd; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.security-check h2 { font-size: 16px; text-transform: capitalize; margin-bottom: 8px; }.security-check p { color: var(--text-secondary); }.security-check.pass { border-left: 3px solid var(--accent-green); }.security-check.warning { border-left: 3px solid var(--accent-amber); }.security-check.fail { border-left: 3px solid var(--accent-red); }
+
 .modal-overlay {
   position: fixed;
   inset: 0;

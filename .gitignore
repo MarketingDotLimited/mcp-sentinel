@@ -9,6 +9,7 @@ certs/*.key
 certs/*.pem
 certs/acme/
 keys.json
+data/
 
 # Logs
 logs/

@@ -4,7 +4,7 @@ import { isIP } from 'net';
 import ipaddr from 'ipaddr.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { loadKeystore, addKeyEntry, revokeKeyEntry, getKeyEntry, getKeys, getKeyById } from './keystore.js';
+import { loadKeystore, addKeyEntry, revokeKeyEntry, revokeKeyEntryById, getKeyEntry, getKeys, getKeyById } from './keystore.js';
 import { randomUUID } from 'crypto';
 
 const execFileAsync = promisify(execFile);
@@ -28,6 +28,39 @@ if (process.env.ADMIN_API_KEY) {
 }
 
 const JWT_DENYLIST = new Set();
+
+export const ROLE_TEMPLATES = {
+  viewer: {
+    label: 'Viewer', description: 'Read server health and approved project information without making changes.',
+    scopes: ['get_system_info', 'get_processes', 'get_service_status', 'list_services', 'get_journal_logs', 'list_directory', 'read_file', 'get_file_info', 'search_files', 'list_guided_workflows', 'list_projects', 'plan_project_deployment', 'list_automations', 'security.*'],
+    requireApproval: true,
+  },
+  auditor: {
+    label: 'Auditor', description: 'Read-only access for security, operations, and compliance review.',
+    scopes: ['get_system_info', 'get_processes', 'get_service_status', 'list_services', 'get_journal_logs', 'list_directory', 'read_file', 'get_file_info', 'search_files', 'list_guided_workflows', 'list_projects', 'plan_project_deployment', 'list_automations'],
+    requireApproval: true,
+  },
+  developer: {
+    label: 'Developer', description: 'Build, test, inspect repositories, and propose deployments. Risky actions require approval.',
+    scopes: ['system.*', 'files.*', 'docker.*', 'git.*', 'db.*', 'projects.*', 'workflows.*', 'monitor.*'],
+    requireApproval: true,
+  },
+  operator: {
+    label: 'Operator', description: 'Operate approved services and configurations with human approval for changes.',
+    scopes: ['system.*', 'services.*', 'files.*', 'config.*', 'monitor.*', 'automations.*', 'workflows.*', 'projects.*'],
+    requireApproval: true,
+  },
+  user: {
+    label: 'User', description: 'Read server information and files within the user’s normal sandbox. Select custom scopes to grant more.',
+    scopes: ['get_system_info', 'get_processes', 'list_directory', 'read_file', 'get_file_info', 'search_files', 'list_guided_workflows', 'list_projects', 'plan_project_deployment', 'list_automations'],
+    requireApproval: true,
+  },
+  admin: {
+    label: 'Administrator', description: 'Full server control. Use only for trusted owners and emergency operations.',
+    scopes: ['*'],
+    requireApproval: false,
+  },
+};
 
 // ── IP Whitelist ───────────────────────────────────────────
 
@@ -58,7 +91,7 @@ function getClientIP(req) {
   const directIp = (req.socket?.remoteAddress || '').replace(/^::ffff:/, '');
   if (process.env.TRUST_PROXY === 'true' && req.headers['x-forwarded-for']) {
     const trustedProxies = (process.env.TRUSTED_PROXIES || '').split(',').map(s => s.trim()).filter(Boolean);
-    const isTrusted = trustedProxies.length === 0 || trustedProxies.some(p => ipInCidr(directIp, p));
+    const isTrusted = trustedProxies.length > 0 && trustedProxies.some(p => ipInCidr(directIp, p));
     if (isTrusted) {
       return req.headers['x-forwarded-for'].split(',')[0].trim().replace(/^::ffff:/, '');
     }
@@ -133,6 +166,10 @@ export function authenticate(req, res, next) {
     keyVersion: keyEntry.version,
     keyId: keyEntry.keyId,
     authType: 'apiKey',
+    requireApproval: keyEntry.requireApproval === true,
+    projectIds: Array.isArray(keyEntry.projectIds) ? keyEntry.projectIds : undefined,
+    organizationId: keyEntry.organizationId || undefined,
+    teamId: keyEntry.teamId || undefined,
   };
 
   logAuth({ ip, apiKey, userId: keyEntry.userId, event: 'AUTH_SUCCESS' });
@@ -159,6 +196,10 @@ export function issueToken(req, res) {
     ip, // Bind token to issuing IP
     keyVersion: req.identity.keyVersion,
     keyId: req.identity.keyId,
+    requireApproval: req.identity.requireApproval === true,
+    projectIds: req.identity.projectIds,
+    organizationId: req.identity.organizationId,
+    teamId: req.identity.teamId,
     jti: randomUUID(),
   };
 
@@ -272,6 +313,10 @@ export function authenticateJWT(req, res, next) {
       keyId: decoded.keyId,
       keyVersion: decoded.keyVersion,
       authType: 'apiKey',
+      requireApproval: decoded.requireApproval === true,
+      projectIds: Array.isArray(decoded.projectIds) ? decoded.projectIds : undefined,
+      organizationId: decoded.organizationId || undefined,
+      teamId: decoded.teamId || undefined,
     };
 
     return next();
@@ -375,7 +420,7 @@ export function authenticateJWT(req, res, next) {
 export function requireScope(toolName) {
   return (req, res, next) => {
     const scopes = req.identity?.scopes || [];
-    if (scopes.includes('*') || scopes.includes(toolName)) {
+    if (scopeAllows(scopes, toolName)) {
       return next();
     }
     logSecurityEvent({
@@ -391,7 +436,8 @@ export function requireScope(toolName) {
 
 export async function addApiKey(key, options) {
   if (!key || key.length < 32) throw new Error("Key must be at least 32 characters");
-  if (!['admin', 'user'].includes(options.role)) throw new Error("Invalid role");
+  if (!['admin', 'developer', 'operator', 'viewer', 'auditor', 'user'].includes(options.role)) throw new Error("Invalid role");
+  const template = ROLE_TEMPLATES[options.role];
 
   if (options.userId !== 'admin') {
     try {
@@ -405,8 +451,13 @@ export async function addApiKey(key, options) {
     userId: options.userId,
     role: options.role || 'user',
     allowedIPs: options.allowedIPs || [],
-    scopes: options.scopes || [],
+    scopes: Array.isArray(options.scopes) && options.scopes.length ? options.scopes : template.scopes,
     label: options.label || '',
+    requireApproval: options.requireApproval === undefined ? template.requireApproval : options.requireApproval === true,
+    projectIds: Array.isArray(options.projectIds) ? options.projectIds : undefined,
+    organizationId: options.organizationId || undefined,
+    teamId: options.teamId || undefined,
+    active: true,
   });
   logSecurityEvent({ ip: 'internal', event: 'API_KEY_CREATED', detail: { userId: options.userId } });
 }
@@ -419,8 +470,40 @@ export async function revokeApiKey(key) {
   return success;
 }
 
+export async function revokeApiKeyById(keyId) {
+  const success = await revokeKeyEntryById(keyId);
+  if (success) logSecurityEvent({ ip: 'internal', event: 'API_KEY_REVOKED', detail: { keyId } });
+  return success;
+}
+
 export function listApiKeys() {
   return getKeys();
 }
 
+export function getRoleTemplates() {
+  return Object.entries(ROLE_TEMPLATES).map(([id, template]) => ({ id, ...template }));
+}
+
 export { getClientIP };
+
+export function scopeAllows(scopes, toolName) {
+  const groups = {
+    'system.*': ['get_system_info', 'get_processes', 'kill_process'],
+    'files.*': ['read_file', 'write_file', 'delete_file', 'list_directory', 'move_file', 'copy_file', 'get_file_info', 'search_files'],
+    'services.*': ['manage_service', 'get_service_status', 'list_services', 'get_journal_logs', 'manage_firewall'],
+    'users.*': ['list_users', 'get_user_info', 'create_user', 'delete_user', 'set_user_password', 'modify_user', 'manage_ssh_keys'],
+    'docker.*': ['run_sandboxed_code'],
+    'git.*': ['git_operation'],
+    'db.*': ['execute_query'],
+    'config.*': ['apply_config', 'list_config_backups', 'restore_config'],
+    'monitor.*': ['subscribe_to_alert', 'unsubscribe_from_alert', 'list_active_alerts'],
+    'workflows.*': ['list_guided_workflows', 'request_change_approval'],
+    'projects.*': ['list_projects', 'plan_project_deployment', 'deploy_project'],
+    'automations.*': ['list_automations', 'schedule_health_check'],
+    'security.*': ['get_security_posture'],
+    'fleet.*': ['list_fleet_servers', 'check_fleet_server'],
+    'backups.*': ['list_backup_targets', 'run_encrypted_backup'],
+    'webhooks.*': ['list_webhooks', 'deliver_webhook'],
+  };
+  return scopes.includes('*') || scopes.includes(toolName) || Object.entries(groups).some(([scope, tools]) => scopes.includes(scope) && tools.includes(toolName));
+}
