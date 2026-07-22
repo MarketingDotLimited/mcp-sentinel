@@ -1,0 +1,61 @@
+server:
+  address: 'tcp://0.0.0.0:2083'
+  tls:
+    key: '${TLS_KEY_PATH}'
+    certificate: '${TLS_CERT_PATH}'
+
+log:
+  level: info
+
+authentication_backend:
+  file:
+    path: /etc/authelia/users.yml
+
+identity_validation:
+  reset_password:
+    jwt_secret: '${AUTHELIA_JWT_SECRET}'
+
+session:
+  name: authelia_session
+  secret: '${AUTHELIA_SESSION_SECRET}'
+  expiration: 3600
+  inactivity: 300
+  cookies:
+    - domain: '${DOMAIN}'
+      authelia_url: 'https://${DOMAIN}:2083'
+
+storage:
+  encryption_key: '${AUTHELIA_ENCRYPTION_KEY}'
+  local:
+    path: /var/lib/authelia/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /var/lib/authelia/notification.txt
+
+access_control:
+  default_policy: bypass
+  rules:
+    - domain: '${DOMAIN}'
+      policy: bypass
+
+identity_providers:
+  oidc:
+    hmac_secret: '${AUTHELIA_HMAC_SECRET}'
+    jwks:
+      - key_id: 'mcp-sentinel-key'
+        key: '${OIDC_PRIVATE_KEY}'
+    clients:
+      - client_id: chatgpt
+        client_name: ChatGPT
+        public: true
+        authorization_policy: one_factor
+        require_pkce: true
+        pkce_challenge_method: S256
+        redirect_uris:
+          - https://chatgpt.com/aip/plugin/callback
+        scopes:
+          - openid
+          - profile
+          - email
+        userinfo_signed_response_alg: none

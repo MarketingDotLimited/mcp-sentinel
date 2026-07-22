@@ -189,8 +189,45 @@ export function issueToken(req, res) {
 }
 
 /**
- * Middleware: Validate JWT token (alternative to API key for SSE sessions)
+ * Middleware: Validate JWT token (dual-auth: internal HS256 + Authelia RS256)
  */
+
+// ── JWKS Cache for Authelia tokens ─────────────────────────
+let _jwksCache = null;
+let _jwksCacheTime = 0;
+const JWKS_CACHE_TTL = 3600000; // 1 hour
+const AUTHELIA_ISSUER = 'https://begin.shopping:2083';
+const AUTHELIA_JWKS_URL = 'https://begin.shopping:2083/jwks.json';
+const MAPPINGS_FILE = '/etc/authelia/user-mappings.json';
+
+async function getAutheliaJWKS(forceRefresh = false) {
+  if (_jwksCache && !forceRefresh && (Date.now() - _jwksCacheTime < JWKS_CACHE_TTL)) {
+    return _jwksCache;
+  }
+  try {
+    const { createRemoteJWKSet } = await import('jose');
+    _jwksCache = createRemoteJWKSet(new URL(AUTHELIA_JWKS_URL), {
+      cooldownDuration: 30000,
+      cacheMaxAge: JWKS_CACHE_TTL,
+    });
+    _jwksCacheTime = Date.now();
+    return _jwksCache;
+  } catch (err) {
+    console.error('Failed to fetch Authelia JWKS:', err.message);
+    return null;
+  }
+}
+
+async function loadUserMappings() {
+  try {
+    const fs = await import('fs/promises');
+    const data = await fs.default.readFile(MAPPINGS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch {
+    return {};
+  }
+}
+
 export function authenticateJWT(req, res, next) {
   const ip = req.clientIP || getClientIP(req);
   const authHeader = req.headers['authorization'];
@@ -201,6 +238,7 @@ export function authenticateJWT(req, res, next) {
 
   const token = authHeader.slice(7);
 
+  // ── Try 1: Internal Sentinel HS256 Token ──────────────
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       issuer: 'mcp-server',
@@ -231,11 +269,66 @@ export function authenticateJWT(req, res, next) {
       scopes: decoded.scopes,
     };
 
-    next();
-  } catch (err) {
-    logSecurityEvent({ ip, event: 'INVALID_JWT', detail: { error: err.message } });
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return next();
+  } catch (internalErr) {
+    // Internal token failed — try Authelia token
   }
+
+  // ── Try 2: Authelia RS256 OIDC Token ──────────────────
+  (async () => {
+    try {
+      const { jwtVerify } = await import('jose');
+      const jwks = await getAutheliaJWKS();
+      if (!jwks) {
+        logSecurityEvent({ ip, event: 'OAUTH_JWKS_UNAVAILABLE', detail: {} });
+        return res.status(401).json({ error: 'OAuth verification unavailable' });
+      }
+
+      let result;
+      try {
+        result = await jwtVerify(token, jwks, {
+          issuer: AUTHELIA_ISSUER,
+        });
+      } catch (verifyErr) {
+        // Force refresh JWKS and retry once (handles key rotation)
+        const refreshedJwks = await getAutheliaJWKS(true);
+        if (!refreshedJwks) {
+          throw verifyErr;
+        }
+        result = await jwtVerify(token, refreshedJwks, {
+          issuer: AUTHELIA_ISSUER,
+        });
+      }
+
+      const payload = result.payload;
+      const oauthUsername = payload.preferred_username || payload.sub || '';
+
+      // Look up user mapping
+      const mappings = await loadUserMappings();
+      const mapping = mappings[oauthUsername];
+
+      if (!mapping || !mapping.linuxUser) {
+        logSecurityEvent({ ip, event: 'OAUTH_UNMAPPED_USER', detail: { oauthUser: oauthUsername } });
+        return res.status(403).json({
+          error: `OAuth user '${oauthUsername}' is not mapped to a Linux account. Ask an admin to configure this in OAuth & Access settings.`
+        });
+      }
+
+      req.identity = {
+        userId: mapping.linuxUser,
+        role: 'user',
+        scopes: mapping.scopes || [],
+        oauthUser: oauthUsername,
+        oauthProvider: 'authelia',
+      };
+
+      logAuth({ ip, userId: mapping.linuxUser, event: 'OAUTH_TOKEN_VALIDATED', reason: `OAuth user: ${oauthUsername}` });
+      return next();
+    } catch (oauthErr) {
+      logSecurityEvent({ ip, event: 'OAUTH_TOKEN_REJECTED', detail: { error: oauthErr.message } });
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  })();
 }
 
 // ── Authorization: Scope Check ─────────────────────────────

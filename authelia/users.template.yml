@@ -1,0 +1,7 @@
+users:
+  admin:
+    displayname: "Admin"
+    password: "${ADMIN_PASSWORD_HASH}"
+    email: "admin@${DOMAIN}"
+    groups:
+      - admins

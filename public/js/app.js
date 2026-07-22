@@ -119,6 +119,7 @@ const LoginPage = {
   Router.register('/logs', window.LogsPage);
   Router.register('/sessions', window.SessionsPage);
   Router.register('/keys', window.KeysPage);
+  Router.register('/oauth', window.OAuthPage);
   Router.register('/rollbacks', window.RollbacksPage);
 
   // Logout button
