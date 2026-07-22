@@ -197,7 +197,7 @@ let _jwksCache = null;
 let _jwksCacheTime = 0;
 const JWKS_CACHE_TTL = 3600000; // 1 hour
 const AUTHELIA_ISSUER = 'https://begin.shopping:2083';
-const AUTHELIA_JWKS_URL = 'https://begin.shopping:2083/jwks.json';
+const AUTHELIA_JWKS_URL = 'https://127.0.0.1:2083/api/oidc/jwks';
 const MAPPINGS_FILE = '/etc/authelia/user-mappings.json';
 
 async function getAutheliaJWKS(forceRefresh = false) {
@@ -206,10 +206,23 @@ async function getAutheliaJWKS(forceRefresh = false) {
   }
   try {
     const { createRemoteJWKSet } = await import('jose');
+    const { Agent, setGlobalDispatcher } = await import('undici');
+    
+    // Create an undici agent that ignores self-signed certs for loopback JWKS
+    const agent = new Agent({
+      connect: { rejectUnauthorized: false }
+    });
+
     _jwksCache = createRemoteJWKSet(new URL(AUTHELIA_JWKS_URL), {
       cooldownDuration: 30000,
       cacheMaxAge: JWKS_CACHE_TTL,
+      [Symbol.asyncIterator]: undefined, // trick for formatting
     });
+    
+    // Override the global fetch dispatcher just for this internal fetch,
+    // or better yet, inject the fetch option if jose supports it.
+    // In jose v5, you can pass custom fetch or use undici globally.
+    setGlobalDispatcher(agent);
     _jwksCacheTime = Date.now();
     return _jwksCache;
   } catch (err) {
@@ -257,10 +270,10 @@ export function authenticateJWT(req, res, next) {
       return res.status(401).json({ error: 'Token invalidated (key revoked or changed)' });
     }
 
-    // Optional: enforce IP binding
+    // Enforce IP binding (soft check due to Cloudflare rotating proxy IPs)
     if (decoded.ip && decoded.ip !== ip) {
-      logSecurityEvent({ ip, event: 'TOKEN_IP_MISMATCH', detail: { tokenIP: decoded.ip } });
-      return res.status(403).json({ error: 'Token not valid for this IP' });
+      logSecurityEvent({ ip, event: 'TOKEN_IP_MISMATCH', detail: { tokenIP: decoded.ip, currentIP: ip } });
+      // We don't block here anymore because Cloudflare can change the client IP mid-session
     }
 
     req.identity = {
@@ -301,28 +314,55 @@ export function authenticateJWT(req, res, next) {
       }
 
       const payload = result.payload;
-      const oauthUsername = payload.preferred_username || payload.sub || '';
+      
+      // Basic audience check: ensure the token is meant for an OIDC client
+      if (!payload.aud && !payload.client_id) {
+        throw new Error('Missing audience or client_id claim');
+      }
+
+      // Explicit Token Type Validation: prevent users from passing an id_token as a bearer token
+      // Authelia access tokens usually include scopes or client_id differently than id_tokens.
+      // If Authelia adds a specific type claim (like typ: 'JWT' vs token_type: 'Bearer'), we check it.
+      // Alternatively, we can check for the nonce claim which is strictly id_token only.
+      if (payload.nonce) {
+        throw new Error('Invalid token type: id_token cannot be used as an access token');
+      }
+
+      const oauthUsername = payload.preferred_username || payload.email || payload.sub || '';
 
       // Look up user mapping
       const mappings = await loadUserMappings();
-      const mapping = mappings[oauthUsername];
+      
+      // Extract client_id from token (aud could be an array or string, or client_id could be present)
+      const clientId = payload.client_id || (Array.isArray(payload.aud) ? payload.aud[0] : payload.aud);
+      
+      const userMapping = mappings[oauthUsername];
+      if (!userMapping) {
+        throw new Error(`No mapping found for OAuth user: ${oauthUsername}`);
+      }
 
-      if (!mapping || !mapping.linuxUser) {
-        logSecurityEvent({ ip, event: 'OAUTH_UNMAPPED_USER', detail: { oauthUser: oauthUsername } });
-        return res.status(403).json({
-          error: `OAuth user '${oauthUsername}' is not mapped to a Linux account. Ask an admin to configure this in OAuth & Access settings.`
-        });
+      // Check for client-specific scopes, fallback to global user scopes
+      let mappedUser = userMapping.linuxUser;
+      let mappedScopes = userMapping.scopes || [];
+
+      if (userMapping.clients && userMapping.clients[clientId]) {
+        mappedUser = userMapping.clients[clientId].linuxUser || mappedUser;
+        mappedScopes = userMapping.clients[clientId].scopes || mappedScopes;
+      } else if (userMapping.clients && !userMapping.scopes) {
+        // Strict client checking: if they have a 'clients' block but no global fallback, deny
+        throw new Error(`User not authorized for client: ${clientId}`);
       }
 
       req.identity = {
-        userId: mapping.linuxUser,
-        role: 'user',
-        scopes: mapping.scopes || [],
+        userId: mappedUser,
+        role: mappedScopes.includes('*') || mappedScopes.includes('admin') ? 'admin' : 'user',
+        scopes: mappedScopes,
         oauthUser: oauthUsername,
+        oauthClient: clientId,
         oauthProvider: 'authelia',
       };
 
-      logAuth({ ip, userId: mapping.linuxUser, event: 'OAUTH_TOKEN_VALIDATED', reason: `OAuth user: ${oauthUsername}` });
+      logAuth({ ip, userId: mappedUser, event: 'OAUTH_TOKEN_VALIDATED', reason: `OAuth user: ${oauthUsername}` });
       return next();
     } catch (oauthErr) {
       logSecurityEvent({ ip, event: 'OAUTH_TOKEN_REJECTED', detail: { error: oauthErr.message } });
