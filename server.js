@@ -36,9 +36,26 @@ import {
 import { logAccess, logError, logServerStart, logSecurityEvent } from './audit.js';
 
 import { getSystemInfo, getProcesses, killProcess } from './tools/system.js';
-import { readFile, writeFile, deleteFile, listDirectory, moveFile, copyFile, getFileInfo, searchFiles } from './tools/files.js';
+import {
+  readFile,
+  writeFile,
+  deleteFile,
+  listDirectory,
+  moveFile,
+  copyFile,
+  getFileInfo,
+  searchFiles,
+} from './tools/files.js';
 import { manageService, getServiceStatus, listServices, getJournalLogs, manageFirewall } from './tools/services.js';
-import { listUsers, getUserInfo, createUser, deleteUser, setUserPassword, modifyUser, manageSshKeys } from './tools/users.js';
+import {
+  listUsers,
+  getUserInfo,
+  createUser,
+  deleteUser,
+  setUserPassword,
+  modifyUser,
+  manageSshKeys,
+} from './tools/users.js';
 import { runSandboxedCode } from './tools/docker.js';
 import { applyConfig, listConfigBackups, restoreConfig } from './tools/rollback.js';
 import { gitOperation } from './tools/git.js';
@@ -46,11 +63,45 @@ import { executeQuery } from './tools/db.js';
 import { monitor } from './lib/monitor.js';
 import { evaluatePolicy, getPolicyStatus } from './lib/policy.js';
 import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } from './lib/capabilities.js';
-import { assertProjectHealthUrlAllowed, assertRepositoryPermitted, checkFleetServer, consumeApproval, createAutomation, createBackupTarget, createOrganization, createProject, createTeam, createWebhook, decideApproval, deliverWebhook, getDeploymentPlan, getProject, getWorkflowCatalog, listApprovals, listAutomations, listBackupTargets, listFleet, listOrganizations, listProjects, listWebhooks, registerFleetServer, requestApproval, runBackup, runDueAutomations, validateKeyAssignment } from './lib/control-plane.js';
 import {
-  getOAuthUsers, addOAuthUser, updateOAuthUser, deleteOAuthUser,
-  getOAuthClients, addOAuthClient, deleteOAuthClient,
-  getAutheliaHealth, forceRestartAuthelia,
+  assertProjectHealthUrlAllowed,
+  assertRepositoryPermitted,
+  checkFleetServer,
+  consumeApproval,
+  createAutomation,
+  createBackupTarget,
+  createOrganization,
+  createProject,
+  createTeam,
+  createWebhook,
+  decideApproval,
+  deliverWebhook,
+  getDeploymentPlan,
+  getProject,
+  getWorkflowCatalog,
+  listApprovals,
+  listAutomations,
+  listBackupTargets,
+  listFleet,
+  listOrganizations,
+  listProjects,
+  listWebhooks,
+  registerFleetServer,
+  requestApproval,
+  runBackup,
+  runDueAutomations,
+  validateKeyAssignment,
+} from './lib/control-plane.js';
+import {
+  getOAuthUsers,
+  addOAuthUser,
+  updateOAuthUser,
+  deleteOAuthUser,
+  getOAuthClients,
+  addOAuthClient,
+  deleteOAuthClient,
+  getAutheliaHealth,
+  forceRestartAuthelia,
 } from './lib/authelia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,34 +111,91 @@ const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
 function summarizeHealth(stats) {
   const checks = [
-    ['CPU', stats.cpu], ['Memory', stats.memory], ['Disk', stats.disk],
+    ['CPU', stats.cpu],
+    ['Memory', stats.memory],
+    ['Disk', stats.disk],
   ].filter(([, value]) => typeof value === 'number');
-  const concerns = checks.filter(([, value]) => value >= 85).map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
-  const warnings = checks.filter(([, value]) => value >= 70 && value < 85).map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
+  const concerns = checks
+    .filter(([, value]) => value >= 85)
+    .map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
+  const warnings = checks
+    .filter(([, value]) => value >= 70 && value < 85)
+    .map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
   if (concerns.length) return { status: 'needs-attention', message: concerns.join('. '), concerns, warnings };
-  if (warnings.length) return { status: 'watch', message: `${warnings.join('. ')}. Your server is working, but keep an eye on it.`, concerns, warnings };
-  return { status: 'healthy', message: 'Your server is healthy. CPU, memory, and disk usage are within normal limits.', concerns, warnings };
+  if (warnings.length)
+    return {
+      status: 'watch',
+      message: `${warnings.join('. ')}. Your server is working, but keep an eye on it.`,
+      concerns,
+      warnings,
+    };
+  return {
+    status: 'healthy',
+    message: 'Your server is healthy. CPU, memory, and disk usage are within normal limits.',
+    concerns,
+    warnings,
+  };
 }
 
 async function buildSecurityPosture() {
   const checks = [];
   const add = (id, status, message) => checks.push({ id, status, message });
-  add('transport', USE_HTTPS ? 'pass' : 'warning', USE_HTTPS ? 'HTTPS is enabled.' : 'HTTPS is disabled. Do not expose this server publicly until TLS is enabled.');
+  add(
+    'transport',
+    USE_HTTPS ? 'pass' : 'warning',
+    USE_HTTPS ? 'HTTPS is enabled.' : 'HTTPS is disabled. Do not expose this server publicly until TLS is enabled.'
+  );
   const jwtSecret = process.env.JWT_SECRET || '';
-  add('jwt-secret', jwtSecret.length >= 64 ? 'pass' : 'fail', jwtSecret.length >= 64 ? 'JWT signing secret meets the minimum length.' : 'JWT signing secret is missing or too short.');
+  add(
+    'jwt-secret',
+    jwtSecret.length >= 64 ? 'pass' : 'fail',
+    jwtSecret.length >= 64
+      ? 'JWT signing secret meets the minimum length.'
+      : 'JWT signing secret is missing or too short.'
+  );
   const allowedIps = (process.env.ALLOWED_IPS || '').trim();
-  add('ip-access', allowedIps ? 'pass' : 'warning', allowedIps ? 'A global IP allow-list is configured.' : 'No global IP allow-list is configured; use per-key restrictions or configure ALLOWED_IPS.');
+  add(
+    'ip-access',
+    allowedIps ? 'pass' : 'warning',
+    allowedIps
+      ? 'A global IP allow-list is configured.'
+      : 'No global IP allow-list is configured; use per-key restrictions or configure ALLOWED_IPS.'
+  );
   const trustProxy = process.env.TRUST_PROXY === 'true';
   const trustedProxies = (process.env.TRUSTED_PROXIES || '').trim();
-  add('proxy', !trustProxy || trustedProxies ? 'pass' : 'warning', trustProxy && !trustedProxies ? 'Proxy trust is enabled without a trusted-proxy allow-list; forwarded headers will be ignored.' : 'Proxy trust configuration is explicit.');
+  add(
+    'proxy',
+    !trustProxy || trustedProxies ? 'pass' : 'warning',
+    trustProxy && !trustedProxies
+      ? 'Proxy trust is enabled without a trusted-proxy allow-list; forwarded headers will be ignored.'
+      : 'Proxy trust configuration is explicit.'
+  );
   const policy = await getPolicyStatus().catch(err => ({ enabled: false, error: err.message }));
-  add('policy', policy.error ? 'fail' : policy.enabled ? 'pass' : 'warning', policy.error ? `Policy configuration error: ${policy.error}` : policy.enabled ? `Policy-as-code is active with ${policy.rules} rules.` : 'No policy-as-code file is configured.');
+  add(
+    'policy',
+    policy.error ? 'fail' : policy.enabled ? 'pass' : 'warning',
+    policy.error
+      ? `Policy configuration error: ${policy.error}`
+      : policy.enabled
+        ? `Policy-as-code is active with ${policy.rules} rules.`
+        : 'No policy-as-code file is configured.'
+  );
   const keys = listApiKeys();
   const approvalKeys = keys.filter(key => key.requireApproval).length;
-  add('approvals', approvalKeys > 0 ? 'pass' : 'warning', approvalKeys > 0 ? `${approvalKeys} API key(s) require approval for risky actions.` : 'No API keys currently require approval for risky actions.');
+  add(
+    'approvals',
+    approvalKeys > 0 ? 'pass' : 'warning',
+    approvalKeys > 0
+      ? `${approvalKeys} API key(s) require approval for risky actions.`
+      : 'No API keys currently require approval for risky actions.'
+  );
   const failed = checks.filter(check => check.status === 'fail').length;
   const warnings = checks.filter(check => check.status === 'warning').length;
-  return { status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong', checks, generatedAt: new Date().toISOString() };
+  return {
+    status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong',
+    checks,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 // ── Active SSE connections ─────────────────────────────────
@@ -98,12 +206,12 @@ const oauthDiagnostics = new Map();
 
 // ── Express App ───────────────────────────────────────────
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   logError({ ip: 'internal', userId: 'system', tool: 'uncaughtException', error: err });
   console.error('Uncaught Exception:', err);
 });
 
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', reason => {
   logError({ ip: 'internal', userId: 'system', tool: 'unhandledRejection', error: reason });
   console.error('Unhandled Rejection:', reason);
 });
@@ -111,19 +219,21 @@ process.on('unhandledRejection', (reason) => {
 const app = express();
 
 // Security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://static.cloudflareinsights.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "https://cloudflareinsights.com"],
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", 'https://static.cloudflareinsights.com'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'", 'https://cloudflareinsights.com'],
+      },
     },
-  },
-  hsts: USE_HTTPS ? { maxAge: 31536000, includeSubDomains: true } : false,
-}));
+    hsts: USE_HTTPS ? { maxAge: 31536000, includeSubDomains: true } : false,
+  })
+);
 
 // Serve static Web UI files
 app.use(express.static(path.join(__dirname, 'public')));
@@ -137,21 +247,26 @@ app.use((req, res, next) => {
 });
 
 // CORS - origin policy (this is NOT IP access control)
-app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (direct API calls) or from trusted origins
-    const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID'],
-  exposedHeaders: ['Mcp-Session-Id', 'WWW-Authenticate'],
-  credentials: false,
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (direct API calls) or from trusted origins
+      const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID'],
+    exposedHeaders: ['Mcp-Session-Id', 'WWW-Authenticate'],
+    credentials: false,
+  })
+);
 
 // IP extraction middleware
 app.use(ipWhitelist);
@@ -163,7 +278,7 @@ const globalLimiter = rateLimit({
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60'),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => getClientIP(req),
+  keyGenerator: req => getClientIP(req),
   handler: (req, res) => {
     logSecurityEvent({ ip: getClientIP(req), event: 'RATE_LIMIT_EXCEEDED', detail: {} });
     res.status(429).json({ error: 'Too many requests. Please slow down.' });
@@ -173,16 +288,36 @@ const globalLimiter = rateLimit({
 app.use(globalLimiter);
 
 // Now parse bodies (AFTER rate limiting and IP checking)
-app.use(express.json({ limit: '5mb' }));
+// Do not parse JSON body for MCP endpoints, because the SDK needs the raw stream
+app.use((req, res, next) => {
+  if (req.path === '/mcp' || req.path === '/mcp/message') {
+    next();
+  } else {
+    express.json({ limit: '5mb' })(req, res, next);
+  }
+});
 
 // Compatibility window: these endpoints remain callable for one minor release,
 // but are intentionally removed from the default product experience.
 app.use((req, res, next) => {
-  const legacyPaths = ['/admin/automations', '/admin/organizations', '/admin/teams', '/admin/fleet', '/admin/backup-targets', '/admin/webhooks', '/admin/backups/run', '/admin/oauth-users', '/admin/oauth-clients'];
+  const legacyPaths = [
+    '/admin/automations',
+    '/admin/organizations',
+    '/admin/teams',
+    '/admin/fleet',
+    '/admin/backup-targets',
+    '/admin/webhooks',
+    '/admin/backups/run',
+    '/admin/oauth-users',
+    '/admin/oauth-clients',
+  ];
   if (legacyPaths.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
     res.set('Deprecation', 'true');
     res.set('Sunset', 'next-minor-release');
-    res.set('X-MCP-Sentinel-Deprecated', 'This compatibility endpoint is deprecated; export or migrate its configuration before the next minor release.');
+    res.set(
+      'X-MCP-Sentinel-Deprecated',
+      'This compatibility endpoint is deprecated; export or migrate its configuration before the next minor release.'
+    );
   }
   next();
 });
@@ -191,7 +326,7 @@ const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 auth attempts per 15 min
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => getClientIP(req),
+  keyGenerator: req => getClientIP(req),
   handler: (req, res) => {
     logSecurityEvent({ ip: getClientIP(req), event: 'AUTH_RATE_LIMIT', detail: {} });
     res.status(429).json({ error: 'Too many authentication attempts' });
@@ -205,7 +340,11 @@ setInterval(() => {
   const now = Date.now();
   for (const [id, session] of activeTransports.entries()) {
     if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
-      logSecurityEvent({ ip: session.ip, event: 'SESSION_IDLE_TIMEOUT', detail: { sessionId: id, userId: session.identity?.userId } });
+      logSecurityEvent({
+        ip: session.ip,
+        event: 'SESSION_IDLE_TIMEOUT',
+        detail: { sessionId: id, userId: session.identity?.userId },
+      });
       if (session.mcpServer) {
         session.mcpServer.close().catch(() => {});
       }
@@ -220,7 +359,9 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     server: 'mcp-sentinel',
-    version: process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
+    version:
+      process.env.npm_package_version ||
+      JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
   });
 });
 
@@ -235,12 +376,23 @@ app.post('/admin/keys', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const { key, userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId } = req.body;
+  const { key, userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId } =
+    req.body;
   if (!key || !userId) return res.status(400).json({ error: 'key and userId required' });
 
   try {
     await validateKeyAssignment({ organizationId, teamId });
-    await addApiKey(key, { userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId });
+    await addApiKey(key, {
+      userId,
+      role,
+      allowedIPs,
+      scopes,
+      label,
+      requireApproval,
+      projectIds,
+      organizationId,
+      teamId,
+    });
     return res.json({ success: true, message: `Key added for user '${userId}'` });
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -253,7 +405,7 @@ app.post('/admin/keys/revoke', authenticateJWT, async (req, res) => {
   }
   const { key, keyId } = req.body;
   if (!key && !keyId) return res.status(400).json({ error: 'keyId required in body' });
-  
+
   const revoked = keyId ? await revokeApiKeyById(keyId) : await revokeApiKey(key);
   return res.json({ success: revoked, message: revoked ? 'Key revoked' : 'Key not found' });
 });
@@ -279,9 +431,15 @@ app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const capabilities = await setCapability(req.params.id, req.body?.enabled);
-    logSecurityEvent({ ip: req.clientIP, event: 'CAPABILITY_UPDATED', detail: { capability: req.params.id, enabled: req.body?.enabled, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'CAPABILITY_UPDATED',
+      detail: { capability: req.params.id, enabled: req.body?.enabled, by: req.identity.userId },
+    });
     return res.json({ capabilities });
-  } catch (err) { return res.status(400).json({ error: err.message }); }
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 });
 
 app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
@@ -292,24 +450,61 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
   return res.json({
     transport: 'streamable-http',
     mcpUrl: `${publicUrl}/mcp`,
-    authorization: 'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
+    authorization:
+      'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
     capabilities: await getCapabilities(),
     readiness: {
       publicHttps,
       oidcEnabled,
       cloudConnectorReady: publicHttps && oidcEnabled,
-      cloudConnectorMessage: publicHttps && oidcEnabled
-        ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
-        : 'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
+      cloudConnectorMessage:
+        publicHttps && oidcEnabled
+          ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
+          : 'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
     },
     platforms: [
-      { id: 'chatgpt', name: 'ChatGPT (web)', auth: 'OAuth/OIDC', hint: 'A public HTTPS URL and OAuth/OIDC are required for cloud connectors.' },
-      { id: 'claude-web', name: 'Claude (web)', auth: 'OAuth/OIDC', hint: 'Add a remote custom connector from Claude settings.' },
-      { id: 'claude-desktop', name: 'Claude Desktop', auth: 'OAuth/OIDC', hint: 'Use Settings → Connectors for remote MCP; do not edit the legacy desktop JSON for remote servers.' },
-      { id: 'claude-code', name: 'Claude Code CLI', auth: 'X-API-Key header', hint: 'Add the remote HTTP server with a scoped key header.' },
-      { id: 'codex', name: 'Codex CLI', auth: 'Bearer API key', hint: 'Store a scoped key in an environment variable and register the remote endpoint.' },
-      { id: 'antigravity', name: 'Antigravity CLI / IDE', auth: 'X-API-Key header', hint: 'Use serverUrl and headers in its MCP JSON configuration.' },
-      { id: 'custom', name: 'Other MCP clients', auth: 'Header or bearer key', hint: 'Use the standard Streamable HTTP endpoint and the client’s secure credential store.' },
+      {
+        id: 'chatgpt',
+        name: 'ChatGPT (web)',
+        auth: 'OAuth/OIDC',
+        hint: 'A public HTTPS URL and OAuth/OIDC are required for cloud connectors.',
+      },
+      {
+        id: 'claude-web',
+        name: 'Claude (web)',
+        auth: 'OAuth/OIDC',
+        hint: 'Add a remote custom connector from Claude settings.',
+      },
+      {
+        id: 'claude-desktop',
+        name: 'Claude Desktop',
+        auth: 'OAuth/OIDC',
+        hint: 'Use Settings → Connectors for remote MCP; do not edit the legacy desktop JSON for remote servers.',
+      },
+      {
+        id: 'claude-code',
+        name: 'Claude Code CLI',
+        auth: 'X-API-Key header',
+        hint: 'Add the remote HTTP server with a scoped key header.',
+      },
+      {
+        id: 'codex',
+        name: 'Codex CLI',
+        auth: 'Bearer API key',
+        hint: 'Store a scoped key in an environment variable and register the remote endpoint.',
+      },
+      {
+        id: 'antigravity',
+        name: 'Antigravity CLI / IDE',
+        auth: 'X-API-Key header',
+        hint: 'Use serverUrl and headers in its MCP JSON configuration.',
+      },
+      {
+        id: 'custom',
+        name: 'Other MCP clients',
+        auth: 'Header or bearer key',
+        hint: 'Use the standard Streamable HTTP endpoint and the client’s secure credential store.',
+      },
     ],
   });
 });
@@ -383,7 +578,11 @@ app.post('/admin/approvals/:id', authenticateJWT, async (req, res) => {
       note: req.body?.note,
       identity: req.identity,
     });
-    logSecurityEvent({ ip: req.clientIP, event: 'APPROVAL_DECIDED', detail: { approvalId: approval.id, decision: approval.status, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'APPROVAL_DECIDED',
+      detail: { approvalId: approval.id, decision: approval.status, by: req.identity.userId },
+    });
     return res.json({ approval });
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
@@ -401,7 +600,11 @@ app.get('/admin/projects', authenticateJWT, async (req, res) => {
 app.post('/admin/projects', authenticateJWT, async (req, res) => {
   try {
     const project = await createProject(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'PROJECT_CREATED', detail: { projectId: project.id, name: project.name, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'PROJECT_CREATED',
+      detail: { projectId: project.id, name: project.name, by: req.identity.userId },
+    });
     return res.status(201).json({ project });
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
@@ -419,7 +622,11 @@ app.get('/admin/automations', authenticateJWT, async (req, res) => {
 app.post('/admin/automations', authenticateJWT, async (req, res) => {
   try {
     const automation = await createAutomation(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'AUTOMATION_CREATED', detail: { automationId: automation.id, type: automation.type, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'AUTOMATION_CREATED',
+      detail: { automationId: automation.id, type: automation.type, by: req.identity.userId },
+    });
     return res.status(201).json({ automation });
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
@@ -437,7 +644,11 @@ app.get('/admin/organizations', authenticateJWT, async (req, res) => {
 app.post('/admin/organizations', authenticateJWT, async (req, res) => {
   try {
     const organization = await createOrganization(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'ORGANIZATION_CREATED', detail: { organizationId: organization.id, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'ORGANIZATION_CREATED',
+      detail: { organizationId: organization.id, by: req.identity.userId },
+    });
     return res.status(201).json({ organization });
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
@@ -447,7 +658,11 @@ app.post('/admin/organizations', authenticateJWT, async (req, res) => {
 app.post('/admin/teams', authenticateJWT, async (req, res) => {
   try {
     const team = await createTeam(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'TEAM_CREATED', detail: { teamId: team.id, organizationId: team.organizationId, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'TEAM_CREATED',
+      detail: { teamId: team.id, organizationId: team.organizationId, by: req.identity.userId },
+    });
     return res.status(201).json({ team });
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
@@ -461,34 +676,55 @@ function controlPlaneResponse(res, err) {
 }
 
 app.get('/admin/fleet', authenticateJWT, async (req, res) => {
-  try { return res.json({ servers: await listFleet(req.identity) }); }
-  catch (err) { return controlPlaneResponse(res, err); }
+  try {
+    return res.json({ servers: await listFleet(req.identity) });
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.post('/admin/fleet', authenticateJWT, async (req, res) => {
   try {
     const server = await registerFleetServer(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'FLEET_SERVER_REGISTERED', detail: { serverId: server.id, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'FLEET_SERVER_REGISTERED',
+      detail: { serverId: server.id, by: req.identity.userId },
+    });
     return res.status(201).json({ server });
-  } catch (err) { return controlPlaneResponse(res, err); }
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.post('/admin/fleet/:id/check', authenticateJWT, async (req, res) => {
-  try { return res.json({ server: await checkFleetServer(req.params.id, req.identity) }); }
-  catch (err) { return controlPlaneResponse(res, err); }
+  try {
+    return res.json({ server: await checkFleetServer(req.params.id, req.identity) });
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.get('/admin/backup-targets', authenticateJWT, async (req, res) => {
-  try { return res.json({ targets: await listBackupTargets(req.identity) }); }
-  catch (err) { return controlPlaneResponse(res, err); }
+  try {
+    return res.json({ targets: await listBackupTargets(req.identity) });
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.post('/admin/backup-targets', authenticateJWT, async (req, res) => {
   try {
     const target = await createBackupTarget(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'BACKUP_TARGET_CREATED', detail: { targetId: target.id, type: target.type, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'BACKUP_TARGET_CREATED',
+      detail: { targetId: target.id, type: target.type, by: req.identity.userId },
+    });
     return res.status(201).json({ target });
-  } catch (err) { return controlPlaneResponse(res, err); }
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.post('/admin/backups/run', authenticateJWT, async (req, res) => {
@@ -496,31 +732,55 @@ app.post('/admin/backups/run', authenticateJWT, async (req, res) => {
   try {
     if (req.identity.role !== 'admin') throw new Error('Only administrators can run backups');
     const backup = await runBackup(req.body || {});
-    logSecurityEvent({ ip: req.clientIP, event: 'ENCRYPTED_BACKUP_COMPLETED', detail: { backupId: backup.id, targetId: backup.targetId, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'ENCRYPTED_BACKUP_COMPLETED',
+      detail: { backupId: backup.id, targetId: backup.targetId, by: req.identity.userId },
+    });
     return res.json({ backup });
-  } catch (err) { return controlPlaneResponse(res, err); }
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.get('/admin/webhooks', authenticateJWT, async (req, res) => {
-  try { return res.json({ webhooks: await listWebhooks(req.identity) }); }
-  catch (err) { return controlPlaneResponse(res, err); }
+  try {
+    return res.json({ webhooks: await listWebhooks(req.identity) });
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.post('/admin/webhooks', authenticateJWT, async (req, res) => {
   try {
     const webhook = await createWebhook(req.body || {}, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'WEBHOOK_CREATED', detail: { webhookId: webhook.id, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'WEBHOOK_CREATED',
+      detail: { webhookId: webhook.id, by: req.identity.userId },
+    });
     return res.status(201).json({ webhook });
-  } catch (err) { return controlPlaneResponse(res, err); }
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.post('/admin/webhooks/:id/deliver', authenticateJWT, async (req, res) => {
   if (!req.body?.confirm) return res.status(400).json({ error: 'confirm: true required' });
   try {
-    const delivery = await deliverWebhook({ webhookId: req.params.id, event: req.body.event, payload: req.body.payload }, req.identity);
-    logSecurityEvent({ ip: req.clientIP, event: 'WEBHOOK_DELIVERED', detail: { webhookId: req.params.id, event: req.body.event, by: req.identity.userId, status: delivery.status } });
+    const delivery = await deliverWebhook(
+      { webhookId: req.params.id, event: req.body.event, payload: req.body.payload },
+      req.identity
+    );
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'WEBHOOK_DELIVERED',
+      detail: { webhookId: req.params.id, event: req.body.event, by: req.identity.userId, status: delivery.status },
+    });
     return res.json({ delivery });
-  } catch (err) { return controlPlaneResponse(res, err); }
+  } catch (err) {
+    return controlPlaneResponse(res, err);
+  }
 });
 
 app.get('/admin/os-users', authenticateJWT, async (req, res) => {
@@ -551,7 +811,11 @@ app.get('/admin/logs', authenticateJWT, async (req, res) => {
     const content = await fsPromises.readFile(path.join(logDir, files[0]), 'utf8');
     const lines = content.trim().split('\n').filter(Boolean).reverse().slice(0, limit);
     const logs = lines.map(line => {
-      try { return JSON.parse(line); } catch { return { raw: line }; }
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { raw: line };
+      }
     });
     return res.json({ logs });
   } catch (e) {
@@ -566,7 +830,7 @@ app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
+    Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
   res.write('data: {"type":"connected"}\n\n');
@@ -625,7 +889,11 @@ app.delete('/admin/sessions/:id', authenticateJWT, (req, res) => {
     if (session.mcpServer) session.mcpServer.close().catch(() => {});
     monitor.unsubscribeAll(sessionId);
     activeTransports.delete(sessionId);
-    logSecurityEvent({ ip: req.clientIP, event: 'SESSION_FORCE_CLOSED', detail: { sessionId, by: req.identity.userId } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SESSION_FORCE_CLOSED',
+      detail: { sessionId, by: req.identity.userId },
+    });
     return res.json({ success: true, message: `Session ${sessionId} disconnected` });
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -671,9 +939,9 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
     // Authelia advertises offline_access and refresh_token support. Include it
     // here so cloud MCP clients such as ChatGPT can request a renewable grant
     // instead of requiring the user to authenticate again after token expiry.
-    scopes_supported: ["openid", "profile", "email", "offline_access"],
-    bearer_methods_supported: ["header"],
-    resource_documentation: "https://github.com/MarketingDotLimited/mcp-sentinel"
+    scopes_supported: ['openid', 'profile', 'email', 'offline_access'],
+    bearer_methods_supported: ['header'],
+    resource_documentation: 'https://github.com/MarketingDotLimited/mcp-sentinel',
   });
 });
 
@@ -762,21 +1030,40 @@ app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) =
 app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
-  const resource = (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const resource = (
+    process.env.OAUTH_RESOURCE_URL ||
+    process.env.PUBLIC_URL ||
+    `${req.protocol}://${req.get('host')}`
+  ).replace(/\/$/, '');
   if (!issuer) return res.status(400).json({ error: 'Authelia issuer is not configured' });
   const state = randomUUID();
   const clientId = `mcp-diagnostic-${randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const redirectUri = `${resource}/oauth-diagnostic/callback`;
   try {
-    const client = await addOAuthClient({ clientId, clientName: 'Temporary MCP OAuth diagnostic', redirectUris: [redirectUri] });
+    const client = await addOAuthClient({
+      clientId,
+      clientName: 'Temporary MCP OAuth diagnostic',
+      redirectUris: [redirectUri],
+    });
     const expiresAt = Date.now() + 10 * 60 * 1000;
-    oauthDiagnostics.set(state, { clientId: client.client_id, clientSecret: client.client_secret, redirectUri, resource, expiresAt });
-    const cleanupTimer = setTimeout(() => {
-      const pending = oauthDiagnostics.get(state);
-      if (!pending || pending.clientId !== client.client_id) return;
-      oauthDiagnostics.delete(state);
-      deleteOAuthClient(client.client_id).catch(error => logError({ ip: 'internal', userId: 'system', tool: 'OAUTH_DIAGNOSTIC_EXPIRY_CLEANUP', error }));
-    }, 10 * 60 * 1000);
+    oauthDiagnostics.set(state, {
+      clientId: client.client_id,
+      clientSecret: client.client_secret,
+      redirectUri,
+      resource,
+      expiresAt,
+    });
+    const cleanupTimer = setTimeout(
+      () => {
+        const pending = oauthDiagnostics.get(state);
+        if (!pending || pending.clientId !== client.client_id) return;
+        oauthDiagnostics.delete(state);
+        deleteOAuthClient(client.client_id).catch(error =>
+          logError({ ip: 'internal', userId: 'system', tool: 'OAUTH_DIAGNOSTIC_EXPIRY_CLEANUP', error })
+        );
+      },
+      10 * 60 * 1000
+    );
     cleanupTimer.unref();
     for (const [key, value] of oauthDiagnostics) if (value.expiresAt < Date.now()) oauthDiagnostics.delete(key);
     const authorizationUrl = new URL(`${issuer}/api/oidc/authorization`);
@@ -798,45 +1085,93 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   const diagnostic = oauthDiagnostics.get(state);
   oauthDiagnostics.delete(state);
-  const render = (title, message, passed = false) => res.status(passed ? 200 : 400).type('html').send(`<!doctype html><meta charset="utf-8"><title>${title}</title><main style="font:16px system-ui;max-width:640px;margin:4rem auto;padding:2rem"><h1>${title}</h1><p>${message}</p><p>You may close this window.</p></main>`);
-  if (!diagnostic || diagnostic.expiresAt < Date.now() || !code) return render('OAuth diagnostic failed', 'The test expired or no authorization code was returned. Start a new test from the OAuth screen.');
+  const render = (title, message, passed = false) =>
+    res
+      .status(passed ? 200 : 400)
+      .type('html')
+      .send(
+        `<!doctype html><meta charset="utf-8"><title>${title}</title><main style="font:16px system-ui;max-width:640px;margin:4rem auto;padding:2rem"><h1>${title}</h1><p>${message}</p><p>You may close this window.</p></main>`
+      );
+  if (!diagnostic || diagnostic.expiresAt < Date.now() || !code)
+    return render(
+      'OAuth diagnostic failed',
+      'The test expired or no authorization code was returned. Start a new test from the OAuth screen.'
+    );
   try {
     const tokenResponse = await fetch(`${process.env.AUTHELIA_ISSUER.replace(/\/$/, '')}/api/oidc/token`, {
       method: 'POST',
-      headers: { Authorization: `Basic ${Buffer.from(`${diagnostic.clientId}:${diagnostic.clientSecret}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: diagnostic.redirectUri, resource: diagnostic.resource }),
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${diagnostic.clientId}:${diagnostic.clientSecret}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: diagnostic.redirectUri,
+        resource: diagnostic.resource,
+      }),
     });
     const tokenBody = await tokenResponse.json().catch(() => ({}));
-    if (!tokenResponse.ok || typeof tokenBody.access_token !== 'string') throw new Error(`Token exchange failed (${tokenResponse.status}${tokenBody.error ? `: ${tokenBody.error}` : ''})`);
-    if (typeof tokenBody.refresh_token !== 'string') throw new Error('Token exchange did not issue the requested refresh token');
-    const mcpHeaders = { Authorization: `Bearer ${tokenBody.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+    if (!tokenResponse.ok || typeof tokenBody.access_token !== 'string')
+      throw new Error(
+        `Token exchange failed (${tokenResponse.status}${tokenBody.error ? `: ${tokenBody.error}` : ''})`
+      );
+    if (typeof tokenBody.refresh_token !== 'string')
+      throw new Error('Token exchange did not issue the requested refresh token');
+    const mcpHeaders = {
+      Authorization: `Bearer ${tokenBody.access_token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+    };
     const mcpResponse = await fetch(`${diagnostic.resource}/mcp`, {
       method: 'POST',
       headers: mcpHeaders,
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'MCP OAuth diagnostic', version: '1.0' } } }),
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-03-26',
+          capabilities: {},
+          clientInfo: { name: 'MCP OAuth diagnostic', version: '1.0' },
+        },
+      }),
     });
     if (!mcpResponse.ok) throw new Error(`MCP initialize failed (${mcpResponse.status})`);
     const sessionId = mcpResponse.headers.get('mcp-session-id');
     if (!sessionId) throw new Error('MCP initialize did not return a session ID');
     const sessionHeaders = { ...mcpHeaders, 'Mcp-Session-Id': sessionId };
     const initializedResponse = await fetch(`${diagnostic.resource}/mcp`, {
-      method: 'POST', headers: sessionHeaders,
+      method: 'POST',
+      headers: sessionHeaders,
       body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     });
     if (!initializedResponse.ok) throw new Error(`MCP initialized notification failed (${initializedResponse.status})`);
     const toolsResponse = await fetch(`${diagnostic.resource}/mcp`, {
-      method: 'POST', headers: sessionHeaders,
+      method: 'POST',
+      headers: sessionHeaders,
       body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
     });
     const toolsBody = await toolsResponse.text();
-    if (!toolsResponse.ok || !toolsBody.includes('"tools"')) throw new Error(`MCP tools/list failed (${toolsResponse.status})`);
+    if (!toolsResponse.ok || !toolsBody.includes('"tools"'))
+      throw new Error(`MCP tools/list failed (${toolsResponse.status})`);
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_PASSED', detail: { clientId: diagnostic.clientId } });
-    return render('OAuth and MCP connection succeeded', 'The live server issued access and refresh tokens, initialized an authenticated MCP session, and returned its tool list.', true);
+    return render(
+      'OAuth and MCP connection succeeded',
+      'The live server issued access and refresh tokens, initialized an authenticated MCP session, and returned its tool list.',
+      true
+    );
   } catch (error) {
-    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_FAILED', detail: { clientId: diagnostic.clientId, error: error.message } });
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'OAUTH_DIAGNOSTIC_FAILED',
+      detail: { clientId: diagnostic.clientId, error: error.message },
+    });
     return render('OAuth diagnostic failed', `The live test reached an error: ${error.message}`);
   } finally {
-    deleteOAuthClient(diagnostic.clientId).catch(error => logError({ ip: req.clientIP, userId: 'system', tool: 'OAUTH_DIAGNOSTIC_CLEANUP', error }));
+    deleteOAuthClient(diagnostic.clientId).catch(error =>
+      logError({ ip: req.clientIP, userId: 'system', tool: 'OAUTH_DIAGNOSTIC_CLEANUP', error })
+    );
   }
 });
 
@@ -883,7 +1218,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
 
     const mcpServer = await createMcpServer(identity, ip);
     const transport = new SSEServerTransport('/mcp/message', res);
-    
+
     session = { transport, identity, ip, connectedAt: new Date().toISOString(), lastActivity: Date.now(), mcpServer };
     activeTransports.set(transport.sessionId, session);
     transport.onclose = () => {
@@ -905,11 +1240,19 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
   }
 
   // Verify session ownership — prevent hijacking
-  if (session.identity?.userId !== req.identity?.userId ||
-      session.identity?.authType !== req.identity?.authType ||
-      (session.identity?.authType === 'apiKey' && session.identity?.keyId !== req.identity?.keyId) ||
-      (session.identity?.authType === 'oauth' && (session.identity?.oauthUser !== req.identity?.oauthUser || session.identity?.oauthClient !== req.identity?.oauthClient))) {
-    logSecurityEvent({ ip: req.clientIP, event: 'SESSION_HIJACK_ATTEMPT', detail: { sessionOwner: session.identity?.userId, requestUser: req.identity?.userId } });
+  if (
+    session.identity?.userId !== req.identity?.userId ||
+    session.identity?.authType !== req.identity?.authType ||
+    (session.identity?.authType === 'apiKey' && session.identity?.keyId !== req.identity?.keyId) ||
+    (session.identity?.authType === 'oauth' &&
+      (session.identity?.oauthUser !== req.identity?.oauthUser ||
+        session.identity?.oauthClient !== req.identity?.oauthClient))
+  ) {
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SESSION_HIJACK_ATTEMPT',
+      detail: { sessionOwner: session.identity?.userId, requestUser: req.identity?.userId },
+    });
     return res.status(403).json({ error: 'Session does not belong to you' });
   }
 
@@ -933,7 +1276,13 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
 
 app.use((err, req, res, next) => {
   const errorId = randomUUID();
-  logError({ ip: req.clientIP || 'unknown', userId: req.identity?.userId || 'unknown', tool: 'HTTP_ERROR', errorId, error: err });
+  logError({
+    ip: req.clientIP || 'unknown',
+    userId: req.identity?.userId || 'unknown',
+    tool: 'HTTP_ERROR',
+    errorId,
+    error: err,
+  });
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
   }
@@ -944,10 +1293,12 @@ app.use((err, req, res, next) => {
 async function createMcpServer(identity, ip) {
   const server = new McpServer({
     name: 'server-control',
-    version: process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
+    version:
+      process.env.npm_package_version ||
+      JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
   });
 
-  server.onerror = (err) => {
+  server.onerror = err => {
     logError({ ip, userId: identity.userId, tool: 'MCP_SERVER_ERROR', error: err });
   };
 
@@ -955,435 +1306,844 @@ async function createMcpServer(identity, ip) {
   const registrations = [];
   function tool(name, description, schema, handler) {
     const readOnlyTools = new Set([
-      'get_system_info', 'get_processes', 'read_file', 'list_directory', 'get_file_info', 'search_files',
-      'get_service_status', 'list_services', 'get_journal_logs', 'list_users', 'get_user_info',
-      'list_config_backups', 'list_guided_workflows', 'get_security_posture', 'list_projects',
-      'plan_project_deployment', 'list_automations', 'list_fleet_servers',
-      'list_backup_targets', 'list_webhooks', 'list_active_alerts',
+      'get_system_info',
+      'get_processes',
+      'read_file',
+      'list_directory',
+      'get_file_info',
+      'search_files',
+      'get_service_status',
+      'list_services',
+      'get_journal_logs',
+      'list_users',
+      'get_user_info',
+      'list_config_backups',
+      'list_guided_workflows',
+      'get_security_posture',
+      'list_projects',
+      'plan_project_deployment',
+      'list_automations',
+      'list_fleet_servers',
+      'list_backup_targets',
+      'list_webhooks',
+      'list_active_alerts',
     ]);
     const stateChangingTools = new Set([
-      'write_file', 'delete_file', 'move_file', 'copy_file', 'kill_process', 'manage_service',
-      'manage_firewall', 'create_user', 'delete_user', 'set_user_password', 'modify_user', 'manage_ssh_keys',
-      'run_sandboxed_code', 'apply_config', 'restore_config', 'git_operation', 'execute_query',
-      'request_change_approval', 'schedule_health_check', 'deploy_project', 'run_encrypted_backup',
-      'deliver_webhook', 'subscribe_to_alert', 'unsubscribe_from_alert',
+      'write_file',
+      'delete_file',
+      'move_file',
+      'copy_file',
+      'kill_process',
+      'manage_service',
+      'manage_firewall',
+      'create_user',
+      'delete_user',
+      'set_user_password',
+      'modify_user',
+      'manage_ssh_keys',
+      'run_sandboxed_code',
+      'apply_config',
+      'restore_config',
+      'git_operation',
+      'execute_query',
+      'request_change_approval',
+      'schedule_health_check',
+      'deploy_project',
+      'run_encrypted_backup',
+      'deliver_webhook',
+      'subscribe_to_alert',
+      'unsubscribe_from_alert',
     ]);
     const annotations = {
       ...(readOnlyTools.has(name) ? { readOnlyHint: true, idempotentHint: true } : {}),
       ...(stateChangingTools.has(name) ? { destructiveHint: true } : {}),
-      ...(new Set(['check_fleet_server', 'run_encrypted_backup', 'deliver_webhook', 'deploy_project']).has(name) ? { openWorldHint: true } : {}),
+      ...(new Set(['check_fleet_server', 'run_encrypted_backup', 'deliver_webhook', 'deploy_project']).has(name)
+        ? { openWorldHint: true }
+        : {}),
     };
-    const registration = server.tool(name, `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`, schema, annotations, async (args) => {
-      const start = Date.now();
-      const availability = await toolAvailability(name);
-      if (!availability.available) {
-        logSecurityEvent({ ip, event: 'CAPABILITY_DENIED', detail: { userId: identity.userId, tool: name, capability: availability.pack } });
-        return { content: [{ type: 'text', text: JSON.stringify({ error: availability.message, requiredCapability: availability.pack }) }], isError: true };
-      }
-      // Enforce scope authorization
-      const scopes = identity.scopes || [];
-      if (!scopeAllows(scopes, name)) {
-        logSecurityEvent({ ip, event: 'SCOPE_DENIED', detail: { userId: identity.userId, tool: name } });
-        return { content: [{ type: 'text', text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }) }], isError: true };
-      }
-
-      let policyDecision;
-      try {
-        policyDecision = await evaluatePolicy({ tool: name, identity });
-      } catch (err) {
-        logSecurityEvent({ ip, event: 'POLICY_ERROR', detail: { tool: name, error: err.message } });
-        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Server policy could not be evaluated. The action was not run.' }) }], isError: true };
-      }
-      if (!policyDecision.allowed) {
-        logSecurityEvent({ ip, event: 'POLICY_DENIED', detail: { userId: identity.userId, tool: name } });
-        return { content: [{ type: 'text', text: JSON.stringify({ error: policyDecision.reason }) }], isError: true };
-      }
-      
-      const requiresConfirmation =
-        ['delete_file', 'delete_user', 'create_user', 'set_user_password', 'apply_config', 'restore_config', 'kill_process'].includes(name) ||
-        (name === 'modify_user' && Object.keys(args).some(key => !['username', 'confirm'].includes(key))) ||
-        (name === 'manage_ssh_keys' && ['add', 'remove'].includes(args.action)) ||
-        (name === 'manage_firewall' && !['status', 'list'].includes(args.action)) ||
-        (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
-        (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
-        ['deploy_project', 'run_encrypted_backup', 'deliver_webhook'].includes(name) ||
-        (name === 'execute_query' && /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || '')) ||
-        policyDecision.requireApproval;
-      if (requiresConfirmation && !args.confirm) {
-        return { content: [{ type: 'text', text: JSON.stringify({ error: 'This is a destructive action. You must include "confirm": true in your arguments to proceed.' }) }], isError: true };
-      }
-
-      // Keys created with approval mode cannot execute a risky action until an
-      // administrator has approved this exact, redacted request. The approved
-      // grant is single-use and expires automatically.
-      const approvalSensitive = requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
-      if (approvalSensitive && identity.requireApproval) {
-        const approved = await consumeApproval({ tool: name, args, identity });
-        if (!approved) {
-          const { approval, created } = await requestApproval({
-            tool: name,
-            args,
-            identity,
-            risk: 'high',
-            summary: `AI requested ${name.replaceAll('_', ' ')}`,
+    const registration = server.tool(
+      name,
+      `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`,
+      schema,
+      annotations,
+      async args => {
+        const start = Date.now();
+        const availability = await toolAvailability(name);
+        if (!availability.available) {
+          logSecurityEvent({
+            ip,
+            event: 'CAPABILITY_DENIED',
+            detail: { userId: identity.userId, tool: name, capability: availability.pack },
           });
           return {
-            content: [{ type: 'text', text: JSON.stringify({
-              pendingApproval: true,
-              approvalId: approval.id,
-              message: created
-                ? 'This action is waiting for an administrator to approve it. Resubmit the exact request after approval.'
-                : 'This action is already waiting for administrator approval.',
-            }) }],
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ error: availability.message, requiredCapability: availability.pack }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        // Enforce scope authorization
+        const scopes = identity.scopes || [];
+        if (!scopeAllows(scopes, name)) {
+          logSecurityEvent({ ip, event: 'SCOPE_DENIED', detail: { userId: identity.userId, tool: name } });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        let policyDecision;
+        try {
+          policyDecision = await evaluatePolicy({ tool: name, identity });
+        } catch (err) {
+          logSecurityEvent({ ip, event: 'POLICY_ERROR', detail: { tool: name, error: err.message } });
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ error: 'Server policy could not be evaluated. The action was not run.' }),
+              },
+            ],
+            isError: true,
+          };
+        }
+        if (!policyDecision.allowed) {
+          logSecurityEvent({ ip, event: 'POLICY_DENIED', detail: { userId: identity.userId, tool: name } });
+          return { content: [{ type: 'text', text: JSON.stringify({ error: policyDecision.reason }) }], isError: true };
+        }
+
+        const requiresConfirmation =
+          [
+            'delete_file',
+            'delete_user',
+            'create_user',
+            'set_user_password',
+            'apply_config',
+            'restore_config',
+            'kill_process',
+          ].includes(name) ||
+          (name === 'modify_user' && Object.keys(args).some(key => !['username', 'confirm'].includes(key))) ||
+          (name === 'manage_ssh_keys' && ['add', 'remove'].includes(args.action)) ||
+          (name === 'manage_firewall' && !['status', 'list'].includes(args.action)) ||
+          (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
+          (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
+          ['deploy_project', 'run_encrypted_backup', 'deliver_webhook'].includes(name) ||
+          (name === 'execute_query' &&
+            /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || '')) ||
+          policyDecision.requireApproval;
+        if (requiresConfirmation && !args.confirm) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  error: 'This is a destructive action. You must include "confirm": true in your arguments to proceed.',
+                }),
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        // Keys created with approval mode cannot execute a risky action until an
+        // administrator has approved this exact, redacted request. The approved
+        // grant is single-use and expires automatically.
+        const approvalSensitive =
+          requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
+        if (approvalSensitive && identity.requireApproval) {
+          const approved = await consumeApproval({ tool: name, args, identity });
+          if (!approved) {
+            const { approval, created } = await requestApproval({
+              tool: name,
+              args,
+              identity,
+              risk: 'high',
+              summary: `AI requested ${name.replaceAll('_', ' ')}`,
+            });
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    pendingApproval: true,
+                    approvalId: approval.id,
+                    message: created
+                      ? 'This action is waiting for an administrator to approve it. Resubmit the exact request after approval.'
+                      : 'This action is already waiting for administrator approval.',
+                  }),
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+
+        try {
+          if (name === 'git_operation') await assertRepositoryPermitted(args.repoPath, identity);
+          const result = await handler(args, identity);
+          logAccess({
+            ip,
+            apiKey: null,
+            userId: identity.userId,
+            tool: name,
+            args,
+            result: 'success',
+            duration: Date.now() - start,
+          });
+          const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+          return {
+            content: [{ type: 'text', text: textContent || 'Success' }],
+            ...(availability.deprecated
+              ? { _meta: { deprecated: true, deprecationMessage: availability.message } }
+              : {}),
+          };
+        } catch (err) {
+          const errorId = randomUUID();
+          logError({ ip, userId: identity.userId, tool: name, errorId, error: err });
+          logAccess({
+            ip,
+            userId: identity.userId,
+            tool: name,
+            args,
+            errorId,
+            result: 'failure',
+            duration: Date.now() - start,
+          });
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: `Operation failed (Error ID: ${errorId})` }) }],
             isError: true,
           };
         }
       }
-      
-      try {
-        if (name === 'git_operation') await assertRepositoryPermitted(args.repoPath, identity);
-        const result = await handler(args, identity);
-        logAccess({ ip, apiKey: null, userId: identity.userId, tool: name, args, result: 'success', duration: Date.now() - start });
-        const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-        return { content: [{ type: 'text', text: textContent || 'Success' }], ...(availability.deprecated ? { _meta: { deprecated: true, deprecationMessage: availability.message } } : {}) };
-      } catch (err) {
-        const errorId = randomUUID();
-        logError({ ip, userId: identity.userId, tool: name, errorId, error: err });
-        logAccess({ ip, userId: identity.userId, tool: name, args, errorId, result: 'failure', duration: Date.now() - start });
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ error: `Operation failed (Error ID: ${errorId})` }) }],
-          isError: true,
-        };
-      }
-    });
+    );
     registrations.push({ name, registration });
   }
 
   // ── System Tools ───────────────────────────────────────
 
-  tool('get_system_info', 'Get comprehensive system information: CPU, memory, disk, network, uptime, logged-in users.', {}, getSystemInfo);
+  tool(
+    'get_system_info',
+    'Get comprehensive system information: CPU, memory, disk, network, uptime, logged-in users.',
+    {},
+    getSystemInfo
+  );
 
-  tool('get_processes', 'List running processes. Admins see all processes; users see only their own.', {
-    filter: z.string().max(4096).optional().describe('Filter processes by name/keyword'),
-    asUser: z.string().max(4096).optional().describe('(Admin only) Show processes for specific user'),
-  }, getProcesses);
+  tool(
+    'get_processes',
+    'List running processes. Admins see all processes; users see only their own.',
+    {
+      filter: z.string().max(4096).optional().describe('Filter processes by name/keyword'),
+      asUser: z.string().max(4096).optional().describe('(Admin only) Show processes for specific user'),
+    },
+    getProcesses
+  );
 
-  tool('kill_process', 'Send a signal to a process. Non-admin users can only kill their own processes.', {
-    pid: z.number().int().positive().describe('Process ID to signal'),
-    signal: z.enum(['TERM', 'KILL', 'HUP', 'INT', 'USR1', 'USR2']).optional().describe('Signal to send (default: TERM)'),
-    confirm: z.boolean().optional().describe('Must be true to execute'),
-  }, killProcess);
+  tool(
+    'kill_process',
+    'Send a signal to a process. Non-admin users can only kill their own processes.',
+    {
+      pid: z.number().int().positive().describe('Process ID to signal'),
+      signal: z
+        .enum(['TERM', 'KILL', 'HUP', 'INT', 'USR1', 'USR2'])
+        .optional()
+        .describe('Signal to send (default: TERM)'),
+      confirm: z.boolean().optional().describe('Must be true to execute'),
+    },
+    killProcess
+  );
 
   // ── File Tools ─────────────────────────────────────────
 
-  tool('read_file', 'Read the contents of a file. Paths are sandboxed per role.', {
-    filePath: z.string().max(4096).describe('Absolute path to the file'),
-    encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
-    maxBytes: z.number().int().positive().optional().describe('Maximum bytes to read (default: 1MB)'),
-  }, readFile);
+  tool(
+    'read_file',
+    'Read the contents of a file. Paths are sandboxed per role.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to the file'),
+      encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
+      maxBytes: z.number().int().positive().optional().describe('Maximum bytes to read (default: 1MB)'),
+    },
+    readFile
+  );
 
-  tool('write_file', 'Write content to a file (create or overwrite). Paths are sandboxed per role.', {
-    filePath: z.string().max(4096).describe('Absolute path to the file'),
-    content: z.string().max(5 * 1024 * 1024).describe('Content to write'),
-    mode: z.enum(['overwrite', 'append']).optional().describe('Write mode (default: overwrite)'),
-    encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
-  }, writeFile);
+  tool(
+    'write_file',
+    'Write content to a file (create or overwrite). Paths are sandboxed per role.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to the file'),
+      content: z
+        .string()
+        .max(5 * 1024 * 1024)
+        .describe('Content to write'),
+      mode: z.enum(['overwrite', 'append']).optional().describe('Write mode (default: overwrite)'),
+      encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
+    },
+    writeFile
+  );
 
-  tool('delete_file', 'Delete a file or directory.', {
-    filePath: z.string().max(4096).describe('Absolute path to delete'),
-    recursive: z.boolean().optional().describe('Recursively delete directory contents (default: false)'),
-    confirm: z.boolean().optional().describe('Must be true to execute'),
-  }, deleteFile);
+  tool(
+    'delete_file',
+    'Delete a file or directory.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to delete'),
+      recursive: z.boolean().optional().describe('Recursively delete directory contents (default: false)'),
+      confirm: z.boolean().optional().describe('Must be true to execute'),
+    },
+    deleteFile
+  );
 
-  tool('list_directory', 'List the contents of a directory.', {
-    dirPath: z.string().max(4096).describe('Absolute path to directory'),
-    showHidden: z.boolean().optional().describe('Include hidden files (default: false)'),
-    detailed: z.boolean().optional().describe('Include file details like size, permissions (default: true)'),
-  }, listDirectory);
+  tool(
+    'list_directory',
+    'List the contents of a directory.',
+    {
+      dirPath: z.string().max(4096).describe('Absolute path to directory'),
+      showHidden: z.boolean().optional().describe('Include hidden files (default: false)'),
+      detailed: z.boolean().optional().describe('Include file details like size, permissions (default: true)'),
+    },
+    listDirectory
+  );
 
-  tool('move_file', 'Move or rename a file/directory.', {
-    sourcePath: z.string().max(4096).describe('Source path'),
-    destPath: z.string().max(4096).describe('Destination path'),
-  }, moveFile);
+  tool(
+    'move_file',
+    'Move or rename a file/directory.',
+    {
+      sourcePath: z.string().max(4096).describe('Source path'),
+      destPath: z.string().max(4096).describe('Destination path'),
+    },
+    moveFile
+  );
 
-  tool('copy_file', 'Copy a file or directory.', {
-    sourcePath: z.string().max(4096).describe('Source path'),
-    destPath: z.string().max(4096).describe('Destination path'),
-  }, copyFile);
+  tool(
+    'copy_file',
+    'Copy a file or directory.',
+    {
+      sourcePath: z.string().max(4096).describe('Source path'),
+      destPath: z.string().max(4096).describe('Destination path'),
+    },
+    copyFile
+  );
 
-  tool('get_file_info', 'Get detailed metadata about a file including size, permissions, and SHA256 checksum.', {
-    filePath: z.string().max(4096).describe('Absolute path to file'),
-  }, getFileInfo);
+  tool(
+    'get_file_info',
+    'Get detailed metadata about a file including size, permissions, and SHA256 checksum.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to file'),
+    },
+    getFileInfo
+  );
 
-  tool('search_files', 'Search for files by name pattern in a directory tree.', {
-    searchPath: z.string().max(4096).describe('Root path to search from'),
-    pattern: z.string().max(4096).describe('Filename pattern (supports wildcards, e.g. "*.log")'),
-    maxResults: z.number().int().positive().optional().describe('Maximum results (default: 50)'),
-    fileType: z.enum(['file', 'directory']).optional().describe('Filter by type'),
-  }, searchFiles);
+  tool(
+    'search_files',
+    'Search for files by name pattern in a directory tree.',
+    {
+      searchPath: z.string().max(4096).describe('Root path to search from'),
+      pattern: z.string().max(4096).describe('Filename pattern (supports wildcards, e.g. "*.log")'),
+      maxResults: z.number().int().positive().optional().describe('Maximum results (default: 50)'),
+      fileType: z.enum(['file', 'directory']).optional().describe('Filter by type'),
+    },
+    searchFiles
+  );
 
   // ── Service Tools (Admin only) ─────────────────────────
 
-  tool('manage_service', 'Start, stop, restart, enable, or disable a systemd service. Admin only.', {
-    service: z.string().max(4096).describe('Service name (e.g. nginx, mysql, sshd)'),
-    action: z.enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'status', 'is-active']).describe('Action to perform'),
-    confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
-  }, manageService);
+  tool(
+    'manage_service',
+    'Start, stop, restart, enable, or disable a systemd service. Admin only.',
+    {
+      service: z.string().max(4096).describe('Service name (e.g. nginx, mysql, sshd)'),
+      action: z
+        .enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'status', 'is-active'])
+        .describe('Action to perform'),
+      confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
+    },
+    manageService
+  );
 
-  tool('get_service_status', 'Get detailed status and recent logs for a systemd service. Admin only.', {
-    service: z.string().max(4096).describe('Service name'),
-  }, getServiceStatus);
+  tool(
+    'get_service_status',
+    'Get detailed status and recent logs for a systemd service. Admin only.',
+    {
+      service: z.string().max(4096).describe('Service name'),
+    },
+    getServiceStatus
+  );
 
-  tool('list_services', 'List all systemd services with their status. Admin only.', {
-    filter: z.string().max(4096).optional().describe('Filter by service name keyword'),
-    state: z.string().max(4096).optional().describe('Filter by state: active, inactive, failed, etc.'),
-  }, listServices);
+  tool(
+    'list_services',
+    'List all systemd services with their status. Admin only.',
+    {
+      filter: z.string().max(4096).optional().describe('Filter by service name keyword'),
+      state: z.string().max(4096).optional().describe('Filter by state: active, inactive, failed, etc.'),
+    },
+    listServices
+  );
 
-  tool('get_journal_logs', 'Read systemd journal logs. Admin only.', {
-    service: z.string().max(4096).optional().describe('Service name to filter logs for'),
-    lines: z.number().int().positive().max(500).optional().describe('Number of log lines to return (default: 50, max: 500)'),
-    since: z.string().max(4096).optional().describe('Show logs since this time (e.g. "1 hour ago", "2024-01-01 00:00:00")'),
-    priority: z.enum(['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug']).optional(),
-  }, getJournalLogs);
+  tool(
+    'get_journal_logs',
+    'Read systemd journal logs. Admin only.',
+    {
+      service: z.string().max(4096).optional().describe('Service name to filter logs for'),
+      lines: z
+        .number()
+        .int()
+        .positive()
+        .max(500)
+        .optional()
+        .describe('Number of log lines to return (default: 50, max: 500)'),
+      since: z
+        .string()
+        .max(4096)
+        .optional()
+        .describe('Show logs since this time (e.g. "1 hour ago", "2024-01-01 00:00:00")'),
+      priority: z.enum(['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug']).optional(),
+    },
+    getJournalLogs
+  );
 
-  tool('manage_firewall', 'Manage UFW firewall rules. Admin only.', {
-    action: z.enum(['status', 'enable', 'disable', 'allow', 'deny', 'delete', 'list']).describe('Firewall action'),
-    port: z.number().int().positive().optional().describe('Port number for allow/deny/delete actions'),
-    protocol: z.enum(['tcp', 'udp']).optional().describe('Protocol (default: tcp)'),
-    rule: z.enum(['allow', 'deny']).optional().describe('Rule type for delete action'),
-    confirm: z.boolean().optional().describe('Must be true to execute destructive actions'),
-  }, manageFirewall);
+  tool(
+    'manage_firewall',
+    'Manage UFW firewall rules. Admin only.',
+    {
+      action: z.enum(['status', 'enable', 'disable', 'allow', 'deny', 'delete', 'list']).describe('Firewall action'),
+      port: z.number().int().positive().optional().describe('Port number for allow/deny/delete actions'),
+      protocol: z.enum(['tcp', 'udp']).optional().describe('Protocol (default: tcp)'),
+      rule: z.enum(['allow', 'deny']).optional().describe('Rule type for delete action'),
+      confirm: z.boolean().optional().describe('Must be true to execute destructive actions'),
+    },
+    manageFirewall
+  );
 
   // ── User Management Tools (Admin only) ─────────────────
 
-  tool('list_users', 'List all system users. Admin only.', {
-    includeSystem: z.boolean().optional().describe('Include system users (uid < 1000). Default: false'),
-  }, listUsers);
+  tool(
+    'list_users',
+    'List all system users. Admin only.',
+    {
+      includeSystem: z.boolean().optional().describe('Include system users (uid < 1000). Default: false'),
+    },
+    listUsers
+  );
 
-  tool('get_user_info', 'Get detailed info about a user including groups and SSH keys.', {
-    username: z.string().max(4096).describe('Username to query'),
-  }, getUserInfo);
+  tool(
+    'get_user_info',
+    'Get detailed info about a user including groups and SSH keys.',
+    {
+      username: z.string().max(4096).describe('Username to query'),
+    },
+    getUserInfo
+  );
 
-  tool('create_user', 'Create a new system user. Admin only.', {
-    username: z.string().max(4096).describe('New username'),
-    password: z.string().max(4096).optional().describe('Initial password'),
-    groups: z.string().max(4096).optional().describe('Comma-separated supplementary groups'),
-    shell: z.string().max(4096).optional().describe('Login shell (default: /bin/bash)'),
-    comment: z.string().max(4096).optional().describe('User comment/description'),
-    createHome: z.boolean().optional().describe('Create home directory (default: true)'),
-    confirm: z.boolean().optional().describe('Must be true to create a user'),
-  }, createUser);
+  tool(
+    'create_user',
+    'Create a new system user. Admin only.',
+    {
+      username: z.string().max(4096).describe('New username'),
+      password: z.string().max(4096).optional().describe('Initial password'),
+      groups: z.string().max(4096).optional().describe('Comma-separated supplementary groups'),
+      shell: z.string().max(4096).optional().describe('Login shell (default: /bin/bash)'),
+      comment: z.string().max(4096).optional().describe('User comment/description'),
+      createHome: z.boolean().optional().describe('Create home directory (default: true)'),
+      confirm: z.boolean().optional().describe('Must be true to create a user'),
+    },
+    createUser
+  );
 
-  tool('delete_user', 'Delete a system user. Admin only.', {
-    username: z.string().max(4096).describe('Username to delete'),
-    removeHome: z.boolean().optional().describe('Remove home directory (default: false)'),
-    confirm: z.boolean().optional().describe('Must be true to execute'),
-  }, deleteUser);
+  tool(
+    'delete_user',
+    'Delete a system user. Admin only.',
+    {
+      username: z.string().max(4096).describe('Username to delete'),
+      removeHome: z.boolean().optional().describe('Remove home directory (default: false)'),
+      confirm: z.boolean().optional().describe('Must be true to execute'),
+    },
+    deleteUser
+  );
 
-  tool('set_user_password', 'Set or change a user password. Admin only.', {
-    username: z.string().max(4096).describe('Username'),
-    password: z.string().max(4096).describe('New password'),
-    confirm: z.boolean().optional().describe('Must be true to change a password'),
-  }, setUserPassword);
+  tool(
+    'set_user_password',
+    'Set or change a user password. Admin only.',
+    {
+      username: z.string().max(4096).describe('Username'),
+      password: z.string().max(4096).describe('New password'),
+      confirm: z.boolean().optional().describe('Must be true to change a password'),
+    },
+    setUserPassword
+  );
 
-  tool('modify_user', 'Modify user properties: groups, shell, lock/unlock, expiry. Admin only.', {
-    username: z.string().max(4096).describe('Username to modify'),
-    addGroups: z.string().max(4096).optional().describe('Comma-separated groups to add user to'),
-    removeGroups: z.string().max(4096).optional().describe('Comma-separated groups to remove user from'),
-    shell: z.string().max(4096).optional().describe('New login shell'),
-    lockAccount: z.boolean().optional().describe('Lock the user account'),
-    unlockAccount: z.boolean().optional().describe('Unlock the user account'),
-    expireDate: z.string().max(4096).optional().describe('Account expiry date (YYYY-MM-DD), empty string to disable'),
-    confirm: z.boolean().optional().describe('Must be true to modify a user'),
-  }, modifyUser);
+  tool(
+    'modify_user',
+    'Modify user properties: groups, shell, lock/unlock, expiry. Admin only.',
+    {
+      username: z.string().max(4096).describe('Username to modify'),
+      addGroups: z.string().max(4096).optional().describe('Comma-separated groups to add user to'),
+      removeGroups: z.string().max(4096).optional().describe('Comma-separated groups to remove user from'),
+      shell: z.string().max(4096).optional().describe('New login shell'),
+      lockAccount: z.boolean().optional().describe('Lock the user account'),
+      unlockAccount: z.boolean().optional().describe('Unlock the user account'),
+      expireDate: z.string().max(4096).optional().describe('Account expiry date (YYYY-MM-DD), empty string to disable'),
+      confirm: z.boolean().optional().describe('Must be true to modify a user'),
+    },
+    modifyUser
+  );
 
-  tool('manage_ssh_keys', 'Add, list, or remove SSH authorized keys for a user.', {
-    username: z.string().max(4096).describe('Target username'),
-    action: z.enum(['add', 'list', 'remove']).describe('Action to perform'),
-    publicKey: z.string().max(4096).optional().describe('Full SSH public key string (for add action)'),
-    keyIndex: z.number().int().nonnegative().optional().describe('Key index to remove (for remove action, use list first)'),
-    confirm: z.boolean().optional().describe('Must be true to add or remove a key'),
-  }, manageSshKeys);
+  tool(
+    'manage_ssh_keys',
+    'Add, list, or remove SSH authorized keys for a user.',
+    {
+      username: z.string().max(4096).describe('Target username'),
+      action: z.enum(['add', 'list', 'remove']).describe('Action to perform'),
+      publicKey: z.string().max(4096).optional().describe('Full SSH public key string (for add action)'),
+      keyIndex: z
+        .number()
+        .int()
+        .nonnegative()
+        .optional()
+        .describe('Key index to remove (for remove action, use list first)'),
+      confirm: z.boolean().optional().describe('Must be true to add or remove a key'),
+    },
+    manageSshKeys
+  );
 
   // ── Docker Sandboxing ────────────────────────────────────
 
-  tool('run_sandboxed_code', 'Run arbitrary code in an ephemeral, hardened Docker container.', {
-    language: z.enum(['python', 'node', 'bash']).describe('Language to run'),
-    code: z.string().max(102400).describe('Code to execute'),
-    allowNetwork: z.boolean().optional().describe('Allow outbound network access (default: false)'),
-    timeout: z.number().int().positive().max(120).optional().describe('Timeout in seconds (default: 30)'),
-    files: z.record(z.string()).optional().describe('Optional key-value map of filename:content to inject into the workspace'),
-  }, runSandboxedCode);
+  tool(
+    'run_sandboxed_code',
+    'Run arbitrary code in an ephemeral, hardened Docker container.',
+    {
+      language: z.enum(['python', 'node', 'bash']).describe('Language to run'),
+      code: z.string().max(102400).describe('Code to execute'),
+      allowNetwork: z.boolean().optional().describe('Allow outbound network access (default: false)'),
+      timeout: z.number().int().positive().max(120).optional().describe('Timeout in seconds (default: 30)'),
+      files: z
+        .record(z.string())
+        .optional()
+        .describe('Optional key-value map of filename:content to inject into the workspace'),
+    },
+    runSandboxedCode
+  );
 
   // ── Rollback Tools (Admin only) ──────────────────────────
 
-  tool('apply_config', 'Safely edit a configuration file, restart a service, and rollback if the service fails to start. Admin only.', {
-    filePath: z.string().max(4096).describe('Absolute path to the config file'),
-    newContent: z.string().max(5 * 1024 * 1024).describe('New file contents'),
-    serviceName: z.string().max(4096).describe('systemd service to validate against'),
-    syntaxCheckCmd: z.array(z.string()).optional().describe('Optional syntax check command (e.g. ["nginx", "-t", "-c", "%s"])'),
-    healthCheckTimeout: z.number().int().positive().max(60).optional().describe('Seconds to wait for service health (default: 15)'),
-    confirm: z.boolean().describe('Must be true to execute'),
-  }, applyConfig);
+  tool(
+    'apply_config',
+    'Safely edit a configuration file, restart a service, and rollback if the service fails to start. Admin only.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to the config file'),
+      newContent: z
+        .string()
+        .max(5 * 1024 * 1024)
+        .describe('New file contents'),
+      serviceName: z.string().max(4096).describe('systemd service to validate against'),
+      syntaxCheckCmd: z
+        .array(z.string())
+        .optional()
+        .describe('Optional syntax check command (e.g. ["nginx", "-t", "-c", "%s"])'),
+      healthCheckTimeout: z
+        .number()
+        .int()
+        .positive()
+        .max(60)
+        .optional()
+        .describe('Seconds to wait for service health (default: 15)'),
+      confirm: z.boolean().describe('Must be true to execute'),
+    },
+    applyConfig
+  );
 
-  tool('list_config_backups', 'List available backups for a given file path. Admin only.', {
-    filePath: z.string().max(4096).describe('Absolute path to the config file'),
-  }, listConfigBackups);
+  tool(
+    'list_config_backups',
+    'List available backups for a given file path. Admin only.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to the config file'),
+    },
+    listConfigBackups
+  );
 
-  tool('restore_config', 'Manually restore a specific config backup by timestamp. Admin only.', {
-    filePath: z.string().max(4096).describe('Absolute path to the config file'),
-    timestamp: z.string().max(4096).describe('Timestamp of the backup to restore'),
-    confirm: z.boolean().describe('Must be true to execute'),
-  }, restoreConfig);
+  tool(
+    'restore_config',
+    'Manually restore a specific config backup by timestamp. Admin only.',
+    {
+      filePath: z.string().max(4096).describe('Absolute path to the config file'),
+      timestamp: z.string().max(4096).describe('Timestamp of the backup to restore'),
+      confirm: z.boolean().describe('Must be true to execute'),
+    },
+    restoreConfig
+  );
 
   // ── Git & DB Tools ───────────────────────────────────────
 
-  tool('git_operation', 'Execute Git operations in allowed repositories.', {
-    repoPath: z.string().max(4096).describe('Path to git repository'),
-    action: z.enum(['status', 'diff', 'log', 'branch', 'checkout', 'add', 'commit', 'pull', 'push']).describe('Git action'),
-    args: z.record(z.any()).optional().describe('Action-specific arguments (e.g. { message: "msg" })'),
-    confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
-  }, gitOperation);
+  tool(
+    'git_operation',
+    'Execute Git operations in allowed repositories.',
+    {
+      repoPath: z.string().max(4096).describe('Path to git repository'),
+      action: z
+        .enum(['status', 'diff', 'log', 'branch', 'checkout', 'add', 'commit', 'pull', 'push'])
+        .describe('Git action'),
+      args: z.record(z.any()).optional().describe('Action-specific arguments (e.g. { message: "msg" })'),
+      confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
+    },
+    gitOperation
+  );
 
-  tool('execute_query', 'Execute a SQL query against a configured database alias.', {
-    alias: z.string().max(4096).describe('Configured database alias (e.g. "production")'),
-    query: z.string().max(102400).describe('SQL query string with ? placeholders for params'),
-    params: z.array(z.any()).optional().describe('Parameters for the query placeholders'),
-    confirm: z.boolean().optional().describe('Must be true for write queries'),
-  }, executeQuery);
+  tool(
+    'execute_query',
+    'Execute a SQL query against a configured database alias.',
+    {
+      alias: z.string().max(4096).describe('Configured database alias (e.g. "production")'),
+      query: z.string().max(102400).describe('SQL query string with ? placeholders for params'),
+      params: z.array(z.any()).optional().describe('Parameters for the query placeholders'),
+      confirm: z.boolean().optional().describe('Must be true for write queries'),
+    },
+    executeQuery
+  );
 
   // ── Pub/Sub Alert Tools ──────────────────────────────────
 
-  tool('list_guided_workflows', 'List safe, plain-language workflows for server care and developer work.', {}, async () => {
-    return { workflows: getWorkflowCatalog() };
-  });
-
-  tool('get_security_posture', 'Review the server security posture in plain language. This read-only tool reports TLS, access controls, approvals, and policy configuration.', {}, async (_, toolIdentity) => {
-    if (toolIdentity.role !== 'admin' && toolIdentity.role !== 'auditor') throw new Error('Security posture requires an administrator or auditor role');
-    return buildSecurityPosture();
-  });
-
-  tool('request_change_approval', 'Submit a proposed MCP action for administrator approval. After approval, resubmit the exact original action once.', {
-    tool: z.string().max(128).describe('The MCP tool that will be run after approval'),
-    arguments: z.record(z.any()).describe('The exact arguments that will be used when the action is resubmitted'),
-    summary: z.string().max(500).optional().describe('Plain-language explanation of the requested change'),
-    risk: z.enum(['medium', 'high', 'critical']).optional().describe('Impact level for the reviewer'),
-  }, async ({ tool: requestedTool, arguments: requestedArgs, summary, risk }, toolIdentity) => {
-    if (requestedTool === 'request_change_approval' || requestedTool === 'list_guided_workflows') {
-      throw new Error('Approval requests must target an operational tool');
+  tool(
+    'list_guided_workflows',
+    'List safe, plain-language workflows for server care and developer work.',
+    {},
+    async () => {
+      return { workflows: getWorkflowCatalog() };
     }
-    const { approval, created } = await requestApproval({
-      tool: requestedTool,
-      args: requestedArgs,
-      identity: toolIdentity,
-      summary,
-      risk: risk || 'high',
-    });
-    return {
-      approvalId: approval.id,
-      status: approval.status,
-      message: created
-        ? 'Approval requested. Do not execute the change until it is approved.'
-        : 'An identical approval request is already pending.',
-    };
-  });
+  );
 
-  tool('list_projects', 'List the software projects this identity is allowed to inspect and deploy.', {}, async (_, toolIdentity) => {
-    return { projects: await listProjects(toolIdentity) };
-  });
-
-  tool('plan_project_deployment', 'Create a safe, plain-language deployment plan for a registered project. This tool never deploys anything.', {
-    projectId: z.string().uuid().describe('Registered project identifier'),
-  }, async ({ projectId }, toolIdentity) => {
-    const project = await getProject(projectId, toolIdentity);
-    return getDeploymentPlan(project);
-  });
-
-  tool('deploy_project', 'Deploy a registered project using a controlled Git fast-forward pull, a registered systemd service restart, and an optional health check. Administrator approval is required.', {
-    projectId: z.string().uuid().describe('Registered project identifier'),
-    confirm: z.boolean().describe('Must be true to deploy'),
-  }, async ({ projectId }, toolIdentity) => {
-    if (toolIdentity.role !== 'admin') throw new Error('Deploying a project requires an administrator role');
-    const project = await getProject(projectId, toolIdentity);
-    if (!project.serviceName) throw new Error('This project has no registered systemd service, so it cannot use the managed deployment playbook');
-    await assertRepositoryPermitted(project.repoPath, toolIdentity);
-    const git = await gitOperation({ repoPath: project.repoPath, action: 'pull', args: {} }, toolIdentity);
-    const service = await manageService({ service: project.serviceName, action: 'restart' }, toolIdentity);
-    let health = { status: 'not-configured' };
-    if (project.healthUrl) {
-      const healthUrl = assertProjectHealthUrlAllowed(project);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 10_000);
-      try {
-        const response = await fetch(healthUrl, { redirect: 'error', signal: controller.signal });
-        health = { status: response.ok ? 'healthy' : 'unhealthy', httpStatus: response.status };
-      } catch (err) {
-        health = { status: 'unreachable', message: err.name === 'AbortError' ? 'Timed out' : 'Connection failed' };
-      } finally { clearTimeout(timer); }
+  tool(
+    'get_security_posture',
+    'Review the server security posture in plain language. This read-only tool reports TLS, access controls, approvals, and policy configuration.',
+    {},
+    async (_, toolIdentity) => {
+      if (toolIdentity.role !== 'admin' && toolIdentity.role !== 'auditor')
+        throw new Error('Security posture requires an administrator or auditor role');
+      return buildSecurityPosture();
     }
-    return { projectId: project.id, project: project.name, git, service, health, rollback: 'Use the project’s previous Git revision and restart its registered service if verification fails.' };
-  });
+  );
 
-  tool('list_automations', 'List the scheduled read-only health checks available to this identity.', {}, async (_, toolIdentity) => {
-    return { automations: await listAutomations(toolIdentity) };
-  });
+  tool(
+    'request_change_approval',
+    'Submit a proposed MCP action for administrator approval. After approval, resubmit the exact original action once.',
+    {
+      tool: z.string().max(128).describe('The MCP tool that will be run after approval'),
+      arguments: z.record(z.any()).describe('The exact arguments that will be used when the action is resubmitted'),
+      summary: z.string().max(500).optional().describe('Plain-language explanation of the requested change'),
+      risk: z.enum(['medium', 'high', 'critical']).optional().describe('Impact level for the reviewer'),
+    },
+    async ({ tool: requestedTool, arguments: requestedArgs, summary, risk }, toolIdentity) => {
+      if (requestedTool === 'request_change_approval' || requestedTool === 'list_guided_workflows') {
+        throw new Error('Approval requests must target an operational tool');
+      }
+      const { approval, created } = await requestApproval({
+        tool: requestedTool,
+        args: requestedArgs,
+        identity: toolIdentity,
+        summary,
+        risk: risk || 'high',
+      });
+      return {
+        approvalId: approval.id,
+        status: approval.status,
+        message: created
+          ? 'Approval requested. Do not execute the change until it is approved.'
+          : 'An identical approval request is already pending.',
+      };
+    }
+  );
 
-  tool('schedule_health_check', 'Schedule a read-only server health check. It records CPU, memory, and disk health and never changes the server.', {
-    name: z.string().max(80).optional().describe('Friendly automation name'),
-    intervalMinutes: z.number().int().min(5).max(10080).optional().describe('How often to check, in minutes'),
-  }, async ({ name, intervalMinutes }, toolIdentity) => {
-    return { automation: await createAutomation({ name, intervalMinutes, type: 'health_check' }, toolIdentity) };
-  });
+  tool(
+    'list_projects',
+    'List the software projects this identity is allowed to inspect and deploy.',
+    {},
+    async (_, toolIdentity) => {
+      return { projects: await listProjects(toolIdentity) };
+    }
+  );
 
-  tool('list_fleet_servers', 'List registered MCP Sentinel servers and their most recent health checks. Read-only.', {}, async (_, toolIdentity) => ({ servers: await listFleet(toolIdentity) }));
+  tool(
+    'plan_project_deployment',
+    'Create a safe, plain-language deployment plan for a registered project. This tool never deploys anything.',
+    {
+      projectId: z.string().uuid().describe('Registered project identifier'),
+    },
+    async ({ projectId }, toolIdentity) => {
+      const project = await getProject(projectId, toolIdentity);
+      return getDeploymentPlan(project);
+    }
+  );
 
-  tool('check_fleet_server', 'Check the health endpoint of a registered Sentinel server. The destination must be on the administrator allow-list.', {
-    serverId: z.string().uuid().describe('Registered fleet server identifier'),
-  }, async ({ serverId }, toolIdentity) => ({ server: await checkFleetServer(serverId, toolIdentity) }));
+  tool(
+    'deploy_project',
+    'Deploy a registered project using a controlled Git fast-forward pull, a registered systemd service restart, and an optional health check. Administrator approval is required.',
+    {
+      projectId: z.string().uuid().describe('Registered project identifier'),
+      confirm: z.boolean().describe('Must be true to deploy'),
+    },
+    async ({ projectId }, toolIdentity) => {
+      if (toolIdentity.role !== 'admin') throw new Error('Deploying a project requires an administrator role');
+      const project = await getProject(projectId, toolIdentity);
+      if (!project.serviceName)
+        throw new Error(
+          'This project has no registered systemd service, so it cannot use the managed deployment playbook'
+        );
+      await assertRepositoryPermitted(project.repoPath, toolIdentity);
+      const git = await gitOperation({ repoPath: project.repoPath, action: 'pull', args: {} }, toolIdentity);
+      const service = await manageService({ service: project.serviceName, action: 'restart' }, toolIdentity);
+      let health = { status: 'not-configured' };
+      if (project.healthUrl) {
+        const healthUrl = assertProjectHealthUrlAllowed(project);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10_000);
+        try {
+          const response = await fetch(healthUrl, { redirect: 'error', signal: controller.signal });
+          health = { status: response.ok ? 'healthy' : 'unhealthy', httpStatus: response.status };
+        } catch (err) {
+          health = { status: 'unreachable', message: err.name === 'AbortError' ? 'Timed out' : 'Connection failed' };
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      return {
+        projectId: project.id,
+        project: project.name,
+        git,
+        service,
+        health,
+        rollback: 'Use the project’s previous Git revision and restart its registered service if verification fails.',
+      };
+    }
+  );
 
-  tool('list_backup_targets', 'List encrypted backup destinations without exposing credentials. Administrator only.', {}, async (_, toolIdentity) => ({ targets: await listBackupTargets(toolIdentity) }));
+  tool(
+    'list_automations',
+    'List the scheduled read-only health checks available to this identity.',
+    {},
+    async (_, toolIdentity) => {
+      return { automations: await listAutomations(toolIdentity) };
+    }
+  );
 
-  tool('run_encrypted_backup', 'Encrypt a permitted configuration file with AES-256-GCM and send it to a registered local or S3-compatible destination. Administrator approval is required.', {
-    targetId: z.string().uuid().describe('Registered backup target identifier'),
-    sourcePath: z.string().max(4096).describe('Permitted regular file to back up'),
-    confirm: z.boolean().describe('Must be true to create a backup'),
-  }, async ({ targetId, sourcePath }, toolIdentity) => {
-    if (toolIdentity.role !== 'admin') throw new Error('Encrypted backups require an administrator role');
-    return { backup: await runBackup({ targetId, sourcePath }) };
-  });
+  tool(
+    'schedule_health_check',
+    'Schedule a read-only server health check. It records CPU, memory, and disk health and never changes the server.',
+    {
+      name: z.string().max(80).optional().describe('Friendly automation name'),
+      intervalMinutes: z.number().int().min(5).max(10080).optional().describe('How often to check, in minutes'),
+    },
+    async ({ name, intervalMinutes }, toolIdentity) => {
+      return { automation: await createAutomation({ name, intervalMinutes, type: 'health_check' }, toolIdentity) };
+    }
+  );
 
-  tool('list_webhooks', 'List signed webhook integrations without exposing their signing secrets. Administrator only.', {}, async (_, toolIdentity) => ({ webhooks: await listWebhooks(toolIdentity) }));
+  tool(
+    'list_fleet_servers',
+    'List registered MCP Sentinel servers and their most recent health checks. Read-only.',
+    {},
+    async (_, toolIdentity) => ({ servers: await listFleet(toolIdentity) })
+  );
 
-  tool('deliver_webhook', 'Deliver a signed generic webhook event to a registered allow-listed endpoint. Administrator approval is required.', {
-    webhookId: z.string().uuid().describe('Registered webhook identifier'),
-    event: z.string().regex(/^[a-z0-9._-]{1,80}$/).describe('Subscribed event name'),
-    payload: z.record(z.any()).optional().describe('Non-secret event data'),
-    confirm: z.boolean().describe('Must be true to deliver'),
-  }, async ({ webhookId, event, payload }, toolIdentity) => deliverWebhook({ webhookId, event, payload }, toolIdentity));
+  tool(
+    'check_fleet_server',
+    'Check the health endpoint of a registered Sentinel server. The destination must be on the administrator allow-list.',
+    {
+      serverId: z.string().uuid().describe('Registered fleet server identifier'),
+    },
+    async ({ serverId }, toolIdentity) => ({ server: await checkFleetServer(serverId, toolIdentity) })
+  );
 
-  tool('subscribe_to_alert', 'Subscribe to a system alert. Will send an MCP resource list_changed notification when triggered.', {
-    alertType: z.enum(['cpu_threshold', 'memory_threshold', 'disk_threshold']).describe('Type of alert'),
-    threshold: z.number().positive().max(100).describe('Threshold percentage (e.g. 90 for 90%)'),
-    cooldownSeconds: z.number().int().positive().optional().describe('Minimum seconds between repeated alerts (default: 300)'),
-  }, async ({ alertType, threshold, cooldownSeconds }, identity) => {
-    // Find the current session id from activeTransports using identity
-    const sessionEntry = Array.from(activeTransports.entries()).find(([_, s]) => s.identity?.userId === identity.userId && s.ip === ip);
-    if (!sessionEntry) throw new Error('Session not found');
-    const id = monitor.subscribe(sessionEntry[0], alertType, threshold, cooldownSeconds);
-    return `Subscribed to ${alertType} at ${threshold}%. Alert ID: ${id}`;
-  });
+  tool(
+    'list_backup_targets',
+    'List encrypted backup destinations without exposing credentials. Administrator only.',
+    {},
+    async (_, toolIdentity) => ({ targets: await listBackupTargets(toolIdentity) })
+  );
 
-  tool('unsubscribe_from_alert', 'Unsubscribe from an active alert by ID.', {
-    alertId: z.string().max(4096).describe('Alert ID returned from subscribe_to_alert'),
-  }, async ({ alertId }, identity) => {
-    const sessionEntry = Array.from(activeTransports.entries()).find(([_, s]) => s.identity?.userId === identity.userId && s.ip === ip);
-    if (!sessionEntry) throw new Error('Session not found');
-    monitor.unsubscribe(sessionEntry[0], alertId);
-    return `Unsubscribed from ${alertId}`;
-  });
+  tool(
+    'run_encrypted_backup',
+    'Encrypt a permitted configuration file with AES-256-GCM and send it to a registered local or S3-compatible destination. Administrator approval is required.',
+    {
+      targetId: z.string().uuid().describe('Registered backup target identifier'),
+      sourcePath: z.string().max(4096).describe('Permitted regular file to back up'),
+      confirm: z.boolean().describe('Must be true to create a backup'),
+    },
+    async ({ targetId, sourcePath }, toolIdentity) => {
+      if (toolIdentity.role !== 'admin') throw new Error('Encrypted backups require an administrator role');
+      return { backup: await runBackup({ targetId, sourcePath }) };
+    }
+  );
+
+  tool(
+    'list_webhooks',
+    'List signed webhook integrations without exposing their signing secrets. Administrator only.',
+    {},
+    async (_, toolIdentity) => ({ webhooks: await listWebhooks(toolIdentity) })
+  );
+
+  tool(
+    'deliver_webhook',
+    'Deliver a signed generic webhook event to a registered allow-listed endpoint. Administrator approval is required.',
+    {
+      webhookId: z.string().uuid().describe('Registered webhook identifier'),
+      event: z
+        .string()
+        .regex(/^[a-z0-9._-]{1,80}$/)
+        .describe('Subscribed event name'),
+      payload: z.record(z.any()).optional().describe('Non-secret event data'),
+      confirm: z.boolean().describe('Must be true to deliver'),
+    },
+    async ({ webhookId, event, payload }, toolIdentity) => deliverWebhook({ webhookId, event, payload }, toolIdentity)
+  );
+
+  tool(
+    'subscribe_to_alert',
+    'Subscribe to a system alert. Will send an MCP resource list_changed notification when triggered.',
+    {
+      alertType: z.enum(['cpu_threshold', 'memory_threshold', 'disk_threshold']).describe('Type of alert'),
+      threshold: z.number().positive().max(100).describe('Threshold percentage (e.g. 90 for 90%)'),
+      cooldownSeconds: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('Minimum seconds between repeated alerts (default: 300)'),
+    },
+    async ({ alertType, threshold, cooldownSeconds }, identity) => {
+      // Find the current session id from activeTransports using identity
+      const sessionEntry = Array.from(activeTransports.entries()).find(
+        ([_, s]) => s.identity?.userId === identity.userId && s.ip === ip
+      );
+      if (!sessionEntry) throw new Error('Session not found');
+      const id = monitor.subscribe(sessionEntry[0], alertType, threshold, cooldownSeconds);
+      return `Subscribed to ${alertType} at ${threshold}%. Alert ID: ${id}`;
+    }
+  );
+
+  tool(
+    'unsubscribe_from_alert',
+    'Unsubscribe from an active alert by ID.',
+    {
+      alertId: z.string().max(4096).describe('Alert ID returned from subscribe_to_alert'),
+    },
+    async ({ alertId }, identity) => {
+      const sessionEntry = Array.from(activeTransports.entries()).find(
+        ([_, s]) => s.identity?.userId === identity.userId && s.ip === ip
+      );
+      if (!sessionEntry) throw new Error('Session not found');
+      monitor.unsubscribe(sessionEntry[0], alertId);
+      return `Unsubscribed from ${alertId}`;
+    }
+  );
 
   tool('list_active_alerts', 'List your active alert subscriptions.', {}, async (_, identity) => {
-    const sessionEntry = Array.from(activeTransports.entries()).find(([_, s]) => s.identity?.userId === identity.userId && s.ip === ip);
+    const sessionEntry = Array.from(activeTransports.entries()).find(
+      ([_, s]) => s.identity?.userId === identity.userId && s.ip === ip
+    );
     if (!sessionEntry) return { alerts: [] };
     return { alerts: monitor.getActiveAlerts(sessionEntry[0]) };
   });
@@ -1409,18 +2169,21 @@ function createHttpsServer() {
     process.exit(1);
   }
 
-  return https.createServer({
-    cert: fs.readFileSync(certPath),
-    key: fs.readFileSync(keyPath),
-    minVersion: 'TLSv1.2',
-    ciphers: [
-      'TLS_AES_256_GCM_SHA384',
-      'TLS_CHACHA20_POLY1305_SHA256',
-      'TLS_AES_128_GCM_SHA256',
-      'ECDHE-RSA-AES256-GCM-SHA384',
-      'ECDHE-RSA-AES128-GCM-SHA256',
-    ].join(':'),
-  }, app);
+  return https.createServer(
+    {
+      cert: fs.readFileSync(certPath),
+      key: fs.readFileSync(keyPath),
+      minVersion: 'TLSv1.2',
+      ciphers: [
+        'TLS_AES_256_GCM_SHA384',
+        'TLS_CHACHA20_POLY1305_SHA256',
+        'TLS_AES_128_GCM_SHA256',
+        'ECDHE-RSA-AES256-GCM-SHA384',
+        'ECDHE-RSA-AES128-GCM-SHA256',
+      ].join(':'),
+    },
+    app
+  );
 }
 
 // ── Start Server ───────────────────────────────────────────
@@ -1476,7 +2239,7 @@ async function startServer() {
     console.log(`[ACME] Initializing Let's Encrypt for ${process.env.ACME_DOMAIN}...`);
     acmeManager = new AcmeManager(process.env.ACME_DOMAIN, process.env.ACME_EMAIL);
     await acmeManager.init();
-    
+
     const acmePort = parseInt(process.env.ACME_CHALLENGE_PORT || '80', 10);
     const acmeApp = express();
     acmeApp.get('/.well-known/acme-challenge/:token', (req, res) => {
@@ -1487,7 +2250,7 @@ async function startServer() {
     acmeApp.use((req, res) => {
       res.redirect(`https://${process.env.ACME_DOMAIN}${req.url}`);
     });
-    
+
     http.createServer(acmeApp).listen(acmePort, HOST, () => {
       console.log(`[ACME] Challenge server listening on port ${acmePort}`);
     });
@@ -1496,7 +2259,7 @@ async function startServer() {
       await acmeManager.checkAndRenew();
       process.env.TLS_CERT_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.crt');
       process.env.TLS_KEY_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.key');
-      
+
       setInterval(async () => {
         try {
           await acmeManager.checkAndRenew();
@@ -1523,7 +2286,9 @@ async function startServer() {
     const protocol = USE_HTTPS ? 'https' : 'http';
     logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
 
-    const currentVersion = process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
+    const currentVersion =
+      process.env.npm_package_version ||
+      JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
 
     console.log(`
 ╔══════════════════════════════════════════════════════╗
@@ -1580,18 +2345,22 @@ function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutting down gracefully...`);
   // Close all active SSE connections
   for (const [id, session] of activeTransports) {
-    try { session.transport.close?.(); } catch {}
+    try {
+      session.transport.close?.();
+    } catch {}
     activeTransports.delete(id);
   }
   if (server) {
     server.close(() => {
       console.log('Server closed. Flushing logs...');
-      import('./audit.js').then(({ shutdownLoggers }) => {
-        shutdownLoggers(() => {
-          console.log('Goodbye.');
-          process.exit(0);
-        });
-      }).catch(() => process.exit(0));
+      import('./audit.js')
+        .then(({ shutdownLoggers }) => {
+          shutdownLoggers(() => {
+            console.log('Goodbye.');
+            process.exit(0);
+          });
+        })
+        .catch(() => process.exit(0));
     });
   } else {
     process.exit(0);
@@ -1601,11 +2370,11 @@ function gracefulShutdown(signal) {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   logError({ tool: 'UNCAUGHT_EXCEPTION', error: err });
   console.error('Uncaught exception:', err);
   process.exit(1);
 });
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', reason => {
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });
 });
