@@ -41,6 +41,11 @@ import { applyConfig, listConfigBackups, restoreConfig } from './tools/rollback.
 import { gitOperation } from './tools/git.js';
 import { executeQuery } from './tools/db.js';
 import { monitor } from './lib/monitor.js';
+import {
+  getOAuthUsers, addOAuthUser, updateOAuthUser, deleteOAuthUser,
+  getOAuthClients, addOAuthClient, deleteOAuthClient,
+  getAutheliaHealth, forceRestartAuthelia,
+} from './lib/authelia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '4444');
@@ -366,7 +371,119 @@ app.post('/admin/backups/restore', authenticateJWT, async (req, res) => {
   }
 });
 
-// ── MCP Endpoint (Streamable HTTP) ─────────────────────────
+// ── OAuth Metadata (RFC 9728) ──────────────────────────────
+
+app.get('/.well-known/oauth-protected-resource', (req, res) => {
+  res.json({
+    resource: "https://begin.shopping:2053",
+    authorization_servers: ["https://begin.shopping:2083"],
+    scopes_supported: ["openid", "profile", "email"],
+    bearer_methods_supported: ["header"],
+    resource_documentation: "https://github.com/MarketingDotLimited/mcp-sentinel"
+  });
+});
+
+// ── OAuth User Management ──────────────────────────────────
+
+app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    const users = await getOAuthUsers();
+    res.json(users);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    const user = await addOAuthUser(req.body);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
+    res.json(user);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    await updateOAuthUser(req.params.username, req.body);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    await deleteOAuthUser(req.params.username);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ── OAuth Client Management ────────────────────────────────
+
+app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    const clients = await getOAuthClients();
+    res.json(clients);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/admin/oauth-clients', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    const client = await addOAuthClient(req.body);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
+    res.json(client);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    await deleteOAuthClient(req.params.clientId);
+    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ── Authelia Health & Control ──────────────────────────────
+
+app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    const health = await getAutheliaHealth();
+    res.json(health);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/admin/oauth-restart', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  try {
+    const success = await forceRestartAuthelia();
+    logSecurityEvent({ ip: req.clientIP, event: 'AUTHELIA_RESTART', detail: { success } });
+    res.json({ success });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 app.get('/mcp', authenticateJWT, (req, res) => {
   const sessionId = randomUUID();
