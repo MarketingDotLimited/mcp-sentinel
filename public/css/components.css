@@ -500,3 +500,25 @@ select.input-field {
 .row-new {
   animation: slideUp 0.3s ease;
 }
+
+/* AI connection onboarding */
+.connect-readiness { display: flex; gap: 10px; align-items: baseline; padding: 14px 18px; margin-bottom: 20px; border: var(--glass-border); border-radius: var(--radius-md); }
+.connect-readiness.is-ready { background: rgba(16, 185, 129, .12); border-color: rgba(16, 185, 129, .55); }
+.connect-readiness.is-warning { background: rgba(245, 158, 11, .12); border-color: rgba(245, 158, 11, .55); }
+.connect-readiness span { color: var(--text-secondary); }
+.connect-flow, .connect-platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 18px; }
+.connect-flow > div { padding: 14px; border-radius: var(--radius-md); background: var(--bg-secondary); }
+.connect-flow strong, .connect-flow span { display: block; }
+.connect-flow span { color: var(--text-secondary); font-size: 13px; margin-top: 5px; }
+.connect-platform { display: flex; flex-direction: column; gap: 12px; }
+.connect-platform h2 { margin-bottom: 0; }
+.connect-platform .badge, .connect-platform .btn { width: fit-content; }
+.connect-platform .btn { margin-top: auto; }
+.connect-steps { padding-left: 20px; color: var(--text-secondary); }
+.connect-steps li { margin: 8px 0; }
+.connect-code { margin: 2px 0 8px; }
+.connect-code .connection-json { max-height: 280px; overflow: auto; font-size: 12px; }
+.connect-warning { padding: 10px 12px; border-left: 3px solid var(--accent-amber); background: rgba(245, 158, 11, .1); color: var(--text-secondary); font-size: 13px; }
+.section-title { margin: 28px 0 14px; }
+.connect-faq li { margin: 8px 0; }
+@media (max-width: 700px) { .connect-readiness { flex-direction: column; gap: 5px; } }

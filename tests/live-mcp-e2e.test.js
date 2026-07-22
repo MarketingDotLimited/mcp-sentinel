@@ -41,11 +41,11 @@ async function issueToken(baseUrl, key) {
 }
 
 class McpSession {
-  constructor(baseUrl, key) { this.baseUrl = baseUrl; this.key = key; this.id = 0; this.sessionId = null; }
+  constructor(baseUrl, key, useBearer = false) { this.baseUrl = baseUrl; this.key = key; this.useBearer = useBearer; this.id = 0; this.sessionId = null; }
   async request(method, params) {
     const response = await fetch(`${this.baseUrl}/mcp`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'x-api-key': this.key, ...(this.sessionId ? { 'mcp-session-id': this.sessionId } : {}) },
+      headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(this.useBearer ? { authorization: `Bearer ${this.key}` } : { 'x-api-key': this.key }), ...(this.sessionId ? { 'mcp-session-id': this.sessionId } : {}) },
       body: JSON.stringify({ jsonrpc: '2.0', id: ++this.id, method, params }),
     });
     if (response.status !== 200) throw new Error(`MCP request failed (${response.status}): ${await response.text()}`);
@@ -103,7 +103,9 @@ describe('live MCP least-privilege path', { skip: !enabled }, () => {
       });
       if (addKey.status !== 200) throw new Error(`Key creation failed (${addKey.status}): ${await addKey.text()}`);
 
-      const limited = new McpSession(baseUrl, limitedKey);
+      // Bearer-only MCP clients (such as Codex CLI) must receive the exact
+      // same least-privilege policy as clients using X-API-Key.
+      const limited = new McpSession(baseUrl, limitedKey, true);
       await limited.initialize();
       const health = await limited.call('get_system_info', {});
       assert.equal(health.result.isError, undefined, JSON.stringify(health));

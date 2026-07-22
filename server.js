@@ -256,15 +256,29 @@ app.get('/admin/access-templates', authenticateJWT, (req, res) => {
 
 app.get('/admin/connection-info', authenticateJWT, (req, res) => {
   const baseUrl = process.env.PUBLIC_URL || `${USE_HTTPS ? 'https' : 'http'}://${req.get('host')}`;
+  const publicUrl = baseUrl.replace(/\/$/, '');
+  const publicHttps = publicUrl.startsWith('https://');
+  const oidcEnabled = Boolean(process.env.AUTHELIA_ISSUER && process.env.AUTHELIA_JWKS_URL);
   return res.json({
     transport: 'streamable-http',
-    mcpUrl: `${baseUrl.replace(/\/$/, '')}/mcp`,
-    authorization: 'Use an X-API-Key header or exchange the key for a short-lived bearer token.',
+    mcpUrl: `${publicUrl}/mcp`,
+    authorization: 'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
+    readiness: {
+      publicHttps,
+      oidcEnabled,
+      cloudConnectorReady: publicHttps && oidcEnabled,
+      cloudConnectorMessage: publicHttps && oidcEnabled
+        ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
+        : 'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
+    },
     platforms: [
-      { id: 'chatgpt', name: 'ChatGPT', hint: 'Add the MCP URL and an X-API-Key header in your connector configuration.' },
-      { id: 'claude', name: 'Claude', hint: 'Use the Streamable HTTP MCP connection and include the X-API-Key header.' },
-      { id: 'cursor', name: 'Cursor / VS Code', hint: 'Add a remote MCP server with this URL and header.' },
-      { id: 'custom', name: 'Any MCP client', hint: 'Use the standard Streamable HTTP endpoint below.' },
+      { id: 'chatgpt', name: 'ChatGPT (web)', auth: 'OAuth/OIDC', hint: 'A public HTTPS URL and OAuth/OIDC are required for cloud connectors.' },
+      { id: 'claude-web', name: 'Claude (web)', auth: 'OAuth/OIDC', hint: 'Add a remote custom connector from Claude settings.' },
+      { id: 'claude-desktop', name: 'Claude Desktop', auth: 'OAuth/OIDC', hint: 'Use Settings → Connectors for remote MCP; do not edit the legacy desktop JSON for remote servers.' },
+      { id: 'claude-code', name: 'Claude Code CLI', auth: 'X-API-Key header', hint: 'Add the remote HTTP server with a scoped key header.' },
+      { id: 'codex', name: 'Codex CLI', auth: 'Bearer API key', hint: 'Store a scoped key in an environment variable and register the remote endpoint.' },
+      { id: 'antigravity', name: 'Antigravity CLI / IDE', auth: 'X-API-Key header', hint: 'Use serverUrl and headers in its MCP JSON configuration.' },
+      { id: 'custom', name: 'Other MCP clients', auth: 'Header or bearer key', hint: 'Use the standard Streamable HTTP endpoint and the client’s secure credential store.' },
     ],
   });
 });
