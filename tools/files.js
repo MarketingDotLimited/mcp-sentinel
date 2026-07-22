@@ -3,17 +3,15 @@
 // ============================================================
 import fs from 'fs/promises';
 import path from 'path';
-// fs streams available if needed for future large-file streaming
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import { secureExec } from '../lib/exec.js';
 import { logSecurityEvent } from '../audit.js';
 
-const execFileAsync = promisify(execFile);
+// fs streams available if needed for future large-file streaming
 
 async function enforceOwnership(safePath, identity) {
   if (identity.role !== 'admin') {
     try {
-      await execFileAsync('chown', ['-R', identity.userId, safePath]);
+      await secureExec(['chown', '-R', identity.userId, safePath], { role: 'admin' });
     } catch (e) {}
   }
 }
@@ -43,7 +41,7 @@ async function resolveSafePath(inputPath, identity) {
     if (resolved === '/tmp' || resolved.startsWith('/tmp/') || resolved === '/var/tmp' || resolved.startsWith('/var/tmp/')) {
       const privateTmp = `/tmp/mcp-${identity.userId}`;
       await fs.mkdir(privateTmp, { recursive: true, mode: 0o700 });
-      try { await execFileAsync('chown', [identity.userId, privateTmp]); } catch (e) {}
+      try { await secureExec(['chown', identity.userId, privateTmp], { role: 'admin' }); } catch (e) {}
       
       if (resolved === '/tmp' || resolved === '/var/tmp') {
         resolved = privateTmp;
@@ -266,7 +264,7 @@ export async function getFileInfo({ filePath }, identity) {
   let checksum = null;
   if (stat.isFile() && stat.size < 100 * 1024 * 1024) {
     try {
-      const { stdout } = await execFileAsync('sha256sum', [safe]);
+      const { stdout } = await secureExec(['sha256sum', safe], identity);
       checksum = stdout.split(' ')[0];
     } catch { /* ignore */ }
   }
@@ -298,7 +296,7 @@ export async function searchFiles({ searchPath, pattern, maxResults = 50, fileTy
   if (fileType === 'directory') args.push('-type', 'd');
   args.push('-maxdepth', '10');
 
-  const { stdout } = await execFileAsync('find', args, { timeout: 30000 });
+  const { stdout } = await secureExec(['find', ...args], identity, { timeout: 30000 });
   const results = stdout.trim().split('\n').filter(Boolean).slice(0, maxResults);
   return { results, count: results.length };
 }

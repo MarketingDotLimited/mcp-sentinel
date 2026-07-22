@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { AcmeManager } from './lib/acme.js';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -34,6 +35,11 @@ import { getSystemInfo, getProcesses, killProcess } from './tools/system.js';
 import { readFile, writeFile, deleteFile, listDirectory, moveFile, copyFile, getFileInfo, searchFiles } from './tools/files.js';
 import { manageService, getServiceStatus, listServices, getJournalLogs, manageFirewall } from './tools/services.js';
 import { listUsers, getUserInfo, createUser, deleteUser, setUserPassword, modifyUser, manageSshKeys } from './tools/users.js';
+import { runSandboxedCode } from './tools/docker.js';
+import { applyConfig, listConfigBackups, restoreConfig } from './tools/rollback.js';
+import { gitOperation } from './tools/git.js';
+import { executeQuery } from './tools/db.js';
+import { monitor } from './lib/monitor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '4444');
@@ -239,6 +245,7 @@ app.get('/mcp', authenticateJWT, (req, res) => {
 
   res.on('close', () => {
     activeTransports.delete(sessionId);
+    monitor.unsubscribeAll(sessionId);
     mcpServer.close().catch(() => {});
   });
 
@@ -475,6 +482,81 @@ function createMcpServer(identity, ip) {
     keyIndex: z.number().int().nonnegative().optional().describe('Key index to remove (for remove action, use list first)'),
   }, manageSshKeys);
 
+  // ── Docker Sandboxing ────────────────────────────────────
+
+  tool('run_sandboxed_code', 'Run arbitrary code in an ephemeral, hardened Docker container.', {
+    language: z.enum(['python', 'node', 'bash']).describe('Language to run'),
+    code: z.string().max(102400).describe('Code to execute'),
+    allowNetwork: z.boolean().optional().describe('Allow outbound network access (default: false)'),
+    timeout: z.number().int().positive().max(120).optional().describe('Timeout in seconds (default: 30)'),
+    files: z.record(z.string()).optional().describe('Optional key-value map of filename:content to inject into the workspace'),
+  }, runSandboxedCode);
+
+  // ── Rollback Tools (Admin only) ──────────────────────────
+
+  tool('apply_config', 'Safely edit a configuration file, restart a service, and rollback if the service fails to start. Admin only.', {
+    filePath: z.string().max(4096).describe('Absolute path to the config file'),
+    newContent: z.string().max(5 * 1024 * 1024).describe('New file contents'),
+    serviceName: z.string().max(4096).describe('systemd service to validate against'),
+    syntaxCheckCmd: z.array(z.string()).optional().describe('Optional syntax check command (e.g. ["nginx", "-t", "-c", "%s"])'),
+    healthCheckTimeout: z.number().int().positive().max(60).optional().describe('Seconds to wait for service health (default: 15)'),
+    confirm: z.boolean().describe('Must be true to execute'),
+  }, applyConfig);
+
+  tool('list_config_backups', 'List available backups for a given file path. Admin only.', {
+    filePath: z.string().max(4096).describe('Absolute path to the config file'),
+  }, listConfigBackups);
+
+  tool('restore_config', 'Manually restore a specific config backup by timestamp. Admin only.', {
+    filePath: z.string().max(4096).describe('Absolute path to the config file'),
+    timestamp: z.string().max(4096).describe('Timestamp of the backup to restore'),
+    confirm: z.boolean().describe('Must be true to execute'),
+  }, restoreConfig);
+
+  // ── Git & DB Tools ───────────────────────────────────────
+
+  tool('git_operation', 'Execute Git operations in allowed repositories.', {
+    repoPath: z.string().max(4096).describe('Path to git repository'),
+    action: z.enum(['status', 'diff', 'log', 'branch', 'checkout', 'add', 'commit', 'pull', 'push']).describe('Git action'),
+    args: z.record(z.any()).optional().describe('Action-specific arguments (e.g. { message: "msg" })'),
+  }, gitOperation);
+
+  tool('execute_query', 'Execute a SQL query against a configured database alias.', {
+    alias: z.string().max(4096).describe('Configured database alias (e.g. "production")'),
+    query: z.string().max(102400).describe('SQL query string with ? placeholders for params'),
+    params: z.array(z.any()).optional().describe('Parameters for the query placeholders'),
+    confirm: z.boolean().optional().describe('Must be true for write queries'),
+  }, executeQuery);
+
+  // ── Pub/Sub Alert Tools ──────────────────────────────────
+
+  tool('subscribe_to_alert', 'Subscribe to a system alert. Will send an MCP resource list_changed notification when triggered.', {
+    alertType: z.enum(['cpu_threshold', 'memory_threshold', 'disk_threshold']).describe('Type of alert'),
+    threshold: z.number().positive().max(100).describe('Threshold percentage (e.g. 90 for 90%)'),
+    cooldownSeconds: z.number().int().positive().optional().describe('Minimum seconds between repeated alerts (default: 300)'),
+  }, async ({ alertType, threshold, cooldownSeconds }, identity) => {
+    // Find the current session id from activeTransports using identity
+    const sessionEntry = Array.from(activeTransports.entries()).find(([_, s]) => s.identity?.userId === identity.userId && s.ip === ip);
+    if (!sessionEntry) throw new Error('Session not found');
+    const id = monitor.subscribe(sessionEntry[0], alertType, threshold, cooldownSeconds);
+    return `Subscribed to ${alertType} at ${threshold}%. Alert ID: ${id}`;
+  });
+
+  tool('unsubscribe_from_alert', 'Unsubscribe from an active alert by ID.', {
+    alertId: z.string().max(4096).describe('Alert ID returned from subscribe_to_alert'),
+  }, async ({ alertId }, identity) => {
+    const sessionEntry = Array.from(activeTransports.entries()).find(([_, s]) => s.identity?.userId === identity.userId && s.ip === ip);
+    if (!sessionEntry) throw new Error('Session not found');
+    monitor.unsubscribe(sessionEntry[0], alertId);
+    return `Unsubscribed from ${alertId}`;
+  });
+
+  tool('list_active_alerts', 'List your active alert subscriptions.', {}, async (_, identity) => {
+    const sessionEntry = Array.from(activeTransports.entries()).find(([_, s]) => s.identity?.userId === identity.userId && s.ip === ip);
+    if (!sessionEntry) return { alerts: [] };
+    return { alerts: monitor.getActiveAlerts(sessionEntry[0]) };
+  });
+
   return server;
 }
 
@@ -548,15 +630,64 @@ function validateConfig() {
 
 validateConfig();
 
-const server = USE_HTTPS ? createHttpsServer() : http.createServer(app);
+let acmeManager = null;
+let server;
 
-server.listen(PORT, HOST, () => {
-  const protocol = USE_HTTPS ? 'https' : 'http';
-  logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
+async function startServer() {
+  if (USE_HTTPS && process.env.ACME_DOMAIN && process.env.ACME_EMAIL) {
+    console.log(`[ACME] Initializing Let's Encrypt for ${process.env.ACME_DOMAIN}...`);
+    acmeManager = new AcmeManager(process.env.ACME_DOMAIN, process.env.ACME_EMAIL);
+    await acmeManager.init();
+    
+    const acmePort = parseInt(process.env.ACME_CHALLENGE_PORT || '80', 10);
+    const acmeApp = express();
+    acmeApp.get('/.well-known/acme-challenge/:token', (req, res) => {
+      const response = acmeManager.getChallengeResponse(req.params.token);
+      if (response) res.send(response);
+      else res.status(404).send('Not found');
+    });
+    acmeApp.use((req, res) => {
+      res.redirect(`https://${process.env.ACME_DOMAIN}${req.url}`);
+    });
+    
+    http.createServer(acmeApp).listen(acmePort, HOST, () => {
+      console.log(`[ACME] Challenge server listening on port ${acmePort}`);
+    });
 
-  const currentVersion = process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
+    try {
+      await acmeManager.checkAndRenew();
+      process.env.TLS_CERT_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.crt');
+      process.env.TLS_KEY_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.key');
+      
+      setInterval(async () => {
+        try {
+          await acmeManager.checkAndRenew();
+          if (server && typeof server.setSecureContext === 'function') {
+            server.setSecureContext({
+              cert: fs.readFileSync(process.env.TLS_CERT_PATH),
+              key: fs.readFileSync(process.env.TLS_KEY_PATH),
+              minVersion: 'TLSv1.2',
+            });
+            console.log('[ACME] TLS context hot-reloaded');
+          }
+        } catch (err) {
+          console.error('[ACME] Auto-renew failed:', err);
+        }
+      }, 86400000);
+    } catch (err) {
+      console.error('[ACME] Provisioning failed, falling back to self-signed certs:', err);
+    }
+  }
 
-  console.log(`
+  server = USE_HTTPS ? createHttpsServer() : http.createServer(app);
+
+  server.listen(PORT, HOST, () => {
+    const protocol = USE_HTTPS ? 'https' : 'http';
+    logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
+
+    const currentVersion = process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version;
+
+    console.log(`
 ╔══════════════════════════════════════════════════════╗
 ║           MCP Sentinel - v${currentVersion.padEnd(27)}║
 ╠══════════════════════════════════════════════════════╣
@@ -569,7 +700,25 @@ server.listen(PORT, HOST, () => {
 ║  Security: IP Whitelist + API Key + JWT + Rate Limit ║
 ║  Logs    : ./logs/                                   ║
 ╚══════════════════════════════════════════════════════╝
-  `);
+    `);
+  });
+
+  // Start the background monitor
+  monitor.start((sessionId, notification) => {
+    const session = activeTransports.get(sessionId);
+    if (session && session.mcpServer && typeof session.mcpServer.server.notification === 'function') {
+      try {
+        session.mcpServer.server.notification(notification);
+      } catch (e) {
+        console.error('[Monitor] Failed to send notification', e);
+      }
+    }
+  });
+}
+
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
 
 // ── Graceful Shutdown ──────────────────────────────────────
@@ -583,15 +732,19 @@ function gracefulShutdown(signal) {
     try { session.transport.close?.(); } catch {}
     activeTransports.delete(id);
   }
-  server.close(() => {
-    console.log('Server closed. Flushing logs...');
-    import('./audit.js').then(({ shutdownLoggers }) => {
-      shutdownLoggers(() => {
-        console.log('Goodbye.');
-        process.exit(0);
-      });
-    }).catch(() => process.exit(0));
-  });
+  if (server) {
+    server.close(() => {
+      console.log('Server closed. Flushing logs...');
+      import('./audit.js').then(({ shutdownLoggers }) => {
+        shutdownLoggers(() => {
+          console.log('Goodbye.');
+          process.exit(0);
+        });
+      }).catch(() => process.exit(0));
+    });
+  } else {
+    process.exit(0);
+  }
   setTimeout(() => process.exit(1), 10000);
 }
 

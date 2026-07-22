@@ -1,11 +1,9 @@
 // ============================================================
 //  tools/system.js - System Information & Command Execution
 // ============================================================
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import os from 'os';
+import { secureExec } from '../lib/exec.js';
 
-const execFileAsync = promisify(execFile);
 const MAX_OUTPUT = parseInt(process.env.MAX_OUTPUT_SIZE || '1048576');
 
 // ── Tool: get_system_info ──────────────────────────────────
@@ -13,13 +11,13 @@ const MAX_OUTPUT = parseInt(process.env.MAX_OUTPUT_SIZE || '1048576');
 export async function getSystemInfo(_, identity) {
   const isAd = identity.role === 'admin';
   const tasks = [
-    execFileAsync('uptime', ['-p']),
-    execFileAsync('free', ['-h']),
-    execFileAsync('cat', ['/proc/loadavg']),
+    secureExec(['uptime', '-p'], identity),
+    secureExec(['free', '-h'], identity),
+    secureExec(['cat', '/proc/loadavg'], identity),
   ];
   if (isAd) {
-    tasks.push(execFileAsync('df', ['-h', '--output=source,fstype,size,used,avail,pcent,target']));
-    tasks.push(execFileAsync('who'));
+    tasks.push(secureExec(['df', '-h', '--output=source,fstype,size,used,avail,pcent,target'], identity));
+    tasks.push(secureExec(['who'], identity));
   }
 
   const results = await Promise.allSettled(tasks);
@@ -71,7 +69,7 @@ export async function getProcesses({ filter, asUser }, identity) {
     psArgs = ['-u', identity.userId, '--sort=-%cpu', '-o', 'pid,ppid,user,%cpu,%mem,vsz,rss,stat,start,time,cmd'];
   }
 
-  const { stdout } = await execFileAsync('ps', psArgs);
+  const { stdout } = await secureExec(['ps', ...psArgs], identity);
   let output = stdout.trim();
 
   if (filter) {
@@ -96,9 +94,9 @@ export async function killProcess({ pid, signal = 'TERM' }, identity) {
 
   // Non-admin can only kill their own processes
   if (identity.role !== 'admin') {
-    const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'uid=']);
+    const { stdout } = await secureExec(['ps', '-p', String(pid), '-o', 'uid='], identity);
     const ownerUid = stdout.trim();
-    const { stdout: idOut } = await execFileAsync('id', ['-u', identity.userId]);
+    const { stdout: idOut } = await secureExec(['id', '-u', identity.userId], { role: 'admin' }); // id needs to be run as admin or the user themselves
     const callerUid = idOut.trim();
 
     if (ownerUid !== callerUid) {
@@ -106,7 +104,7 @@ export async function killProcess({ pid, signal = 'TERM' }, identity) {
     }
   }
 
-  const { stdout, stderr } = await execFileAsync('kill', [`-${signal.toUpperCase()}`, String(pid)]);
+  const { stdout, stderr } = await secureExec(['kill', `-${signal.toUpperCase()}`, String(pid)], identity);
   return { success: true, message: `Signal ${signal} sent to PID ${pid}` };
 }
 

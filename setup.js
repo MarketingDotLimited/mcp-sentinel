@@ -47,8 +47,20 @@ async function main() {
   }
   const serverIp = await ask('Server IP or Hostname [127.0.0.1]: ') || '127.0.0.1';
 
-  // 3. Generate self-signed cert if HTTPS
+  let acmeDomain = '';
+  let acmeEmail = '';
+  let acmePort = '80';
   if (useHttps) {
+    const useAcme = (await ask('Configure Let\'s Encrypt auto-TLS? (requires domain pointing to this server and port 80 open) [y/N]: ')).toLowerCase() === 'y';
+    if (useAcme) {
+      acmeDomain = await ask('  Domain name (e.g. mcp.example.com): ');
+      acmeEmail = await ask('  Email address (for expiry notices): ');
+      acmePort = await ask('  Challenge server port (must be accessible externally on port 80 via port-forwarding or directly) [80]: ') || '80';
+    }
+  }
+
+  // 3. Generate self-signed cert if HTTPS
+  if (useHttps && !acmeDomain) {
     console.log('\n📜 Generating self-signed TLS certificate...');
     try {
       await fs.mkdir(path.join(__dirname, 'certs'), { recursive: true });
@@ -66,6 +78,8 @@ async function main() {
       console.error('⚠️  openssl not found. Install openssl or set USE_HTTPS=false');
       process.exit(1);
     }
+  } else if (useHttps && acmeDomain) {
+    console.log('\n📜 Let\'s Encrypt auto-TLS will provision certificates on first run.');
   }
 
   // 4. Check if .env exists
@@ -89,6 +103,10 @@ NODE_ENV=production
 TLS_CERT_PATH=./certs/server.crt
 TLS_KEY_PATH=./certs/server.key
 USE_HTTPS=${useHttps}
+
+ACME_DOMAIN=${acmeDomain}
+ACME_EMAIL=${acmeEmail}
+ACME_CHALLENGE_PORT=${acmePort}
 
 JWT_SECRET=${jwtSecret}
 JWT_EXPIRY=8h

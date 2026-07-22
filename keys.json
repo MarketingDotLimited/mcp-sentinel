@@ -1,0 +1,15 @@
+{
+  "b100059349b7ebe6f35ec6b2d120ff1da2caf31c9e5a5c0af8c21a8e727bba33": {
+    "keyId": "7a6669f7-70bf-4e4f-acde-a7df9718020f",
+    "version": 1,
+    "createdAt": "2026-07-22T00:32:34.949Z",
+    "userId": "admin",
+    "role": "admin",
+    "allowedIPs": [],
+    "scopes": [
+      "*"
+    ],
+    "active": true,
+    "label": "Master Admin Key"
+  }
+}
