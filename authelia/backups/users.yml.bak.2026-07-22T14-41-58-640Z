@@ -1,0 +1,13 @@
+users:
+  admin:
+    displayname: Admin
+    password: $argon2id$v=19$m=65536,t=3,p=4$9gAcHe5xYD0HQ0wgH5NMyQ$k4ezDsjF1SLlxTsRyMzOuVIKC3YABtOaxti92KtT9VI
+    email: admin@begin.shopping
+    groups:
+      - admins
+  rabeeb:
+    displayname: rabeeb
+    password: $argon2id$v=19$m=65536,t=3,p=4$q+kghu0Oepx40v2IApAkWQ$ys8f2aFiXpHpMRvDCzUszEaf+25qhupJXWxHsfUXg4w
+    email: info@rabeeb.com
+    groups:
+      - users

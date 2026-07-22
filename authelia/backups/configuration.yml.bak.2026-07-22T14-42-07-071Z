@@ -7,7 +7,7 @@ log:
   level: info
 authentication_backend:
   file:
-    path: /root/mcp-server/authelia/users.yml
+    path: /etc/authelia/users.yml
 identity_validation:
   reset_password:
     jwt_secret: W8e2j4zT3pQ9y6nK1vM5xR7cB0aL4gD2
@@ -22,10 +22,10 @@ session:
 storage:
   encryption_key: M90BfBZVBFqpDevUFK5U1gsLq8zZHS1asKsx/yj3eUw=
   local:
-    path: /root/mcp-server/authelia/db.sqlite3
+    path: /var/lib/authelia/db.sqlite3
 notifier:
   filesystem:
-    filename: /root/mcp-server/authelia/notification.txt
+    filename: /var/lib/authelia/notification.txt
 access_control:
   default_policy: bypass
   rules:
@@ -112,7 +112,6 @@ identity_providers:
           - authorization_code
           - refresh_token
         token_endpoint_auth_method: client_secret_basic
-        access_token_signed_response_alg: RS256
         userinfo_signed_response_alg: none
       - client_id: chatgpt-1
         client_name: chatgpt
@@ -138,4 +137,19 @@ identity_providers:
           - refresh_token
         token_endpoint_auth_method: client_secret_basic
         userinfo_signed_response_alg: none
+        access_token_signed_response_alg: RS256
+      - client_id: test-client
+        client_name: test
+        client_secret: $argon2id$v=19$m=65536,t=3,p=4$Hrk96ldgOGzC1JxB7IOr2g$l2cNFBRzEc4+wxK+/zaxEv9Tn+inuuduJqTWv4lvmyg
+        public: false
+        authorization_policy: one_factor
+        audience:
+          - https://begin.shopping:2053
+        scopes:
+          - groups
+        response_types:
+          - token
+        grant_types:
+          - client_credentials
+        token_endpoint_auth_method: client_secret_basic
         access_token_signed_response_alg: RS256

@@ -1,16 +1,20 @@
 server:
-  address: tcp://0.0.0.0:2083
+  address: 'tcp://0.0.0.0:2083'
   tls:
-    key: /opt/psa/var/certificates/scfQJcRt2
-    certificate: /opt/psa/var/certificates/scfQJcRt2
+    key: '/opt/psa/var/certificates/scfQJcRt2'
+    certificate: '/opt/psa/var/certificates/scfQJcRt2'
+
 log:
   level: info
+
 authentication_backend:
   file:
-    path: /root/mcp-server/authelia/users.yml
+    path: /etc/authelia/users.yml
+
 identity_validation:
   reset_password:
-    jwt_secret: W8e2j4zT3pQ9y6nK1vM5xR7cB0aL4gD2
+    jwt_secret: 'W8e2j4zT3pQ9y6nK1vM5xR7cB0aL4gD2'
+
 session:
   name: authelia_session
   secret: MBND1Dd/BEBE7nTI9Ww+9lNdMEmNkdcAy7HBAnH1DxY=
@@ -19,18 +23,22 @@ session:
   cookies:
     - domain: begin.shopping
       authelia_url: https://begin.shopping:2083
+
 storage:
   encryption_key: M90BfBZVBFqpDevUFK5U1gsLq8zZHS1asKsx/yj3eUw=
   local:
-    path: /root/mcp-server/authelia/db.sqlite3
+    path: /var/lib/authelia/db.sqlite3
+
 notifier:
   filesystem:
-    filename: /root/mcp-server/authelia/notification.txt
+    filename: /var/lib/authelia/notification.txt
+
 access_control:
   default_policy: bypass
   rules:
     - domain: begin.shopping
       policy: bypass
+
 identity_providers:
   oidc:
     hmac_secret: kexATnWZ2wlHYFeX3JI4p7tOan5cFzQ6wCyrggs0ZoI=
@@ -94,38 +102,14 @@ identity_providers:
         client_secret: $argon2id$v=19$m=65536,t=3,p=4$AKWfcixhhDGg3IJj8ZvCvQ$Syurf9wo1Ji+kGx91IBZjYdoX0Nn4Q1kP/0Z/ndNd14
         public: false
         authorization_policy: one_factor
+        # ChatGPT uses this confidential client with client_secret_basic and
+        # does not send a PKCE code_challenge during connector authorization.
         require_pkce: false
         pkce_challenge_method: ''
         redirect_uris:
           - https://chatgpt.com/connector/oauth/L1idYvVS5KW1
         audience:
           - https://begin.shopping:2053
-          - chatgpt
-        scopes:
-          - openid
-          - profile
-          - email
-          - offline_access
-        response_types:
-          - code
-        grant_types:
-          - authorization_code
-          - refresh_token
-        token_endpoint_auth_method: client_secret_basic
-        access_token_signed_response_alg: RS256
-        userinfo_signed_response_alg: none
-      - client_id: chatgpt-1
-        client_name: chatgpt
-        client_secret: $argon2id$v=19$m=65536,t=3,p=4$Hrk96ldgOGzC1JxB7IOr2g$l2cNFBRzEc4+wxK+/zaxEv9Tn+inuuduJqTWv4lvmyg
-        public: false
-        authorization_policy: one_factor
-        require_pkce: false
-        pkce_challenge_method: ''
-        redirect_uris:
-          - https://chatgpt.com/connector/oauth/L1idYvVS5KW1
-        audience:
-          - https://begin.shopping:2053
-          - chatgpt-1
         scopes:
           - openid
           - profile
@@ -138,4 +122,3 @@ identity_providers:
           - refresh_token
         token_endpoint_auth_method: client_secret_basic
         userinfo_signed_response_alg: none
-        access_token_signed_response_alg: RS256
