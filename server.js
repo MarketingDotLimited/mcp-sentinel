@@ -229,6 +229,19 @@ app.get('/admin/stats', authenticateJWT, (req, res) => {
   });
 });
 
+app.get('/admin/os-users', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+  try {
+    const { listUsers } = await import('./tools/users.js');
+    const result = await listUsers({ includeSystem: false }, req.identity);
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/admin/logs', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
