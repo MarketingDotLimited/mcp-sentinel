@@ -1,0 +1,16 @@
+{
+  "configs": {
+    "nginx-mcp": {
+      "path": "/etc/nginx/nginx.conf",
+      "service": "nginx",
+      "validator": "nginx",
+      "healthUrl": "https://mcp.example.com/health"
+    },
+    "sentinel-policy": {
+      "path": "/etc/mcp-sentinel/policy.json",
+      "service": "mcp-sentinel",
+      "validator": "json",
+      "healthUrl": "https://mcp.example.com/health"
+    }
+  }
+}

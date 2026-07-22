@@ -1,7 +1,7 @@
 // ============================================================
 //  tools/services.js - systemd Service Management (Admin Only)
 // ============================================================
-import { secureExec } from '../lib/exec.js';
+import { brokerCall } from '../lib/broker-client.js';
 
 function requireAdmin(identity) {
   if (identity.role !== 'admin') {
@@ -28,12 +28,12 @@ export async function manageService({ service, action }, identity) {
   if (!service || !action) throw new Error('service and action are required');
   validateServiceName(service);
 
-  const allowedActions = ['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'status', 'is-active'];
+  const allowedActions = ['start', 'stop', 'restart', 'reload', 'status', 'is-active'];
   if (!allowedActions.includes(action)) {
     throw new Error(`Invalid action. Use one of: ${allowedActions.join(', ')}`);
   }
 
-  const { stdout, stderr } = await secureExec(['systemctl', action, '--', service], identity, { timeout: 30000 });
+  const { stdout, stderr } = await brokerCall('service.action', { service, action });
 
   return {
     service,
@@ -49,19 +49,17 @@ export async function getServiceStatus({ service }, identity) {
   if (!service) throw new Error('service is required');
   validateServiceName(service);
 
-  const [statusOut, activeOut, enabledOut, logsOut] = await Promise.allSettled([
-    secureExec(['systemctl', 'status', service, '--no-pager', '-l'], identity),
-    secureExec(['systemctl', 'is-active', service], identity),
-    secureExec(['systemctl', 'is-enabled', service], identity),
-    secureExec(['journalctl', '-u', service, '-n', '20', '--no-pager', '--output=short'], identity),
+  const [status, logs] = await Promise.all([
+    brokerCall('service.status', { service }),
+    brokerCall('journal.read', { service, lines: 20 }),
   ]);
 
   return {
     service,
-    active: activeOut.value?.stdout?.trim() || 'unknown',
-    enabled: enabledOut.value?.stdout?.trim() || 'unknown',
-    status_output: statusOut.value?.stdout?.trim() || statusOut.reason?.message || '',
-    recent_logs: logsOut.value?.stdout?.trim() || 'No logs available',
+    active: status.active || 'unknown',
+    enabled: status.enabled || 'unknown',
+    status_output: status.status || '',
+    recent_logs: logs.stdout || 'No logs available',
   };
 }
 
@@ -70,12 +68,7 @@ export async function getServiceStatus({ service }, identity) {
 export async function listServices({ filter, state }, identity) {
   requireAdmin(identity);
 
-  const args = ['list-units', '--type=service', '--no-pager', '--all', '--plain'];
-  if (state) args.push(`--state=${state}`);
-
-  const { stdout } = await secureExec(['systemctl', ...args], identity, { timeout: 15000 }).catch(err => ({
-    stdout: err.stdout || '',
-  }));
+  const { stdout } = await brokerCall('service.list', state ? { state } : {});
 
   let lines = stdout.trim().split('\n').filter(Boolean);
 
@@ -92,32 +85,23 @@ export async function getJournalLogs({ service, lines = 50, since, priority }, i
   requireAdmin(identity);
 
   const validLines = Math.max(1, Math.min(Math.floor(lines), 500));
-  const args = ['--no-pager', '--output=short-iso', `-n`, String(validLines)];
-
-  if (service) {
-    validateServiceName(service);
-    args.push('-u', service);
-  }
-  if (since) {
-    if (!/^[0-9a-zA-Z\s\-:]+$/.test(since)) throw new Error('Invalid since format');
-    args.push('--since', since);
-  }
-  if (priority) args.push('-p', priority); // emerg,alert,crit,err,warning,notice,info,debug
-
-  const { stdout, stderr } = await secureExec(['journalctl', ...args], identity, { timeout: 20000 }).catch(err => ({
-    stdout: err.stdout || '',
-    stderr: err.stderr || '',
-  }));
+  if (service) validateServiceName(service);
+  const { stdout, stderr } = await brokerCall('journal.read', {
+    ...(service ? { service } : {}),
+    lines: validLines,
+    ...(since ? { since } : {}),
+    ...(priority ? { priority } : {}),
+  });
 
   return { logs: stdout.trim() || 'No logs found', stderr: stderr?.trim() };
 }
 
 // ── Tool: manage_firewall ──────────────────────────────────
 
-export async function manageFirewall({ action, port, protocol = 'tcp', rule }, identity) {
+export async function manageFirewall({ action, port, protocol = 'tcp', rule, rollbackId }, identity) {
   requireAdmin(identity);
 
-  const allowedActions = ['status', 'enable', 'disable', 'allow', 'deny', 'delete', 'list'];
+  const allowedActions = ['status', 'allow', 'deny', 'delete', 'list', 'confirm'];
 
   if (!allowedActions.includes(action)) {
     throw new Error(`Invalid firewall action. Use one of: ${allowedActions.join(', ')}`);
@@ -128,32 +112,30 @@ export async function manageFirewall({ action, port, protocol = 'tcp', rule }, i
     if (isNaN(p) || p < 1 || p > 65535) throw new Error('Port must be between 1 and 65535');
   }
 
-  let command, args;
-
   if (action === 'status' || action === 'list') {
-    command = 'ufw';
-    args = ['status', 'verbose'];
-  } else if (action === 'enable') {
-    command = 'ufw';
-    args = ['--force', 'enable'];
-  } else if (action === 'disable') {
-    command = 'ufw';
-    args = ['disable'];
-  } else if (action === 'allow' && port) {
-    command = 'ufw';
-    args = ['allow', `${port}/${protocol}`];
-  } else if (action === 'deny' && port) {
-    command = 'ufw';
-    args = ['deny', `${port}/${protocol}`];
-  } else if (action === 'delete' && port && rule) {
+    const { stdout, stderr } = await brokerCall('firewall.status', {});
+    return { action, output: stdout || stderr };
+  }
+  if (action === 'confirm') {
+    if (!rollbackId) throw new Error('rollbackId is required to confirm a firewall change');
+    return brokerCall('firewall.confirm', { rollbackId });
+  }
+  if (action === 'delete' && !rule) {
+    throw new Error('Rule must be allow or deny for delete action');
+  }
+  if (action === 'delete' && port && rule) {
     if (!['allow', 'deny'].includes(rule)) throw new Error('Rule must be allow or deny for delete action');
-    command = 'ufw';
-    args = ['delete', rule, `${port}/${protocol}`];
-  } else {
+  }
+  if (!port) {
     throw new Error('Invalid combination of action and parameters');
   }
+  const result = await brokerCall('firewall.rule', { action, port: Number(port), protocol, rule });
+  const { stdout, stderr } = result;
 
-  const { stdout, stderr } = await secureExec([command, ...args], identity, { timeout: 15000 });
-
-  return { action, output: stdout.trim() || stderr.trim() };
+  return {
+    action,
+    output: stdout.trim() || stderr.trim(),
+    rollbackId: result.rollbackId,
+    rollbackAt: result.rollbackAt,
+  };
 }

@@ -1,0 +1,34 @@
+{
+  "rabeeb-read": {
+    "driver": "mysql",
+    "mode": "read",
+    "host": "database.example.internal",
+    "port": 3306,
+    "database": "rabeeb",
+    "user": "mcp_rabeeb_readonly",
+    "passwordCredential": "db-rabeeb-read-password",
+    "tls": {
+      "rejectUnauthorized": true,
+      "caFile": "/etc/mcp-sentinel/database-ca/internal-ca.pem"
+    },
+    "maxRows": 100,
+    "maxBytes": 1048576,
+    "queryTimeout": 10000
+  },
+  "rabeeb-write": {
+    "driver": "mysql",
+    "mode": "write",
+    "host": "database.example.internal",
+    "port": 3306,
+    "database": "rabeeb",
+    "user": "mcp_rabeeb_writer",
+    "passwordCredential": "db-rabeeb-write-password",
+    "tls": {
+      "rejectUnauthorized": true,
+      "caFile": "/etc/mcp-sentinel/database-ca/internal-ca.pem"
+    },
+    "maxRows": 100,
+    "maxBytes": 1048576,
+    "queryTimeout": 10000
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "project": {
+    "id": "436b432a-206b-43cd-abfa-6291dbef0c50",
+    "legacyIds": ["rabeeb-main"],
+    "name": "Rabeeb Platform",
+    "rootPath": "/var/www/vhosts/rabeeb.com/httpdocs",
+    "repoPath": "/var/www/vhosts/rabeeb.com/httpdocs",
+    "runAsUser": "rabeeb.com_07v7ld45234",
+    "environment": "production",
+    "serviceName": "",
+    "healthUrl": "https://rabeeb.com/health",
+    "testDatabase": "rabeeb_test",
+    "permittedTasks": ["artisan", "phpunit", "pest", "composer-validate", "frontend", "playwright"],
+    "permittedGitActions": ["status", "diff", "log", "branch", "checkout", "add", "commit", "pull", "push"],
+    "protectedPaths": ["storage/oauth-private.key", "config/secrets"],
+    "allowRecursiveDelete": false,
+    "allowWholeRepoStage": false,
+    "allowFullSuite": false,
+    "testNetworkHosts": []
+  },
+  "oauthMapping": {
+    "linuxUser": "rabeeb.com_07v7ld45234",
+    "role": "developer",
+    "scopes": ["system.*", "files.*", "git.*", "projects.*", "workflows.*", "monitor.*"],
+    "requireApproval": true,
+    "projectIds": ["436b432a-206b-43cd-abfa-6291dbef0c50"],
+    "authorizationVersion": 2,
+    "clients": {
+      "YOUR_RABEEB_CHATGPT_CLIENT_ID": {
+        "role": "developer",
+        "scopes": ["system.*", "files.*", "git.*", "projects.*", "workflows.*", "monitor.*"],
+        "requireApproval": true,
+        "projectIds": ["436b432a-206b-43cd-abfa-6291dbef0c50"]
+      }
+    }
+  }
+}

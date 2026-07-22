@@ -29,6 +29,17 @@ export default [
     },
   },
   {
-    ignores: ['node_modules/**', 'public/css/**', 'certs/**', 'logs/**', '.playwright-mcp/**'],
+    ignores: [
+      'node_modules/**',
+      'public/css/**',
+      'certs/**',
+      'logs/**',
+      'coverage/**',
+      '.playwright-mcp/**',
+      'patch_*.js',
+      'test-ui.js',
+      'test_mcp*.js',
+      'test_tool.mjs',
+    ],
   },
 ];

@@ -1,5 +1,5 @@
 server:
-  address: 'tcp://0.0.0.0:2083'
+  address: 'tcp://127.0.0.1:9091'
   tls:
     key: '${TLS_KEY_PATH}'
     certificate: '${TLS_CERT_PATH}'
@@ -9,7 +9,7 @@ log:
 
 authentication_backend:
   file:
-    path: /etc/authelia/users.yml
+    path: /etc/mcp-sentinel/users.yml
 
 identity_validation:
   reset_password:
@@ -27,11 +27,11 @@ session:
 storage:
   encryption_key: '${AUTHELIA_ENCRYPTION_KEY}'
   local:
-    path: /var/lib/authelia/db.sqlite3
+    path: /var/lib/mcp-sentinel/authelia.sqlite3
 
 notifier:
   filesystem:
-    filename: /var/lib/authelia/notification.txt
+    filename: /var/lib/mcp-sentinel/authelia-notification.txt
 
 access_control:
   default_policy: bypass
@@ -55,8 +55,7 @@ identity_providers:
         redirect_uris:
           - https://chatgpt.com/aip/plugin/callback
         audience:
-          - https://begin.shopping:2053
-          - chatgpt
+          - '${OAUTH_RESOURCE_URL}'
         scopes:
           - openid
           - profile

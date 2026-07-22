@@ -1,0 +1,30 @@
+[Unit]
+Description=MCP Sentinel typed privilege broker
+Before=mcp-sentinel.service
+
+[Service]
+Type=simple
+User=root
+Group=mcp-sentinel
+WorkingDirectory=/opt/mcp-sentinel
+ExecStart=/usr/bin/node /opt/mcp-sentinel/broker.js
+EnvironmentFile=/etc/mcp-sentinel/broker-environment
+UMask=0007
+RuntimeDirectory=mcp-sentinel
+RuntimeDirectoryMode=0750
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

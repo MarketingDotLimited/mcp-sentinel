@@ -1,0 +1,41 @@
+[Unit]
+Description=MCP Sentinel public API
+After=network-online.target mcp-sentinel-broker.service
+Wants=network-online.target
+Requires=mcp-sentinel-broker.service
+
+[Service]
+Type=simple
+User=mcp-sentinel
+Group=mcp-sentinel
+WorkingDirectory=/opt/mcp-sentinel
+ExecStart=/usr/bin/node /opt/mcp-sentinel/server.js
+EnvironmentFile=/etc/mcp-sentinel/environment
+LoadCredential=state-key:/etc/mcp-sentinel/credentials/state-key
+LoadCredentialGlob=state-key-*:/etc/mcp-sentinel/credentials/state-key-*
+LoadCredential=audit-key:/etc/mcp-sentinel/credentials/audit-key
+LoadCredentialGlob=db-*:/etc/mcp-sentinel/credentials/db-*
+UMask=0077
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/mcp-sentinel /var/log/mcp-sentinel /run/mcp-sentinel
+RuntimeDirectory=mcp-sentinel
+RuntimeDirectoryMode=0750
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

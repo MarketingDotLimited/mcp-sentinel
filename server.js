@@ -12,12 +12,15 @@ import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { AcmeManager } from './lib/acme.js';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import authRouter from './routes/auth.js';
 import coreRouter from './routes/core.js';
 
@@ -33,11 +36,20 @@ import {
   getRoleTemplates,
   scopeAllows,
   getClientIP,
+  updateApiKey,
+  SCOPE_GROUPS,
 } from './security.js';
 
-import { logAccess, logError, logServerStart, logSecurityEvent } from './audit.js';
+import { getAuditChainStatus, logAccess, logError, logServerStart, logSecurityEvent } from './audit.js';
 
-import { getSystemInfo, getProcesses, killProcess } from './tools/system.js';
+import {
+  getSystemInfo,
+  getProcesses,
+  killProcess,
+  runProjectTests,
+  getProjectTestRun,
+  cancelProjectTestRun,
+} from './tools/system.js';
 import {
   readFile,
   writeFile,
@@ -63,6 +75,8 @@ import { applyConfig, listConfigBackups, restoreConfig } from './tools/rollback.
 import { gitOperation } from './tools/git.js';
 import { executeQuery } from './tools/db.js';
 import { monitor } from './lib/monitor.js';
+import { brokerCall } from './lib/broker-client.js';
+import { getAdminState, setAdminState } from './lib/admin-state.js';
 import { evaluatePolicy, getPolicyStatus } from './lib/policy.js';
 import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } from './lib/capabilities.js';
 import {
@@ -78,6 +92,7 @@ import {
   createWebhook,
   decideApproval,
   deliverWebhook,
+  exportLegacyState,
   getDeploymentPlan,
   getProject,
   getWorkflowCatalog,
@@ -103,8 +118,7 @@ import {
   addOAuthClient,
   deleteOAuthClient,
   getAutheliaHealth,
-  forceRestartAuthelia,
-} from './lib/authelia.js';
+} from './lib/authelia-client.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '4444');
@@ -191,6 +205,75 @@ async function buildSecurityPosture() {
       ? `${approvalKeys} API key(s) require approval for risky actions.`
       : 'No API keys currently require approval for risky actions.'
   );
+  const oauthResource = (process.env.OAUTH_RESOURCE_URL || '').replace(/\/$/, '');
+  add(
+    'oauth-resource',
+    oauthResource.startsWith('https://') ? 'pass' : 'fail',
+    oauthResource.startsWith('https://')
+      ? `OAuth access tokens must target the canonical resource ${oauthResource}.`
+      : 'OAUTH_RESOURCE_URL must be an explicit HTTPS URL.'
+  );
+  const audit = getAuditChainStatus();
+  add(
+    'audit-chain',
+    audit.protection === 'hmac-checkpointed' ? 'pass' : 'warning',
+    audit.protection === 'hmac-checkpointed'
+      ? 'Audit entries use a persistent HMAC chain. No external append-only anchor is configured.'
+      : 'Audit entries are chained only for this process lifetime; configure AUDIT_HMAC_KEY and a protected checkpoint path.'
+  );
+  const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
+  add(
+    'privilege-broker',
+    broker.error || !broker.healthy ? 'fail' : 'pass',
+    broker.error
+      ? `Typed privilege broker is unavailable: ${broker.error}`
+      : broker.healthy
+        ? `Broker is healthy; SQLite schema and ${broker.projectCount} project execution identity record(s) passed.`
+        : `Broker reported invalid project users or migrations: ${broker.invalidProjectUsers?.join(', ') || 'unknown'}`
+  );
+  const protectedFiles = [
+    process.env.AUTHELIA_CONFIG_FILE || '/etc/mcp-sentinel/authelia.yml',
+    process.env.AUTHELIA_USERS_FILE || '/etc/mcp-sentinel/users.yml',
+    process.env.MCP_STATE_DB || '/var/lib/mcp-sentinel/state.sqlite3',
+  ];
+  const unsafeFiles = protectedFiles.filter(file => {
+    try {
+      return (fs.statSync(file).mode & 0o077) !== 0;
+    } catch {
+      return true;
+    }
+  });
+  add(
+    'protected-file-permissions',
+    unsafeFiles.length ? 'fail' : 'pass',
+    unsafeFiles.length
+      ? `Missing or over-permissive protected files: ${unsafeFiles.join(', ')}`
+      : 'Protected state files are mode 0600.'
+  );
+  const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
+  let discovery = null;
+  if (issuer) {
+    discovery = await fetch(`${issuer}/.well-known/openid-configuration`, {
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => null);
+  }
+  add(
+    'oauth-discovery',
+    discovery?.ok ? 'pass' : 'fail',
+    discovery?.ok ? 'OAuth discovery is reachable over the configured issuer.' : 'OAuth discovery is unavailable.'
+  );
+  const manifests = [...manifestSnapshots.values()];
+  const manifestComplete = manifests.some(snapshot =>
+    snapshot.tools?.every(tool => tool.title && tool.inputSchema && tool.outputSchema && tool.annotations)
+  );
+  add(
+    'action-manifest',
+    manifestComplete ? 'pass' : 'warning',
+    manifestComplete
+      ? 'The live action manifest contains titles, schemas, and annotations.'
+      : 'Generate the live action manifest and complete the ChatGPT refresh.'
+  );
   const failed = checks.filter(check => check.status === 'fail').length;
   const warnings = checks.filter(check => check.status === 'warning').length;
   return {
@@ -202,9 +285,37 @@ async function buildSecurityPosture() {
 
 // ── Active SSE connections ─────────────────────────────────
 const activeTransports = new Map(); // sessionId -> { transport, identity, ip }
+
+function alertOwnerKey(identity) {
+  if (identity.oauthSubject && identity.oauthClient)
+    return `oauth:${identity.oauthSubject}:${identity.oauthClient}:${identity.authorizationVersion || 1}`;
+  if (identity.keyId) return `key:${identity.keyId}:${identity.keyVersion || 1}`;
+  return `user:${identity.userId}:${identity.authorizationVersion || 1}`;
+}
 // Short-lived state for administrator-initiated OAuth diagnostics. Secrets and
 // access tokens remain in memory only and are never returned to the browser.
 const oauthDiagnostics = new Map();
+const manifestSnapshots = new Map();
+
+function manifestIdentityKey(identity) {
+  return [identity.authType, identity.oauthSubject || identity.userId, identity.oauthClient || identity.keyId].join(
+    ':'
+  );
+}
+
+async function refreshActiveToolLists() {
+  for (const session of activeTransports.values()) {
+    for (const item of session.mcpServer?._sentinelRegistrations || []) {
+      const availability = await toolAvailability(item.name);
+      const policyDecision = await evaluatePolicy({ tool: item.name, identity: session.identity }).catch(() => ({
+        allowed: false,
+      }));
+      if (availability.available && policyDecision.allowed) item.registration.enable();
+      else item.registration.disable();
+    }
+    await session.mcpServer?.sendToolListChanged();
+  }
+}
 
 // ── Express App ───────────────────────────────────────────
 
@@ -219,6 +330,14 @@ process.on('unhandledRejection', reason => {
 });
 
 const app = express();
+
+// Redirect legacy port 2053 to the new subdomain
+app.use((req, res, next) => {
+  if (req.get('host') === 'begin.shopping:2053') {
+    return res.redirect(301, 'https://mcp.begin.shopping' + req.originalUrl);
+  }
+  next();
+});
 
 // Security headers
 app.use(
@@ -239,18 +358,25 @@ app.use(
 
 import compression from 'compression';
 
-// Apply HTTP compression
-app.use(compression());
+// Streaming MCP responses must not be buffered by compression middleware.
+app.use(
+  compression({
+    filter: (req, res) => !['/mcp', '/mcp/message'].includes(req.path) && compression.filter(req, res),
+  })
+);
 
-// Serve static Web UI files with aggressive caching for immutable assets
-app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1d', // 1 day cache for static assets
-  setHeaders: (res, path) => {
-    if (path.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache'); // Always revalidate HTML
-    }
-  }
-}));
+// The dashboard's HTML, JS, and CSS filenames are not content-hashed, so they
+// must be revalidated after an update. Other static assets may use the short cache.
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      if (/\.(?:html|js|css)$/.test(filePath)) {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      }
+    },
+  })
+);
 // Prevent Cloudflare from aggressively caching CORS preflight responses
 app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
@@ -268,14 +394,18 @@ app.use(
         .split(',')
         .map(s => s.trim())
         .filter(Boolean);
-      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        (allowedOrigins.length === 0 && process.env.NODE_ENV !== 'production')
+      ) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
       }
     },
-    methods: ['GET', 'POST', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID', 'Mcp-Session-Id'],
     exposedHeaders: ['Mcp-Session-Id', 'WWW-Authenticate'],
     credentials: false,
   })
@@ -300,15 +430,22 @@ const globalLimiter = rateLimit({
 
 app.use(globalLimiter);
 
-// Now parse bodies (AFTER rate limiting and IP checking)
-// Do not parse JSON body for MCP endpoints, because the SDK needs the raw stream
-app.use((req, res, next) => {
-  if (req.path === '/mcp' || req.path === '/mcp/message') {
-    next();
-  } else {
-    express.json({ limit: '5mb' })(req, res, next);
-  }
+const authenticatedLimiter = rateLimit({
+  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '120', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: req =>
+    [
+      req.identity?.authType || 'unknown',
+      req.identity?.oauthSubject || req.identity?.userId || 'unknown',
+      req.identity?.oauthClient || req.identity?.keyId || 'unknown',
+    ].join(':'),
 });
+
+// Parse JSON after rate limiting and IP checks. Both MCP transports accept the
+// parsed body explicitly, which also lets us identify Streamable HTTP initialize requests.
+app.use(express.json({ limit: '5mb' }));
 
 // Compatibility window: these endpoints remain callable for one minor release,
 // but are intentionally removed from the default product experience.
@@ -321,10 +458,11 @@ app.use((req, res, next) => {
     '/admin/backup-targets',
     '/admin/webhooks',
     '/admin/backups/run',
-    '/admin/oauth-users',
-    '/admin/oauth-clients',
   ];
   if (legacyPaths.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
+    if (process.env.ENABLE_LEGACY_TOOLS !== 'true') {
+      return res.status(404).json({ error: 'Legacy compatibility APIs are disabled' });
+    }
     res.set('Deprecation', 'true');
     res.set('Sunset', 'next-minor-release');
     res.set(
@@ -411,9 +549,27 @@ app.get('/admin/keys', authenticateJWT, (req, res) => {
   return res.json({ keys: listApiKeys() });
 });
 
+app.put('/admin/keys/:id', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  try {
+    const updated = await updateApiKey(req.params.id, req.body);
+    res.json({ success: true, key: updated });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.get('/admin/access-templates', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   return res.json({ templates: getRoleTemplates() });
+});
+
+app.get('/admin/scope-registry', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  return res.json({
+    groups: SCOPE_GROUPS,
+    templates: getRoleTemplates(),
+  });
 });
 
 app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
@@ -430,6 +586,7 @@ app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
       event: 'CAPABILITY_UPDATED',
       detail: { capability: req.params.id, enabled: req.body?.enabled, by: req.identity.userId },
     });
+    await refreshActiveToolLists();
     return res.json({ capabilities });
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -517,6 +674,108 @@ app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
   return res.json(await buildSecurityPosture());
 });
 
+app.get('/admin/action-manifest', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  await createMcpServer(req.identity, req.clientIP);
+  const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));
+  return res.json({
+    manifest,
+    refreshChecklist: [
+      'Refresh the connector action snapshot in ChatGPT.',
+      'Review and approve the reported schema and annotation changes.',
+      'Explicitly enable run_project_tests, get_project_test_run, and cancel_project_test_run.',
+      'Reauthorize OAuth after the credential rotation.',
+      'Open a new chat and run one small assigned-project test target.',
+    ],
+  });
+});
+
+app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
+  let auditVerification = null;
+  try {
+    auditVerification = JSON.parse(
+      fs.readFileSync(
+        process.env.AUDIT_VERIFICATION_STATUS_FILE || '/var/lib/mcp-sentinel/audit-verification.json',
+        'utf8'
+      )
+    );
+  } catch {}
+  return res.json({
+    broker,
+    migrations: broker.migrations || [],
+    audit: { ...getAuditChainStatus(), lastVerification: auditVerification },
+    credentialRotation: getAdminState('credential_rotation_status'),
+    stateKeyRotation: broker.stateKeyRotation ? JSON.parse(broker.stateKeyRotation) : null,
+    actionRefresh: getAdminState('action_refresh_status'),
+    manifest: manifestSnapshots.get(manifestIdentityKey(req.identity)) || null,
+  });
+});
+
+app.post('/admin/credential-rotation-status', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  const allowed = new Set([
+    'authelia-signing-key',
+    'authelia-session-secret',
+    'authelia-storage-secret',
+    'oauth-client-secrets',
+    'sentinel-jwt-secret',
+    'api-keys',
+    'user-passwords',
+    'webhook-s3-credentials',
+    'state-encryption-key',
+    'backup-encryption-key',
+  ]);
+  if (
+    req.body?.confirm !== true ||
+    !Array.isArray(req.body.components) ||
+    !req.body.components.every(item => allowed.has(item))
+  )
+    return res.status(400).json({ error: 'confirm=true and a valid components array are required' });
+  const status = setAdminState('credential_rotation_status', {
+    components: [...new Set(req.body.components)],
+    recordedAt: new Date().toISOString(),
+    recordedBy: req.identity.userId,
+  });
+  logSecurityEvent({ ip: req.clientIP, event: 'CREDENTIAL_ROTATION_RECORDED', detail: status });
+  return res.json(status);
+});
+
+app.post('/admin/action-refresh-status', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  await createMcpServer(req.identity, req.clientIP);
+  const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));
+  const companions = ['run_project_tests', 'get_project_test_run', 'cancel_project_test_run'];
+  if (
+    req.body?.confirm !== true ||
+    req.body.manifestHash !== manifest.hash ||
+    req.body.oauthReauthorized !== true ||
+    req.body.newChatTested !== true ||
+    !Array.isArray(req.body.enabledTools) ||
+    !companions.every(tool => req.body.enabledTools.includes(tool))
+  )
+    return res
+      .status(400)
+      .json({ error: 'Manifest hash, OAuth reauthorization, enabled test tools, and new-chat test must be confirmed' });
+  const status = setAdminState('action_refresh_status', {
+    manifestHash: manifest.hash,
+    enabledTools: companions,
+    oauthReauthorized: true,
+    newChatTested: true,
+    recordedAt: new Date().toISOString(),
+    recordedBy: req.identity.userId,
+  });
+  return res.json(status);
+});
+
+app.get('/admin/legacy-export', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  const legacy = await exportLegacyState(req.identity);
+  res.set('Content-Disposition', `attachment; filename="mcp-sentinel-legacy-${Date.now()}.json"`);
+  return res.json(legacy);
+});
+
 app.get('/admin/sessions', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
@@ -525,6 +784,8 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
     sessionId: id,
     userId: s.identity?.userId,
     role: s.identity?.role,
+    authType: s.identity?.type || 'unknown',
+    scopes: s.identity?.scopes || [],
     ip: s.ip,
     connectedAt: s.connectedAt,
   }));
@@ -898,10 +1159,10 @@ app.get('/admin/backups', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const { filePath } = req.query;
-  if (!filePath) return res.status(400).json({ error: 'filePath query param required' });
+  const { configId } = req.query;
+  if (!configId) return res.status(400).json({ error: 'configId query param required' });
   try {
-    const result = await listConfigBackups({ filePath }, req.identity);
+    const result = await listConfigBackups({ configId }, req.identity);
     return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -912,10 +1173,10 @@ app.post('/admin/backups/restore', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const { filePath, timestamp, confirm } = req.body;
+  const { configId, timestamp, confirm } = req.body;
   if (!confirm) return res.status(400).json({ error: 'confirm: true required' });
   try {
-    const result = await restoreConfig({ filePath, timestamp }, req.identity);
+    const result = await restoreConfig({ configId, timestamp }, req.identity);
     return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -1031,6 +1292,8 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
   ).replace(/\/$/, '');
   if (!issuer) return res.status(400).json({ error: 'Authelia issuer is not configured' });
   const state = randomUUID();
+  const codeVerifier = Buffer.from(`${randomUUID()}${randomUUID()}`).toString('base64url');
+  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
   const clientId = `mcp-diagnostic-${randomUUID().replace(/-/g, '').slice(0, 16)}`;
   const redirectUri = `${resource}/oauth-diagnostic/callback`;
   try {
@@ -1045,6 +1308,7 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
       clientSecret: client.client_secret,
       redirectUri,
       resource,
+      codeVerifier,
       expiresAt,
     });
     const cleanupTimer = setTimeout(
@@ -1067,6 +1331,8 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
     authorizationUrl.searchParams.set('scope', 'openid profile email offline_access');
     authorizationUrl.searchParams.set('resource', resource);
     authorizationUrl.searchParams.set('state', state);
+    authorizationUrl.searchParams.set('code_challenge', codeChallenge);
+    authorizationUrl.searchParams.set('code_challenge_method', 'S256');
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_STARTED', detail: { clientId: client.client_id } });
     res.json({ authorizationUrl: authorizationUrl.toString(), expiresAt: new Date(expiresAt).toISOString() });
   } catch (error) {
@@ -1103,6 +1369,7 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
         code,
         redirect_uri: diagnostic.redirectUri,
         resource: diagnostic.resource,
+        code_verifier: diagnostic.codeVerifier,
       }),
     });
     const tokenBody = await tokenResponse.json().catch(() => ({}));
@@ -1118,8 +1385,15 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
       Accept: 'application/json, text/event-stream',
     };
     const mcpResponse = await fetch(`${diagnostic.resource}/mcp`, {
-      method: 'POST',
+      method: 'GET',
       headers: mcpHeaders,
+    });
+    const sessionId = mcpResponse.headers.get('mcp-session-id');
+    if (!sessionId) throw new Error('MCP initialize did not return a session ID');
+    const sessionHeaders = { ...mcpHeaders, 'Mcp-Session-Id': sessionId };
+    const initResponse = await fetch(`${diagnostic.resource}/mcp/message`, {
+      method: 'POST',
+      headers: sessionHeaders,
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: 1,
@@ -1131,24 +1405,22 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
         },
       }),
     });
-    if (!mcpResponse.ok) throw new Error(`MCP initialize failed (${mcpResponse.status})`);
-    const sessionId = mcpResponse.headers.get('mcp-session-id');
-    if (!sessionId) throw new Error('MCP initialize did not return a session ID');
-    const sessionHeaders = { ...mcpHeaders, 'Mcp-Session-Id': sessionId };
-    const initializedResponse = await fetch(`${diagnostic.resource}/mcp`, {
+    console.log('Diagnostic POST /mcp/message returned:', initResponse.status, 'SessionId:', sessionId);
+    if (!initResponse.ok) throw new Error(`MCP initialize message failed (${initResponse.status})`);
+
+    const initializedResponse = await fetch(`${diagnostic.resource}/mcp/message`, {
       method: 'POST',
       headers: sessionHeaders,
       body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     });
     if (!initializedResponse.ok) throw new Error(`MCP initialized notification failed (${initializedResponse.status})`);
-    const toolsResponse = await fetch(`${diagnostic.resource}/mcp`, {
+    const toolsResponse = await fetch(`${diagnostic.resource}/mcp/message`, {
       method: 'POST',
       headers: sessionHeaders,
       body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
     });
     const toolsBody = await toolsResponse.text();
-    if (!toolsResponse.ok || !toolsBody.includes('"tools"'))
-      throw new Error(`MCP tools/list failed (${toolsResponse.status})`);
+    if (!toolsResponse.ok) throw new Error(`MCP tools/list failed (${toolsResponse.status})`);
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_PASSED', detail: { clientId: diagnostic.clientId } });
     return render(
       'OAuth and MCP connection succeeded',
@@ -1183,20 +1455,86 @@ app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
 
 app.post('/admin/oauth-restart', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    const success = await forceRestartAuthelia();
-    logSecurityEvent({ ip: req.clientIP, event: 'AUTHELIA_RESTART', detail: { success } });
-    res.json({ success });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+  return res.status(409).json({
+    error: 'Direct OAuth-provider restart is disabled. Use the registered recovery workflow with console access.',
+  });
 });
 
 // MCP SSE endpoint. A session is created by a GET request to /mcp;
 // subsequent POST requests to /mcp/message must present the session id.
-app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
+app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (req, res) => {
   const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'] || req.query.sessionId;
   let session = activeTransports.get(sessionId);
+
+  // Modern MCP clients initialize Streamable HTTP with a POST directly to
+  // /mcp. This path coexists with the legacy GET + /mcp/message SSE flow below.
+  if (!session && req.method === 'POST' && req.path === '/mcp' && !sessionId) {
+    if (!isInitializeRequest(req.body)) {
+      return res.status(400).json({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Bad Request: No valid MCP session ID provided' },
+        id: null,
+      });
+    }
+
+    const identity = req.identity;
+    const ip = req.clientIP;
+    const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
+    if (activeTransports.size >= maxConns) {
+      return res.status(503).json({ error: 'Too many active connections globally' });
+    }
+    const userCount = [...activeTransports.values()].filter(item => item.identity?.userId === identity.userId).length;
+    if (userCount >= MAX_SESSIONS_PER_USER) {
+      return res.status(429).json({ error: 'Too many active connections for this user' });
+    }
+
+    let transport;
+    const mcpServer = await createMcpServer(identity, ip);
+    transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: initializedSessionId => {
+        identity.sessionId = initializedSessionId;
+        const streamableSession = {
+          transport,
+          identity,
+          ip,
+          connectedAt: new Date().toISOString(),
+          lastActivity: Date.now(),
+          mcpServer,
+        };
+        activeTransports.set(initializedSessionId, streamableSession);
+        monitor.attachPersistent(initializedSessionId, alertOwnerKey(identity));
+      },
+    });
+    transport.onclose = () => {
+      const initializedSessionId = transport.sessionId;
+      if (initializedSessionId) {
+        activeTransports.delete(initializedSessionId);
+        monitor.unsubscribeAll(initializedSessionId);
+      }
+    };
+    transport.onerror = err => {
+      logError({ ip, userId: identity.userId, tool: 'MCP_STREAMABLE_TRANSPORT', error: err });
+    };
+
+    try {
+      res.setHeader('X-Accel-Buffering', 'no');
+      await mcpServer.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      const initializedSessionId = transport.sessionId;
+      if (initializedSessionId) activeTransports.delete(initializedSessionId);
+      logError({ ip, userId: identity.userId, tool: 'MCP_STREAMABLE_CONNECT', error: err });
+      if (!res.headersSent) {
+        return res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Unable to initialize MCP session' },
+          id: null,
+        });
+      }
+    }
+    return;
+  }
 
   if (!session && req.method === 'GET' && req.path === '/mcp' && !sessionId) {
     const identity = req.identity;
@@ -1210,12 +1548,30 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
       return res.status(429).json({ error: 'Too many active connections for this user' });
     }
 
-    const mcpServer = await createMcpServer(identity, ip);
     const transport = new SSEServerTransport('/mcp/message', res);
+    identity.sessionId = transport.sessionId;
+    const mcpServer = await createMcpServer(identity, ip);
+    monitor.attachPersistent(transport.sessionId, alertOwnerKey(identity));
+
+    // Tools are registered before the transport exists, so the SDK's automatic
+    // list-changed notifications cannot reach the client. Notify again once the
+    // MCP initialization handshake completes to invalidate cached manifests.
+    mcpServer.server.oninitialized = async () => {
+      await mcpServer.sendToolListChanged();
+      logSecurityEvent({
+        ip,
+        event: 'MCP_TOOL_LIST_REFRESH_SENT',
+        detail: { userId: identity.userId, sessionId: transport.sessionId },
+      });
+    };
+
+    res.setHeader('mcp-session-id', transport.sessionId);
+    res.setHeader('X-Accel-Buffering', 'no');
 
     session = { transport, identity, ip, connectedAt: new Date().toISOString(), lastActivity: Date.now(), mcpServer };
     activeTransports.set(transport.sessionId, session);
     transport.onclose = () => {
+      console.log('Session closed/deleted!', transport.sessionId);
       activeTransports.delete(transport.sessionId);
       monitor.unsubscribeAll(transport.sessionId);
     };
@@ -1230,6 +1586,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
     }
     return; // SSEServerTransport handles the response stream
   } else if (!session) {
+    console.log('Session lookup failed for ID:', sessionId, 'Method:', req.method, 'Path:', req.path);
     return res.status(404).json({ error: 'Unknown MCP session' });
   }
 
@@ -1240,21 +1597,32 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
     (session.identity?.authType === 'apiKey' && session.identity?.keyId !== req.identity?.keyId) ||
     (session.identity?.authType === 'oauth' &&
       (session.identity?.oauthUser !== req.identity?.oauthUser ||
-        session.identity?.oauthClient !== req.identity?.oauthClient))
+        session.identity?.oauthClient !== req.identity?.oauthClient ||
+        session.identity?.oauthSubject !== req.identity?.oauthSubject ||
+        session.identity?.authorizationVersion !== req.identity?.authorizationVersion))
   ) {
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SESSION_HIJACK_ATTEMPT',
       detail: { sessionOwner: session.identity?.userId, requestUser: req.identity?.userId },
     });
+    if (session.identity?.authorizationVersion !== req.identity?.authorizationVersion) {
+      await session.mcpServer?.close().catch(() => {});
+      activeTransports.delete(sessionId);
+    }
     return res.status(403).json({ error: 'Session does not belong to you' });
   }
 
   session.lastActivity = Date.now();
 
   try {
-    if (req.method === 'POST') {
-      await session.transport.handlePostMessage(req, res);
+    if (session.transport instanceof StreamableHTTPServerTransport) {
+      if (req.path !== '/mcp') {
+        return res.status(400).json({ error: 'Streamable HTTP sessions use the /mcp endpoint' });
+      }
+      await session.transport.handleRequest(req, res, req.body);
+    } else if (req.method === 'POST') {
+      await session.transport.handlePostMessage(req, res, req.body);
     } else {
       res.status(405).json({ error: 'Method not allowed' });
     }
@@ -1296,9 +1664,30 @@ async function createMcpServer(identity, ip) {
     logError({ ip, userId: identity.userId, tool: 'MCP_SERVER_ERROR', error: err });
   };
 
+  server.registerResource(
+    'current-alerts',
+    'mcp-sentinel://alerts/current',
+    { title: 'Current MCP Sentinel alerts', description: 'Alert subscriptions for this exact MCP session' },
+    async uri => ({
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify({
+            sessionId: identity.sessionId || null,
+            alerts: monitor.getActiveAlerts(identity.sessionId),
+          }),
+        },
+      ],
+    })
+  );
+
   // ── Helper: wrap tool calls with audit logging ───────────
   const registrations = [];
   function tool(name, description, schema, handler) {
+    // Tools outside the authenticated identity's scope are never advertised.
+    // Invocation checks below remain as defense in depth for stale sessions.
+    if (!scopeAllows(identity.scopes || [], name)) return;
     const readOnlyTools = new Set([
       'get_system_info',
       'get_processes',
@@ -1321,6 +1710,7 @@ async function createMcpServer(identity, ip) {
       'list_backup_targets',
       'list_webhooks',
       'list_active_alerts',
+      'get_project_test_run',
     ]);
     const stateChangingTools = new Set([
       'write_file',
@@ -1347,19 +1737,45 @@ async function createMcpServer(identity, ip) {
       'deliver_webhook',
       'subscribe_to_alert',
       'unsubscribe_from_alert',
+      'run_project_tests',
+      'cancel_project_test_run',
+    ]);
+    const openWorldTools = new Set([
+      'check_fleet_server',
+      'run_encrypted_backup',
+      'deliver_webhook',
+      'deploy_project',
+      'run_project_tests',
+      'run_sandboxed_code',
+      'git_operation',
     ]);
     const annotations = {
-      ...(readOnlyTools.has(name) ? { readOnlyHint: true, idempotentHint: true } : {}),
-      ...(stateChangingTools.has(name) ? { destructiveHint: true } : {}),
-      ...(new Set(['check_fleet_server', 'run_encrypted_backup', 'deliver_webhook', 'deploy_project']).has(name)
-        ? { openWorldHint: true }
-        : {}),
+      readOnlyHint: readOnlyTools.has(name),
+      destructiveHint: stateChangingTools.has(name),
+      idempotentHint: readOnlyTools.has(name),
+      openWorldHint: openWorldTools.has(name),
     };
-    const registration = server.tool(
+    const title = name
+      .split('_')
+      .map(word => word[0].toUpperCase() + word.slice(1))
+      .join(' ');
+    const fullDescription = `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`;
+    const inputJsonSchema = zodToJsonSchema(z.object(schema), { target: 'openApi3', $refStrategy: 'none' });
+    const outputJsonSchema = {
+      type: 'object',
+      properties: { result: {} },
+      required: ['result'],
+      additionalProperties: false,
+    };
+    const registration = server.registerTool(
       name,
-      `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`,
-      schema,
-      annotations,
+      {
+        title,
+        description: fullDescription,
+        inputSchema: schema,
+        outputSchema: { result: z.any().describe('Structured result returned by this operation') },
+        annotations,
+      },
       async args => {
         const start = Date.now();
         const availability = await toolAvailability(name);
@@ -1376,6 +1792,7 @@ async function createMcpServer(identity, ip) {
                 text: JSON.stringify({ error: availability.message, requiredCapability: availability.pack }),
               },
             ],
+            structuredContent: { result: { error: availability.message, requiredCapability: availability.pack } },
             isError: true,
           };
         }
@@ -1390,6 +1807,9 @@ async function createMcpServer(identity, ip) {
                 text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }),
               },
             ],
+            structuredContent: {
+              result: { error: `Access to tool '${name}' is not permitted by your API key scopes` },
+            },
             isError: true,
           };
         }
@@ -1406,12 +1826,17 @@ async function createMcpServer(identity, ip) {
                 text: JSON.stringify({ error: 'Server policy could not be evaluated. The action was not run.' }),
               },
             ],
+            structuredContent: { result: { error: 'Server policy could not be evaluated. The action was not run.' } },
             isError: true,
           };
         }
         if (!policyDecision.allowed) {
           logSecurityEvent({ ip, event: 'POLICY_DENIED', detail: { userId: identity.userId, tool: name } });
-          return { content: [{ type: 'text', text: JSON.stringify({ error: policyDecision.reason }) }], isError: true };
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: policyDecision.reason }) }],
+            structuredContent: { result: { error: policyDecision.reason } },
+            isError: true,
+          };
         }
 
         const requiresConfirmation =
@@ -1423,11 +1848,14 @@ async function createMcpServer(identity, ip) {
             'apply_config',
             'restore_config',
             'kill_process',
+            'run_project_tests',
+            'cancel_project_test_run',
           ].includes(name) ||
           (name === 'modify_user' && Object.keys(args).some(key => !['username', 'confirm'].includes(key))) ||
           (name === 'manage_ssh_keys' && ['add', 'remove'].includes(args.action)) ||
           (name === 'manage_firewall' && !['status', 'list'].includes(args.action)) ||
           (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
+          (name === 'run_sandboxed_code' && args.allowNetwork === true) ||
           (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
           ['deploy_project', 'run_encrypted_backup', 'deliver_webhook'].includes(name) ||
           (name === 'execute_query' &&
@@ -1443,6 +1871,11 @@ async function createMcpServer(identity, ip) {
                 }),
               },
             ],
+            structuredContent: {
+              result: {
+                error: 'This is a destructive action. You must include "confirm": true in your arguments to proceed.',
+              },
+            },
             isError: true,
           };
         }
@@ -1475,13 +1908,21 @@ async function createMcpServer(identity, ip) {
                   }),
                 },
               ],
+              structuredContent: {
+                result: {
+                  pendingApproval: true,
+                  approvalId: approval.id,
+                  message: created
+                    ? 'This action is waiting for an administrator to approve it. Resubmit the exact request after approval.'
+                    : 'This action is already waiting for administrator approval.',
+                },
+              },
               isError: true,
             };
           }
         }
 
         try {
-          if (name === 'git_operation') await assertRepositoryPermitted(args.repoPath, identity);
           const result = await handler(args, identity);
           logAccess({
             ip,
@@ -1495,6 +1936,7 @@ async function createMcpServer(identity, ip) {
           const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
           return {
             content: [{ type: 'text', text: textContent || 'Success' }],
+            structuredContent: { result },
             ...(availability.deprecated
               ? { _meta: { deprecated: true, deprecationMessage: availability.message } }
               : {}),
@@ -1513,12 +1955,24 @@ async function createMcpServer(identity, ip) {
           });
           return {
             content: [{ type: 'text', text: JSON.stringify({ error: `Operation failed (Error ID: ${errorId})` }) }],
+            structuredContent: { result: { error: `Operation failed (Error ID: ${errorId})`, errorId } },
             isError: true,
           };
         }
       }
     );
-    registrations.push({ name, registration });
+    registrations.push({
+      name,
+      registration,
+      definition: {
+        name,
+        title,
+        description: fullDescription,
+        inputSchema: inputJsonSchema,
+        outputSchema: outputJsonSchema,
+        annotations,
+      },
+    });
   }
 
   // ── System Tools ───────────────────────────────────────
@@ -1549,9 +2003,56 @@ async function createMcpServer(identity, ip) {
         .enum(['TERM', 'KILL', 'HUP', 'INT', 'USR1', 'USR2'])
         .optional()
         .describe('Signal to send (default: TERM)'),
-      confirm: z.boolean().optional().describe('Must be true to execute'),
+      confirm: z.boolean().describe('Must be true to execute'),
     },
     killProcess
+  );
+  tool(
+    'run_project_tests',
+    'Run a registered project test recipe as the project execution user in a verified testing environment.',
+    {
+      projectId: z.string().uuid().optional().describe('Assigned registered project identifier'),
+      projectPath: z.string().max(4096).optional().describe('Deprecated exact registered project root; use projectId'),
+      runner: z
+        .enum([
+          'artisan',
+          'phpunit',
+          'npm',
+          'composer-validate',
+          'pest',
+          'frontend',
+          'playwright',
+          'python',
+          'go',
+          'rust',
+        ])
+        .describe('Registered test recipe to use'),
+      target: z
+        .string()
+        .max(4096)
+        .optional()
+        .describe('Relative test file or directory; required unless full-suite execution is registered'),
+      filter: z.string().min(1).max(256).optional().describe('Optional bounded runner filter'),
+      confirm: z.literal(true).describe('Must be true to start the test process'),
+    },
+    runProjectTests
+  );
+
+  tool(
+    'get_project_test_run',
+    'Get the structured status and bounded output of a project test run owned by this identity.',
+    { runId: z.string().uuid().describe('Test run identifier') },
+    getProjectTestRun
+  );
+
+  tool(
+    'cancel_project_test_run',
+    'Cancel a running project test and its managed process tree.',
+    {
+      runId: z.string().uuid().describe('Test run identifier'),
+      confirm: z.literal(true).describe('Must be true to cancel the run'),
+    },
+    cancelProjectTestRun
   );
 
   // ── File Tools ─────────────────────────────────────────
@@ -1560,7 +2061,8 @@ async function createMcpServer(identity, ip) {
     'read_file',
     'Read the contents of a file. Paths are sandboxed per role.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to the file'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Project-relative path, or a deprecated exact assigned absolute path'),
       encoding: z.string().max(4096).optional().describe('File encoding (default: utf8)'),
       maxBytes: z.number().int().positive().optional().describe('Maximum bytes to read (default: 1MB)'),
     },
@@ -1571,7 +2073,8 @@ async function createMcpServer(identity, ip) {
     'write_file',
     'Write content to a file (create or overwrite). Paths are sandboxed per role.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to the file'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Project-relative path, or a deprecated exact assigned absolute path'),
       content: z
         .string()
         .max(5 * 1024 * 1024)
@@ -1586,7 +2089,8 @@ async function createMcpServer(identity, ip) {
     'delete_file',
     'Delete a file or directory.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to delete'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Project-relative path, or a deprecated exact assigned absolute path'),
       recursive: z.boolean().optional().describe('Recursively delete directory contents (default: false)'),
       confirm: z.boolean().optional().describe('Must be true to execute'),
     },
@@ -1597,7 +2101,8 @@ async function createMcpServer(identity, ip) {
     'list_directory',
     'List the contents of a directory.',
     {
-      dirPath: z.string().max(4096).describe('Absolute path to directory'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      dirPath: z.string().max(4096).describe('Project-relative directory, or a deprecated assigned absolute path'),
       showHidden: z.boolean().optional().describe('Include hidden files (default: false)'),
       detailed: z.boolean().optional().describe('Include file details like size, permissions (default: true)'),
     },
@@ -1606,20 +2111,22 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'move_file',
-    'Move or rename a file/directory.',
+    'Move or rename a regular file inside one assigned project.',
     {
-      sourcePath: z.string().max(4096).describe('Source path'),
-      destPath: z.string().max(4096).describe('Destination path'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      sourcePath: z.string().max(4096).describe('Project-relative source, or deprecated assigned absolute path'),
+      destPath: z.string().max(4096).describe('Project-relative destination, or deprecated assigned absolute path'),
     },
     moveFile
   );
 
   tool(
     'copy_file',
-    'Copy a file or directory.',
+    'Copy a regular file inside one assigned project.',
     {
-      sourcePath: z.string().max(4096).describe('Source path'),
-      destPath: z.string().max(4096).describe('Destination path'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      sourcePath: z.string().max(4096).describe('Project-relative source, or deprecated assigned absolute path'),
+      destPath: z.string().max(4096).describe('Project-relative destination, or deprecated assigned absolute path'),
     },
     copyFile
   );
@@ -1628,7 +2135,8 @@ async function createMcpServer(identity, ip) {
     'get_file_info',
     'Get detailed metadata about a file including size, permissions, and SHA256 checksum.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to file'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      filePath: z.string().max(4096).describe('Project-relative path, or deprecated assigned absolute path'),
     },
     getFileInfo
   );
@@ -1637,8 +2145,12 @@ async function createMcpServer(identity, ip) {
     'search_files',
     'Search for files by name pattern in a directory tree.',
     {
-      searchPath: z.string().max(4096).describe('Root path to search from'),
-      pattern: z.string().max(4096).describe('Filename pattern (supports wildcards, e.g. "*.log")'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      searchPath: z.string().max(4096).describe('Project-relative root, or deprecated assigned absolute path'),
+      pattern: z
+        .string()
+        .max(128)
+        .describe('Filename pattern using letters, numbers, *, ?, dot, underscore, or hyphen'),
       maxResults: z.number().int().positive().optional().describe('Maximum results (default: 50)'),
       fileType: z.enum(['file', 'directory']).optional().describe('Filter by type'),
     },
@@ -1652,9 +2164,7 @@ async function createMcpServer(identity, ip) {
     'Start, stop, restart, enable, or disable a systemd service. Admin only.',
     {
       service: z.string().max(4096).describe('Service name (e.g. nginx, mysql, sshd)'),
-      action: z
-        .enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'status', 'is-active'])
-        .describe('Action to perform'),
+      action: z.enum(['start', 'stop', 'restart', 'reload', 'status', 'is-active']).describe('Action to perform'),
       confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
     },
     manageService
@@ -1705,10 +2215,11 @@ async function createMcpServer(identity, ip) {
     'manage_firewall',
     'Manage UFW firewall rules. Admin only.',
     {
-      action: z.enum(['status', 'enable', 'disable', 'allow', 'deny', 'delete', 'list']).describe('Firewall action'),
+      action: z.enum(['status', 'allow', 'deny', 'delete', 'list', 'confirm']).describe('Firewall action'),
       port: z.number().int().positive().optional().describe('Port number for allow/deny/delete actions'),
       protocol: z.enum(['tcp', 'udp']).optional().describe('Protocol (default: tcp)'),
       rule: z.enum(['allow', 'deny']).optional().describe('Rule type for delete action'),
+      rollbackId: z.string().uuid().optional().describe('Timed rollback ID returned by a mutation'),
       confirm: z.boolean().optional().describe('Must be true to execute destructive actions'),
     },
     manageFirewall
@@ -1809,11 +2320,15 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'run_sandboxed_code',
-    'Run arbitrary code in an ephemeral, hardened Docker container.',
+    'Run code in an ephemeral, digest-pinned, rootless OCI sandbox. Networking is denied unless separately enabled and confirmed.',
     {
-      language: z.enum(['python', 'node', 'bash']).describe('Language to run'),
-      code: z.string().max(102400).describe('Code to execute'),
-      allowNetwork: z.boolean().optional().describe('Allow outbound network access (default: false)'),
+      language: z.enum(['python', 'node']).describe('Registered language runtime to use'),
+      code: z
+        .string()
+        .max(256 * 1024)
+        .describe('Code to execute'),
+      allowNetwork: z.boolean().optional().describe('Use the preconfigured egress-filtered network (default: false)'),
+      confirm: z.boolean().optional().describe('Must be true when allowNetwork is true'),
       timeout: z.number().int().positive().max(120).optional().describe('Timeout in seconds (default: 30)'),
       files: z
         .record(z.string())
@@ -1827,18 +2342,16 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'apply_config',
-    'Safely edit a configuration file, restart a service, and rollback if the service fails to start. Admin only.',
+    'Apply a registered configuration using its fixed validator, restart its registered service, verify application health, and rollback on failure.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to the config file'),
+      configId: z
+        .string()
+        .regex(/^[a-z][a-z0-9_.-]{1,63}$/)
+        .describe('Registered protected configuration ID'),
       newContent: z
         .string()
         .max(5 * 1024 * 1024)
         .describe('New file contents'),
-      serviceName: z.string().max(4096).describe('systemd service to validate against'),
-      syntaxCheckCmd: z
-        .array(z.string())
-        .optional()
-        .describe('Optional syntax check command (e.g. ["nginx", "-t", "-c", "%s"])'),
       healthCheckTimeout: z
         .number()
         .int()
@@ -1853,19 +2366,28 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'list_config_backups',
-    'List available backups for a given file path. Admin only.',
+    'List protected backups for a registered configuration. Admin only.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to the config file'),
+      configId: z
+        .string()
+        .regex(/^[a-z][a-z0-9_.-]{1,63}$/)
+        .describe('Registered configuration ID'),
     },
     listConfigBackups
   );
 
   tool(
     'restore_config',
-    'Manually restore a specific config backup by timestamp. Admin only.',
+    'Restore and health-check a registered configuration backup. Admin only.',
     {
-      filePath: z.string().max(4096).describe('Absolute path to the config file'),
-      timestamp: z.string().max(4096).describe('Timestamp of the backup to restore'),
+      configId: z
+        .string()
+        .regex(/^[a-z][a-z0-9_.-]{1,63}$/)
+        .describe('Registered configuration ID'),
+      timestamp: z
+        .string()
+        .regex(/^\d{10,16}$/)
+        .describe('Timestamp of the backup to restore'),
       confirm: z.boolean().describe('Must be true to execute'),
     },
     restoreConfig
@@ -1875,9 +2397,10 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'git_operation',
-    'Execute Git operations in allowed repositories.',
+    'Execute a fixed Git recipe as the assigned project Unix user. repoPath is accepted only as an exact deprecated project lookup.',
     {
-      repoPath: z.string().max(4096).describe('Path to git repository'),
+      projectId: z.string().uuid().optional().describe('Assigned registered project UUID'),
+      repoPath: z.string().max(4096).optional().describe('Deprecated exact registered repository path'),
       action: z
         .enum(['status', 'diff', 'log', 'branch', 'checkout', 'add', 'commit', 'pull', 'push'])
         .describe('Git action'),
@@ -2096,7 +2619,7 @@ async function createMcpServer(identity, ip) {
 
   tool(
     'subscribe_to_alert',
-    'Subscribe to a system alert. Will send an MCP resource list_changed notification when triggered.',
+    'Subscribe this exact MCP session to a structured MCP Sentinel alert notification.',
     {
       alertType: z.enum(['cpu_threshold', 'memory_threshold', 'disk_threshold']).describe('Type of alert'),
       threshold: z.number().positive().max(100).describe('Threshold percentage (e.g. 90 for 90%)'),
@@ -2106,15 +2629,19 @@ async function createMcpServer(identity, ip) {
         .positive()
         .optional()
         .describe('Minimum seconds between repeated alerts (default: 300)'),
+      persistent: z.boolean().optional().describe('Restore this subscription for later sessions of the same identity'),
     },
-    async ({ alertType, threshold, cooldownSeconds }, identity) => {
-      // Find the current session id from activeTransports using identity
-      const sessionEntry = Array.from(activeTransports.entries()).find(
-        ([_, s]) => s.identity?.userId === identity.userId && s.ip === ip
+    async ({ alertType, threshold, cooldownSeconds, persistent }, identity) => {
+      if (!identity.sessionId || !activeTransports.has(identity.sessionId)) throw new Error('Exact session not found');
+      const id = monitor.subscribe(
+        identity.sessionId,
+        alertOwnerKey(identity),
+        alertType,
+        threshold,
+        cooldownSeconds,
+        persistent === true
       );
-      if (!sessionEntry) throw new Error('Session not found');
-      const id = monitor.subscribe(sessionEntry[0], alertType, threshold, cooldownSeconds);
-      return `Subscribed to ${alertType} at ${threshold}%. Alert ID: ${id}`;
+      return { id, alertType, threshold, persistent: persistent === true };
     }
   );
 
@@ -2125,21 +2652,14 @@ async function createMcpServer(identity, ip) {
       alertId: z.string().max(4096).describe('Alert ID returned from subscribe_to_alert'),
     },
     async ({ alertId }, identity) => {
-      const sessionEntry = Array.from(activeTransports.entries()).find(
-        ([_, s]) => s.identity?.userId === identity.userId && s.ip === ip
-      );
-      if (!sessionEntry) throw new Error('Session not found');
-      monitor.unsubscribe(sessionEntry[0], alertId);
-      return `Unsubscribed from ${alertId}`;
+      if (!identity.sessionId || !activeTransports.has(identity.sessionId)) throw new Error('Exact session not found');
+      monitor.unsubscribe(identity.sessionId, alertOwnerKey(identity), alertId);
+      return { alertId, unsubscribed: true };
     }
   );
 
-  tool('list_active_alerts', 'List your active alert subscriptions.', {}, async (_, identity) => {
-    const sessionEntry = Array.from(activeTransports.entries()).find(
-      ([_, s]) => s.identity?.userId === identity.userId && s.ip === ip
-    );
-    if (!sessionEntry) return { alerts: [] };
-    return { alerts: monitor.getActiveAlerts(sessionEntry[0]) };
+  tool('list_active_alerts', 'List alert subscriptions for this exact MCP session.', {}, async (_, identity) => {
+    return { alerts: monitor.getActiveAlerts(identity.sessionId) };
   });
 
   // Disabled packs are absent from tools/list, so an AI cannot casually discover
@@ -2147,8 +2667,24 @@ async function createMcpServer(identity, ip) {
   // a deprecation notice for the agreed one-minor-release migration window.
   for (const { name, registration } of registrations) {
     const availability = await toolAvailability(name);
-    if (!availability.available) registration.disable();
+    const policyDecision = await evaluatePolicy({ tool: name, identity }).catch(() => ({ allowed: false }));
+    if (!availability.available || !policyDecision.allowed) registration.disable();
   }
+  const visibleTools = [];
+  for (const item of registrations) {
+    const availability = await toolAvailability(item.name);
+    const policyDecision = await evaluatePolicy({ tool: item.name, identity }).catch(() => ({ allowed: false }));
+    if (availability.available && policyDecision.allowed) visibleTools.push(item.definition);
+  }
+  const manifestBody = JSON.stringify(visibleTools);
+  manifestSnapshots.set(manifestIdentityKey(identity), {
+    version: 2,
+    hash: createHash('sha256').update(manifestBody).digest('hex'),
+    generatedAt: new Date().toISOString(),
+    authorizationVersion: identity.authorizationVersion || identity.keyVersion || null,
+    tools: visibleTools,
+  });
+  server._sentinelRegistrations = registrations;
   return server;
 }
 
@@ -2219,6 +2755,10 @@ function validateConfig() {
   const rlWindow = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
   if (isNaN(rlMax) || rlMax <= 0 || isNaN(rlWindow) || rlWindow <= 0) {
     console.error('FATAL: Rate limit values must be positive integers.');
+    process.exit(1);
+  }
+  if (process.env.NODE_ENV === 'production' && !(process.env.ALLOWED_ORIGINS || '').trim()) {
+    console.error('FATAL: ALLOWED_ORIGINS must list explicit dashboard origins in production.');
     process.exit(1);
   }
 }

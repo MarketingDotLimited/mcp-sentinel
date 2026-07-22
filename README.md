@@ -36,9 +36,8 @@ node setup.js
 # 4. Start
 npm start
 
-# 5. Or run as system service
-cp mcp-server.service /etc/systemd/system/
-systemctl enable --now mcp-server
+# 5. Production uses the hardened public service plus typed root broker.
+# Follow docs/REMEDIATION.md; do not deploy from this checkout as root.
 ```
 
 ## 🔗 Connect Your AI Client
@@ -77,31 +76,31 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 
 ## 🛠️ Available Tools
 
-| Category                           | Tools                                                                                    |
-| ---------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Server Care (default)**          | health, services, logs, safe configuration changes, approvals, and audit review          |
-| **Developer Work (default)**       | approved project inspection, constrained file work, Git operations, and deployment plans |
-| **Advanced System Administration** | users, SSH keys, firewall rules, and process signals; disabled by default                |
-| **Advanced Data Access**           | raw SQL against configured aliases; disabled by default                                  |
-| **Advanced Execution**             | sandbox execution and direct deployment; disabled by default                             |
+| Category                           | Tools                                                                                  |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| **Server Care (default)**          | health, services, logs, safe configuration changes, approvals, and audit review        |
+| **Developer Work (default)**       | approved project inspection, constrained file work, Git operations, and targeted tests |
+| **Advanced System Administration** | users, SSH keys, firewall rules, and process signals; disabled by default              |
+| **Advanced Data Access**           | raw SQL against configured aliases; disabled by default                                |
+| **Advanced Execution**             | sandbox execution and direct deployment; disabled by default                           |
 
 ## 🔐 Security Architecture
 
 ```
-AI Client → HTTPS → IP Whitelist → API Key/JWT → Rate Limit → Scope Check → Sandbox → Tool
+AI Client → HTTPS proxy → unprivileged Sentinel → scope/policy/approval → typed broker or project sandbox
 ```
 
-| Layer                    | Details                                                                    |
-| ------------------------ | -------------------------------------------------------------------------- |
-| **HTTPS/TLS**            | TLS 1.2+ with strong cipher suites                                         |
-| **Privilege Separation** | Tools run as the mapped Unix user UID/GID (never root for users)           |
-| **IP Whitelist**         | Per-key or global CIDR restrictions (IPv4 & IPv6)                          |
-| **API Key**              | Persistently stored, SHA-256 hashed                                        |
-| **JWT Tokens**           | HS256-signed, IP-bound, short-lived bearer                                 |
-| **Rate & Session Limit** | Global, auth limits, and concurrent session capping                        |
-| **Scope Enforcement**    | Per-key tool access control                                                |
-| **Path Sandbox**         | Symlink-safe, users restricted to `/home/{username}` and private temp dirs |
-| **Audit Logs**           | Tamper-evident structured JSON with secret redaction                       |
+| Layer                    | Details                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| **HTTPS/TLS**            | TLS 1.2+ with strong cipher suites                                                        |
+| **Privilege Separation** | Public service is unprivileged; registered root operations use a typed Unix-socket broker |
+| **IP Whitelist**         | Per-key or global CIDR restrictions (IPv4 & IPv6)                                         |
+| **API Key**              | Persistently stored, SHA-256 hashed                                                       |
+| **JWT Tokens**           | HS256-signed, IP-bound, short-lived bearer                                                |
+| **Rate & Session Limit** | Global, auth limits, and concurrent session capping                                       |
+| **Scope Enforcement**    | Per-key tool access control                                                               |
+| **Path Sandbox**         | Symlink-safe, users restricted to `/home/{username}` and private temp dirs                |
+| **Audit Logs**           | Tamper-evident structured JSON with secret redaction                                      |
 
 ## 📁 Project Structure
 
@@ -111,7 +110,8 @@ AI Client → HTTPS → IP Whitelist → API Key/JWT → Rate Limit → Scope Ch
 ├── audit.js               # Structured audit logging
 ├── keygen.js              # API key generator
 ├── setup.js               # First-time setup wizard
-├── mcp-server.service     # generated by setup.js when needed
+├── broker.js              # closed-protocol root privilege broker
+├── deploy/                # hardened systemd units and broker allow-list template
 ├── .env                   # generated by setup.js; never commit this file
 └── tools/
     ├── system.js          # Shell commands, processes, system info
@@ -139,9 +139,10 @@ AUTHELIA_ISSUER=https://auth.example.com
 AUTHELIA_JWKS_URL=https://auth.example.com/jwks.json
 OAUTH_RESOURCE_URL=https://mcp.example.com
 
-# Optional control-plane storage and project allow-list
-CONTROL_PLANE_STATE_FILE=./data/control-plane.json
+# SQLite control-plane storage and project allow-lists
+MCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3
 GIT_ALLOWED_REPOS=/srv/my-app,/srv/another-app
+PROJECT_ALLOWED_ROOTS=/srv/my-app,/srv/another-app
 PUBLIC_URL=https://mcp.example.com
 MCP_POLICY_FILE=./policy.json
 
@@ -166,7 +167,7 @@ The older fleet, backup-target, webhook, organization, team, and scheduling inte
 
 ## Legacy enterprise operations
 
-MCP Sentinel keeps a small, encrypted control-plane state file (mode `0600`) for registered fleet servers, backup destinations, webhooks, approvals, projects, and schedules. Do not place it in source control.
+MCP Sentinel stores control-plane records in a mode-`0600` SQLite database using WAL, full synchronous transactions, migration versions, and a busy timeout. Secret payloads are encrypted with the systemd `state-key` credential. Do not place state or credentials in source control.
 
 - **Fleet:** register each Sentinel health endpoint. Sentinel only performs a timed `GET` to hosts explicitly listed in `MCP_FLEET_ALLOWED_HOSTS`; it does not expose remote shell access through the fleet inventory.
 - **Backups:** backup targets can be a local allow-listed directory or an S3-compatible endpoint. Only allow-listed regular files up to 25 MiB are accepted. Each backup is AES-256-GCM encrypted before it reaches the destination; S3 credentials are encrypted at rest and never returned by the API.
@@ -182,7 +183,7 @@ For a nontechnical operator, start with Server Care, Guided Tasks, Approvals, De
 node keygen.js admin admin
 
 # Generate scoped user key
-node keygen.js alice user run_command,read_file,write_file
+node keygen.js alice user run_project_tests,read_file,write_file
 ```
 
 ## 📊 Monitor
@@ -200,7 +201,7 @@ curl -k https://localhost:4444/health
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 22+
 - Linux (systemd-based)
 - `openssl` (for HTTPS)
 - Root or sudo for full admin tools

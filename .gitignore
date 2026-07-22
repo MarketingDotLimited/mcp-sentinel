@@ -1,6 +1,11 @@
 # Environment & secrets
 .env
 *.env.local
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.db
 
 # TLS certificates (contain private keys)
 certs/server.key
@@ -11,9 +16,20 @@ certs/acme/
 keys.json
 data/
 
+# Runtime identity-provider state (only sanitized *.template.* files belong in Git)
+authelia/configuration.yml
+authelia/users.yml
+authelia/user-mappings.json
+authelia/db.sqlite3
+authelia/notification.txt
+authelia/oidc_*.pem
+authelia/backups/
+
 # Logs
 logs/
 *.log
+coverage/
+.nyc_output/
 
 # Node modules
 node_modules/
@@ -27,3 +43,15 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Local operational and diagnostic scratch files
+.playwright-mcp/
+openai-ips.json
+add-plesk-*.cjs
+cf-*.cjs
+extract-certs.cjs
+fix-globals.cjs
+patch_*.js
+test-ui.js
+test_mcp*.js
+test_tool.mjs

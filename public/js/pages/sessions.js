@@ -1,17 +1,17 @@
-import { API } from "../api.js";
-import { Toast } from "../toast.js";
-import { Router } from "../router.js";
+import { API } from '../api.js';
+import { Toast } from '../toast.js';
+import { Router } from '../router.js';
 (function () {
   let refreshInterval = null;
   let rootContainer = null;
 
   async function loadSessions() {
     try {
-      const response = await window.API.get('/admin/sessions');
+      const response = await API.get('/admin/sessions');
       const sessions = Array.isArray(response) ? response : response.sessions || response.data || [];
       renderTable(sessions);
     } catch (err) {
-      if (window.Toast) window.Toast.error('Failed to load sessions: ' + err.message);
+      Toast.error('Failed to load sessions: ' + err.message);
     }
   }
 
@@ -86,9 +86,28 @@ import { Router } from "../router.js";
       btnDisconnect.onclick = () => disconnectSession(session.id);
       tdActions.appendChild(btnDisconnect);
 
+      const tdAuthType = document.createElement('td');
+      const authBadge = document.createElement('span');
+      authBadge.className = 'badge';
+      authBadge.textContent = session.authType || 'Unknown';
+      tdAuthType.appendChild(authBadge);
+
+      const tdScopes = document.createElement('td');
+      if (session.scopes && session.scopes.length > 0) {
+        const scopeBadge = document.createElement('span');
+        scopeBadge.className = 'badge';
+        scopeBadge.textContent = session.scopes.length + ' scopes';
+        scopeBadge.title = session.scopes.join(', ');
+        tdScopes.appendChild(scopeBadge);
+      } else {
+        tdScopes.textContent = 'None';
+      }
+
       tr.appendChild(tdId);
       tr.appendChild(tdUser);
       tr.appendChild(tdRole);
+      tr.appendChild(tdAuthType);
+      tr.appendChild(tdScopes);
       tr.appendChild(tdIp);
       tr.appendChild(tdConnected);
       tr.appendChild(tdActive);
@@ -100,21 +119,21 @@ import { Router } from "../router.js";
 
   async function disconnectSession(sessionId) {
     try {
-      await window.API.del('/admin/sessions/' + sessionId);
-      if (window.Toast) window.Toast.success('Session disconnected');
+      await API.del('/admin/sessions/' + sessionId);
+      Toast.success('Session disconnected');
       loadSessions();
     } catch (err) {
-      if (window.Toast) window.Toast.error('Failed to disconnect session: ' + err.message);
+      Toast.error('Failed to disconnect session: ' + err.message);
     }
   }
 
   async function disconnectAllSessions() {
     try {
-      await window.API.del('/admin/sessions');
-      if (window.Toast) window.Toast.success('All sessions disconnected');
+      await API.del('/admin/sessions');
+      Toast.success('All sessions disconnected');
       loadSessions();
     } catch (err) {
-      if (window.Toast) window.Toast.error('Failed to disconnect all sessions: ' + err.message);
+      Toast.error('Failed to disconnect all sessions: ' + err.message);
     }
   }
 
@@ -157,6 +176,8 @@ import { Router } from "../router.js";
               <th>Session ID</th>
               <th>User</th>
               <th>Role</th>
+              <th>Auth Type</th>
+              <th>Scopes</th>
               <th>IP</th>
               <th>Connected At</th>
               <th>Last Active</th>
