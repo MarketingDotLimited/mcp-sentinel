@@ -1,4 +1,7 @@
-(function() {
+import { API } from "../api.js";
+import { Toast } from "../toast.js";
+import { Router } from "../router.js";
+(function () {
   let root;
 
   function makeWorkflowCard(workflow) {
@@ -14,14 +17,22 @@
     risk.textContent = workflow.risk === 'read-only' ? 'Safe to start' : 'Approval before changes';
     const list = document.createElement('ul');
     list.className = 'workflow-steps';
-    workflow.prompts.forEach(prompt => { const item = document.createElement('li'); item.textContent = prompt; list.appendChild(item); });
+    workflow.prompts.forEach(prompt => {
+      const item = document.createElement('li');
+      item.textContent = prompt;
+      list.appendChild(item);
+    });
     const button = document.createElement('button');
     button.className = 'btn btn-primary';
     button.textContent = 'Copy AI prompt';
     button.onclick = async () => {
       const prompt = `Use MCP Sentinel to help me: ${workflow.title}. ${workflow.prompts.join('. ')}. Explain the plan in plain language and do not make changes without my confirmation.`;
-      try { await navigator.clipboard.writeText(prompt); Toast.success('A safe prompt is ready to paste into your AI platform.'); }
-      catch { Toast.error('Could not copy the prompt.'); }
+      try {
+        await navigator.clipboard.writeText(prompt);
+        Toast.success('A safe prompt is ready to paste into your AI platform.');
+      } catch {
+        Toast.error('Could not copy the prompt.');
+      }
     };
     card.append(title, risk, description, list, button);
     return card;
@@ -39,10 +50,13 @@
 
   function render(container) {
     root = container;
-    root.innerHTML = '<div class="page-header"><div><h1>Guided Tasks</h1><p>Start safely with your preferred AI platform. Sentinel keeps control of permissions and approvals.</p></div></div><div id="workflow-grid" class="workflow-grid"><div class="card">Loading guided tasks…</div></div>';
+    root.innerHTML =
+      '<div class="page-header"><div><h1>Guided Tasks</h1><p>Start safely with your preferred AI platform. Sentinel keeps control of permissions and approvals.</p></div></div><div id="workflow-grid" class="workflow-grid"><div class="card">Loading guided tasks…</div></div>';
     renderWorkflows();
   }
 
-  function destroy() { root = null; }
+  function destroy() {
+    root = null;
+  }
   window.WorkflowsPage = { render, destroy };
 })();

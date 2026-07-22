@@ -1,3 +1,5 @@
+import { API } from "./api.js";
+import { Toast } from "./toast.js";
 // ============================================================
 //  auth.js - Login/logout, token management, auto-logout
 // ============================================================
@@ -42,4 +44,4 @@ const Auth = {
   },
 };
 
-window.Auth = Auth;
+export { Auth };

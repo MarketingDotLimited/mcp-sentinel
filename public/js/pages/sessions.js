@@ -1,11 +1,14 @@
-(function() {
+import { API } from "../api.js";
+import { Toast } from "../toast.js";
+import { Router } from "../router.js";
+(function () {
   let refreshInterval = null;
   let rootContainer = null;
 
   async function loadSessions() {
     try {
       const response = await window.API.get('/admin/sessions');
-      const sessions = Array.isArray(response) ? response : (response.sessions || response.data || []);
+      const sessions = Array.isArray(response) ? response : response.sessions || response.data || [];
       renderTable(sessions);
     } catch (err) {
       if (window.Toast) window.Toast.error('Failed to load sessions: ' + err.message);
@@ -39,7 +42,7 @@
     const tableBody = rootContainer.querySelector('#sessions-tbody');
     if (!tableBody) return;
     tableBody.innerHTML = '';
-    
+
     if (sessions.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
@@ -53,36 +56,36 @@
 
     sessions.forEach(session => {
       const tr = document.createElement('tr');
-      
+
       const tdId = document.createElement('td');
       tdId.textContent = session.id ? session.id.substring(0, 8) : 'N/A';
-      
+
       const tdUser = document.createElement('td');
       tdUser.textContent = session.userId || session.user || 'Unknown';
-      
+
       const tdRole = document.createElement('td');
       const roleBadge = document.createElement('span');
       roleBadge.className = 'badge ' + (session.role === 'admin' ? 'badge-admin' : 'badge-user');
       roleBadge.textContent = session.role || 'user';
       tdRole.appendChild(roleBadge);
-      
+
       const tdIp = document.createElement('td');
       tdIp.textContent = session.ip || 'N/A';
-      
+
       const tdConnected = document.createElement('td');
       tdConnected.textContent = new Date(session.connectedAt || Date.now()).toLocaleString();
       tdConnected.style.color = getAgeColor(session.connectedAt || Date.now());
-      
+
       const tdActive = document.createElement('td');
       tdActive.textContent = formatTimeAgo(session.lastActive || session.connectedAt || Date.now());
-      
+
       const tdActions = document.createElement('td');
       const btnDisconnect = document.createElement('button');
       btnDisconnect.className = 'btn btn-danger btn-sm';
       btnDisconnect.textContent = 'Disconnect';
       btnDisconnect.onclick = () => disconnectSession(session.id);
       tdActions.appendChild(btnDisconnect);
-      
+
       tr.appendChild(tdId);
       tr.appendChild(tdUser);
       tr.appendChild(tdRole);
@@ -90,7 +93,7 @@
       tr.appendChild(tdConnected);
       tr.appendChild(tdActive);
       tr.appendChild(tdActions);
-      
+
       tableBody.appendChild(tr);
     });
   }
@@ -142,12 +145,13 @@
   function render(container) {
     rootContainer = container;
     container.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>Active Sessions</h2>
+      <div class="page-header">
+        <div><h1>Sessions</h1>
+        <p class="page-subtitle">Review and manage active MCP sessions.</p></div>
         <button id="btn-disconnect-all" class="btn btn-danger">Disconnect All</button>
       </div>
-      <div class="card">
-        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+      <div class="table-wrapper">
+        <table class="data-table">
           <thead>
             <tr>
               <th>Session ID</th>
