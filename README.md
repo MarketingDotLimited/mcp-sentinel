@@ -10,13 +10,13 @@ A **security-hardened MCP (Model Context Protocol) server** that lets AI cloud s
 
 ## ✨ Features
 
-- **32 MCP Tools** — inspect and manage files, services, users, databases, repositories, sandboxed code, and alerts
+- **Guided defaults** — Server Care and Developer Work make safe server management and AI-assisted development approachable from any MCP-compatible platform
 - **Multi-Layer Security** — API key + JWT tokens + IP whitelist + rate limiting + audit logs + path sandboxing + scope enforcement + HTTPS + Helmet + CORS
 - **Role-Based Access** — `admin` gets full control; `user` is sandboxed to their home directory
 - **Per-User API Keys** — issue scoped keys for different users/services
 - **Audit Logging** — every tool call logged with user, IP, duration, result (daily rotating JSON)
 - **Approval Control Plane** — optionally require a human administrator to approve exact high-risk AI actions before they run
-- **Guided Workflows** — plain-language diagnostics, security review, backup, and deployment prompts for any MCP-compatible AI
+- **Guided Workflows** — plain-language diagnostics, security review, and development prompts for any MCP-compatible AI
 - **Project Registry** — register approved repositories and generate safe deployment plans for developers and AI coding agents
 - **systemd Ready** — auto-start on boot
 
@@ -77,10 +77,11 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 
 | Category | Tools |
 |---|---|
-| **System** | `get_system_info`, `get_processes`, `kill_process` |
-| **Files** | `read_file`, `write_file`, `delete_file`, `list_directory`, `move_file`, `copy_file`, `get_file_info`, `search_files` |
-| **Services** | `manage_service`, `get_service_status`, `list_services`, `get_journal_logs`, `manage_firewall` |
-| **Users** | `list_users`, `get_user_info`, `create_user`, `delete_user`, `set_user_password`, `modify_user`, `manage_ssh_keys` |
+| **Server Care (default)** | health, services, logs, safe configuration changes, approvals, and audit review |
+| **Developer Work (default)** | approved project inspection, constrained file work, Git operations, and deployment plans |
+| **Advanced System Administration** | users, SSH keys, firewall rules, and process signals; disabled by default |
+| **Advanced Data Access** | raw SQL against configured aliases; disabled by default |
+| **Advanced Execution** | sandbox execution and direct deployment; disabled by default |
 
 ## 🔐 Security Architecture
 
@@ -155,7 +156,13 @@ PROJECT_HEALTH_ALLOWED_HOSTS=app.example.com
 
 For enterprise policy-as-code, copy [policy.example.json](policy.example.json) outside the repository or to a protected configuration path, set `MCP_POLICY_FILE`, and review changes through your normal configuration-management process. A policy can deny tools for a role or require an approval even when the key would otherwise allow the action.
 
-## Enterprise operations
+## Capability packs and legacy compatibility
+
+The default experience is deliberately small: **Server Care** for operating a server and **Developer Work** for approved application work. An administrator can enable Advanced System Administration, Advanced Data Access, or Advanced Execution from **Administration → Capability packs**. Disabled packs are neither advertised to new MCP sessions nor executable if an AI client attempts a direct call.
+
+The older fleet, backup-target, webhook, organization, team, and scheduling interfaces are in a soft-sunset window. They remain available for one minor release so existing integrations and state can be migrated, but their REST responses include deprecation headers and they are hidden from normal navigation. Direct deployment is also an Advanced Execution capability; the default is deployment planning only.
+
+## Legacy enterprise operations
 
 MCP Sentinel keeps a small, encrypted control-plane state file (mode `0600`) for registered fleet servers, backup destinations, webhooks, approvals, projects, and schedules. Do not place it in source control.
 
@@ -164,7 +171,7 @@ MCP Sentinel keeps a small, encrypted control-plane state file (mode `0600`) for
 - **Webhooks:** events are sent only to `WEBHOOK_ALLOWED_HOSTS`, with redirects disabled, a ten-second timeout, and an `X-MCP-Sentinel-Signature-256: sha256=<hmac>` header. Keep the secret only in Sentinel and verify this HMAC on the receiver.
 - **Deployments:** create a registered project with an allow-listed repository and service. `deploy_project` performs only `git pull --ff-only`, restarts that exact registered systemd service, then checks a health URL whose host is in `PROJECT_HEALTH_ALLOWED_HOSTS`. It requires `confirm: true`, an administrator identity, and key-level approval when approval mode is enabled.
 
-For a nontechnical operator, the dashboard’s Guided Help, Approvals, Projects, Automations, Connect AI, Teams, and Security pages are the intended starting points. For AI clients, call `list_guided_workflows` first, use `plan_project_deployment` before deployment, and submit exact risky requests with `request_change_approval`.
+For a nontechnical operator, start with Server Care, Guided Tasks, Approvals, Developer Work, and Connect AI. For AI clients, call `list_guided_workflows` first, use `plan_project_deployment` before deployment, and submit exact risky requests with `request_change_approval`.
 
 ## 🔑 Generate API Keys
 

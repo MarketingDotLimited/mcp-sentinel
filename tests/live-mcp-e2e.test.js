@@ -40,6 +40,14 @@ async function issueToken(baseUrl, key) {
   return (await response.json()).token;
 }
 
+async function setCapability(baseUrl, key, id, enabled) {
+  const token = await issueToken(baseUrl, key);
+  const response = await fetch(`${baseUrl}/admin/capabilities/${id}`, {
+    method: 'PUT', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ enabled }),
+  });
+  if (response.status !== 200) throw new Error(`Capability update failed (${response.status}): ${await response.text()}`);
+}
+
 class McpSession {
   constructor(baseUrl, key, useBearer = false) { this.baseUrl = baseUrl; this.key = key; this.useBearer = useBearer; this.id = 0; this.sessionId = null; }
   async request(method, params) {
@@ -80,10 +88,17 @@ describe('live MCP least-privilege path', { skip: !enabled }, () => {
         ...process.env, PORT: String(port), HOST: '127.0.0.1', USE_HTTPS: 'false', ADMIN_API_KEY: adminKey,
         JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef',
         KEYS_FILE: path.join(tmp, 'keys.json'), KEYSTORE_FILE: path.join(tmp, 'keys.json'),
-        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'control-plane.json'), AUDIT_LOG_DIR: path.join(tmp, 'logs'),
+        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'control-plane.json'), MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'), AUDIT_LOG_DIR: path.join(tmp, 'logs'),
       }, stdio: 'ignore',
     });
     await waitFor(`${baseUrl}/health`);
+
+    const defaultAdmin = new McpSession(baseUrl, adminKey);
+    await defaultAdmin.initialize();
+    const defaultTools = await defaultAdmin.request('tools/list', {});
+    assert.equal(defaultTools.result.tools.some(tool => tool.name === 'create_user'), false);
+    assert.equal(defaultTools.result.tools.some(tool => tool.name === 'execute_query'), false);
+    await setCapability(baseUrl, adminKey, 'advanced-system-admin', true);
 
     const admin = new McpSession(baseUrl, adminKey);
     await admin.initialize();

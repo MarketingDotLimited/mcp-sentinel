@@ -33,13 +33,13 @@
       const { workflows } = await API.get('/admin/workflows');
       grid.replaceChildren(...workflows.map(makeWorkflowCard));
     } catch (error) {
-      grid.textContent = `Unable to load guided help: ${error.message}`;
+      grid.textContent = `Unable to load guided tasks: ${error.message}`;
     }
   }
 
   function render(container) {
     root = container;
-    root.innerHTML = '<div class="page-header"><div><h1>Guided Help</h1><p>Start safely with your preferred AI platform. Sentinel keeps control of permissions and approvals.</p></div></div><div id="workflow-grid" class="workflow-grid"><div class="card">Loading guided workflows…</div></div>';
+    root.innerHTML = '<div class="page-header"><div><h1>Guided Tasks</h1><p>Start safely with your preferred AI platform. Sentinel keeps control of permissions and approvals.</p></div></div><div id="workflow-grid" class="workflow-grid"><div class="card">Loading guided tasks…</div></div>';
     renderWorkflows();
   }
 

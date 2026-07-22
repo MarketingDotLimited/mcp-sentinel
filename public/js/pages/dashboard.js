@@ -176,8 +176,8 @@ const DashboardPage = (() => {
 
     containerEl.innerHTML = `
       <div class="page-header" style="margin-bottom: 2.5rem;">
-        <h1 class="page-title" style="font-size: 2.25rem; font-weight: 800; letter-spacing: -0.025em; margin: 0; background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Dashboard</h1>
-        <p class="page-subtitle" style="color: #a1a1aa; margin-top: 0.5rem; font-size: 1.1rem;">Your server at a glance. Start with Guided Help when you need a safe AI-assisted task.</p>
+        <h1 class="page-title" style="font-size: 2.25rem; font-weight: 800; letter-spacing: -0.025em; margin: 0; background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Server Care</h1>
+        <p class="page-subtitle" style="color: #a1a1aa; margin-top: 0.5rem; font-size: 1.1rem;">Your server at a glance. Start with Guided Tasks for a safe AI-assisted task.</p>
       </div>
       
       <div class="content-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">

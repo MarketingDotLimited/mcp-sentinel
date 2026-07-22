@@ -7,6 +7,7 @@ import { sanitizeArgs } from '../audit.js';
 
 const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-sentinel-approvals-'));
 process.env.CONTROL_PLANE_STATE_FILE = path.join(tempDir, 'control-plane.json');
+process.env.MCP_CAPABILITIES_FILE = path.join(tempDir, 'capabilities.json');
 process.env.KEYSTORE_FILE = path.join(tempDir, 'keys.json');
 process.env.GIT_ALLOWED_REPOS = '/srv/example-app';
 process.env.MCP_POLICY_FILE = path.join(tempDir, 'policy.json');
@@ -23,6 +24,7 @@ await fs.writeFile(process.env.MCP_POLICY_FILE, JSON.stringify({ rules: [
 const controlPlane = await import(`../lib/control-plane.js?test=${Date.now()}`);
 const security = await import(`../security.js?test=${Date.now()}`);
 const policy = await import(`../lib/policy.js?test=${Date.now()}`);
+const capabilities = await import(`../lib/capabilities.js?test=${Date.now()}`);
 
 after(async () => {
   await fs.rm(tempDir, { recursive: true, force: true });
@@ -83,6 +85,18 @@ describe('approval control plane', () => {
   it('enforces policy-as-code deny and approval rules', async () => {
     assert.deepEqual(await policy.evaluatePolicy({ tool: 'delete_user', identity: requester }), { allowed: false, requireApproval: false, reason: 'This action is denied by server policy' });
     assert.deepEqual(await policy.evaluatePolicy({ tool: 'write_file', identity: requester }), { allowed: true, requireApproval: true });
+  });
+
+  it('keeps specialist capability packs disabled until an administrator opts in', async () => {
+    const initial = await capabilities.getCapabilities();
+    assert.equal(initial.find(pack => pack.id === 'core-server-care').enabled, true);
+    assert.equal(initial.find(pack => pack.id === 'advanced-data').enabled, false);
+    assert.equal((await capabilities.toolAvailability('execute_query')).available, false);
+    await assert.rejects(capabilities.setCapability('core-server-care', false), /must remain enabled/);
+
+    await capabilities.setCapability('advanced-data', true);
+    assert.equal((await capabilities.toolAvailability('execute_query')).available, true);
+    assert.equal((await capabilities.toolAvailability('deploy_project')).available, false);
   });
 
   it('does not trust forwarded IP headers without an explicit proxy allow-list', () => {

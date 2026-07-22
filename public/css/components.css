@@ -501,6 +501,10 @@ select.input-field {
   animation: slideUp 0.3s ease;
 }
 
+/* Legacy and specialist administration pages remain routable during the
+   compatibility window but are not part of the default navigation. */
+.admin-nav { display: none !important; }
+
 /* AI connection onboarding */
 .connect-readiness { display: flex; gap: 10px; align-items: baseline; padding: 14px 18px; margin-bottom: 20px; border: var(--glass-border); border-radius: var(--radius-md); }
 .connect-readiness.is-ready { background: rgba(16, 185, 129, .12); border-color: rgba(16, 185, 129, .55); }

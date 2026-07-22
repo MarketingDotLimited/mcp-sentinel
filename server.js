@@ -45,6 +45,7 @@ import { gitOperation } from './tools/git.js';
 import { executeQuery } from './tools/db.js';
 import { monitor } from './lib/monitor.js';
 import { evaluatePolicy, getPolicyStatus } from './lib/policy.js';
+import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } from './lib/capabilities.js';
 import { assertProjectHealthUrlAllowed, assertRepositoryPermitted, checkFleetServer, consumeApproval, createAutomation, createBackupTarget, createOrganization, createProject, createTeam, createWebhook, decideApproval, deliverWebhook, getDeploymentPlan, getProject, getWorkflowCatalog, listApprovals, listAutomations, listBackupTargets, listFleet, listOrganizations, listProjects, listWebhooks, registerFleetServer, requestApproval, runBackup, runDueAutomations, validateKeyAssignment } from './lib/control-plane.js';
 import {
   getOAuthUsers, addOAuthUser, updateOAuthUser, deleteOAuthUser,
@@ -86,7 +87,7 @@ async function buildSecurityPosture() {
   add('approvals', approvalKeys > 0 ? 'pass' : 'warning', approvalKeys > 0 ? `${approvalKeys} API key(s) require approval for risky actions.` : 'No API keys currently require approval for risky actions.');
   const failed = checks.filter(check => check.status === 'fail').length;
   const warnings = checks.filter(check => check.status === 'warning').length;
-  return { status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong', score: Math.max(0, 100 - failed * 35 - warnings * 12), checks, generatedAt: new Date().toISOString() };
+  return { status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong', checks, generatedAt: new Date().toISOString() };
 }
 
 // ── Active SSE connections ─────────────────────────────────
@@ -171,6 +172,18 @@ app.use(globalLimiter);
 // Now parse bodies (AFTER rate limiting and IP checking)
 app.use(express.json({ limit: '5mb' }));
 
+// Compatibility window: these endpoints remain callable for one minor release,
+// but are intentionally removed from the default product experience.
+app.use((req, res, next) => {
+  const legacyPaths = ['/admin/automations', '/admin/organizations', '/admin/teams', '/admin/fleet', '/admin/backup-targets', '/admin/webhooks', '/admin/backups/run', '/admin/oauth-users', '/admin/oauth-clients'];
+  if (legacyPaths.some(prefix => req.path === prefix || req.path.startsWith(`${prefix}/`))) {
+    res.set('Deprecation', 'true');
+    res.set('Sunset', 'next-minor-release');
+    res.set('X-MCP-Sentinel-Deprecated', 'This compatibility endpoint is deprecated; export or migrate its configuration before the next minor release.');
+  }
+  next();
+});
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 auth attempts per 15 min
@@ -254,7 +267,21 @@ app.get('/admin/access-templates', authenticateJWT, (req, res) => {
   return res.json({ templates: getRoleTemplates() });
 });
 
-app.get('/admin/connection-info', authenticateJWT, (req, res) => {
+app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  return res.json({ capabilities: await getCapabilities() });
+});
+
+app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  try {
+    const capabilities = await setCapability(req.params.id, req.body?.enabled);
+    logSecurityEvent({ ip: req.clientIP, event: 'CAPABILITY_UPDATED', detail: { capability: req.params.id, enabled: req.body?.enabled, by: req.identity.userId } });
+    return res.json({ capabilities });
+  } catch (err) { return res.status(400).json({ error: err.message }); }
+});
+
+app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
   const baseUrl = process.env.PUBLIC_URL || `${USE_HTTPS ? 'https' : 'http'}://${req.get('host')}`;
   const publicUrl = baseUrl.replace(/\/$/, '');
   const publicHttps = publicUrl.startsWith('https://');
@@ -263,6 +290,7 @@ app.get('/admin/connection-info', authenticateJWT, (req, res) => {
     transport: 'streamable-http',
     mcpUrl: `${publicUrl}/mcp`,
     authorization: 'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
+    capabilities: await getCapabilities(),
     readiness: {
       publicHttps,
       oidcEnabled,
@@ -767,7 +795,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
     }
 
     const newSessionId = randomUUID();
-    const mcpServer = createMcpServer(identity, ip);
+    const mcpServer = await createMcpServer(identity, ip);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => newSessionId,
       enableDnsRebindingProtection: true,
@@ -822,7 +850,7 @@ app.use((err, req, res, next) => {
 
 // ── MCP Server Factory ─────────────────────────────────────
 
-function createMcpServer(identity, ip) {
+async function createMcpServer(identity, ip) {
   const server = new McpServer({
     name: 'server-control',
     version: process.env.npm_package_version || JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version,
@@ -833,6 +861,7 @@ function createMcpServer(identity, ip) {
   };
 
   // ── Helper: wrap tool calls with audit logging ───────────
+  const registrations = [];
   function tool(name, description, schema, handler) {
     const readOnlyTools = new Set([
       'get_system_info', 'get_processes', 'read_file', 'list_directory', 'get_file_info', 'search_files',
@@ -853,8 +882,13 @@ function createMcpServer(identity, ip) {
       ...(stateChangingTools.has(name) ? { destructiveHint: true } : {}),
       ...(new Set(['check_fleet_server', 'run_encrypted_backup', 'deliver_webhook', 'deploy_project']).has(name) ? { openWorldHint: true } : {}),
     };
-    server.tool(name, description, schema, annotations, async (args) => {
+    const registration = server.tool(name, `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`, schema, annotations, async (args) => {
       const start = Date.now();
+      const availability = await toolAvailability(name);
+      if (!availability.available) {
+        logSecurityEvent({ ip, event: 'CAPABILITY_DENIED', detail: { userId: identity.userId, tool: name, capability: availability.pack } });
+        return { content: [{ type: 'text', text: JSON.stringify({ error: availability.message, requiredCapability: availability.pack }) }], isError: true };
+      }
       // Enforce scope authorization
       const scopes = identity.scopes || [];
       if (!scopeAllows(scopes, name)) {
@@ -920,7 +954,7 @@ function createMcpServer(identity, ip) {
         const result = await handler(args, identity);
         logAccess({ ip, apiKey: null, userId: identity.userId, tool: name, args, result: 'success', duration: Date.now() - start });
         const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
-        return { content: [{ type: 'text', text: textContent || 'Success' }] };
+        return { content: [{ type: 'text', text: textContent || 'Success' }], ...(availability.deprecated ? { _meta: { deprecated: true, deprecationMessage: availability.message } } : {}) };
       } catch (err) {
         const errorId = randomUUID();
         logError({ ip, userId: identity.userId, tool: name, errorId, error: err });
@@ -931,6 +965,7 @@ function createMcpServer(identity, ip) {
         };
       }
     });
+    registrations.push({ name, registration });
   }
 
   // ── System Tools ───────────────────────────────────────
@@ -1128,7 +1163,7 @@ function createMcpServer(identity, ip) {
 
   // ── Pub/Sub Alert Tools ──────────────────────────────────
 
-  tool('list_guided_workflows', 'List safe, plain-language workflows for diagnosing, securing, backing up, and deploying a server.', {}, async () => {
+  tool('list_guided_workflows', 'List safe, plain-language workflows for server care and developer work.', {}, async () => {
     return { workflows: getWorkflowCatalog() };
   });
 
@@ -1262,6 +1297,13 @@ function createMcpServer(identity, ip) {
     return { alerts: monitor.getActiveAlerts(sessionEntry[0]) };
   });
 
+  // Disabled packs are absent from tools/list, so an AI cannot casually discover
+  // or invoke specialist operations. Existing legacy tools stay discoverable with
+  // a deprecation notice for the agreed one-minor-release migration window.
+  for (const { name, registration } of registrations) {
+    const availability = await toolAvailability(name);
+    if (!availability.available) registration.disable();
+  }
   return server;
 }
 
