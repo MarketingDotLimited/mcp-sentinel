@@ -54,8 +54,12 @@ identity_providers:
         pkce_challenge_method: S256
         redirect_uris:
           - https://chatgpt.com/aip/plugin/callback
+        audience:
+          - https://begin.shopping:2053
+          - chatgpt
         scopes:
           - openid
           - profile
           - email
         userinfo_signed_response_alg: none
+        access_token_signed_response_alg: RS256
