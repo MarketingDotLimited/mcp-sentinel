@@ -35,12 +35,12 @@ after(async () => {
 });
 
 describe('dashboard UX', { skip: !enabled }, () => {
-  it('lets an administrator reach guided workflows and enterprise operations without console errors', async () => {
+  it('keeps the nontechnical experience focused while exposing capability packs to administrators', async () => {
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, ['server.js'], {
       cwd: process.cwd(),
-      env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', USE_HTTPS: 'false', ADMIN_API_KEY: key, JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef', KEYS_FILE: path.join(tmp, 'keys.json'), KEYSTORE_FILE: path.join(tmp, 'keys.json'), CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'), AUDIT_LOG_DIR: path.join(tmp, 'logs') },
+      env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', USE_HTTPS: 'false', ADMIN_API_KEY: key, JWT_SECRET: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdef', KEYS_FILE: path.join(tmp, 'keys.json'), KEYSTORE_FILE: path.join(tmp, 'keys.json'), CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'), MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'), AUDIT_LOG_DIR: path.join(tmp, 'logs') },
       stdio: 'ignore',
     });
     await waitFor(`${baseUrl}/health`);
@@ -52,15 +52,17 @@ describe('dashboard UX', { skip: !enabled }, () => {
       await page.goto(baseUrl, { waitUntil: 'networkidle' });
       await page.locator('input[type="password"]').fill(key);
       await page.getByRole('button', { name: 'Sign In' }).click();
-      await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Dashboard'));
+      await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Server Care'));
 
       await page.locator('a[href="#/workflows"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Guided'));
       assert.match(await page.locator('body').innerText(), /Check why my server or website is slow/);
+      assert.equal(await page.locator('a[href="#/automations"]').isVisible(), false);
 
-      await page.locator('a[href="#/operations"]').click();
-      await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Enterprise Operations'));
-      assert.match(await page.locator('body').innerText(), /Encrypted backups/);
+      await page.locator('a[href="#/administration"]').click();
+      await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Administration'));
+      assert.match(await page.locator('body').innerText(), /Capability packs/);
+      assert.match(await page.locator('body').innerText(), /Advanced Data Access[\s\S]*Disabled by default/);
 
       await page.locator('a[href="#/connect"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Connect your AI'));
