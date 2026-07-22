@@ -245,8 +245,8 @@ window.OAuthPage = (function() {
         let osUsers = [];
         try {
             const res = await API.get('/admin/os-users');
-            const data = Array.isArray(res) ? res : (res.data || []);
-            osUsers = data.filter(u => !u.shell.includes('false') && !u.shell.includes('nologin'));
+            const data = Array.isArray(res) ? res : (res.users || res.data || []);
+            osUsers = data.filter(u => u.shell && !u.shell.includes('false') && !u.shell.includes('nologin'));
         } catch(e) { console.error(e); }
         
         modal.body.innerHTML = `
