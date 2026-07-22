@@ -19,17 +19,28 @@ export async function runSandboxedCode({ language, code, allowNetwork = false, t
   const validTimeout = Math.min(Math.max(parseInt(timeout, 10) || 30, 1), 120);
 
   // Setup temporary directory for files if needed
+  if (!files || typeof files !== 'object' || Array.isArray(files)) {
+    throw new Error('files must be an object mapping filenames to string contents');
+  }
+
   let tempDir = null;
   if (Object.keys(files).length > 0) {
     const sessionId = crypto.randomBytes(16).toString('hex');
     tempDir = `/tmp/mcp-sandbox-${sessionId}`;
     await fs.mkdir(tempDir, { recursive: true, mode: 0o700 });
-    
-    for (const [filename, content] of Object.entries(files)) {
-      if (filename.includes('..') || filename.includes('/')) {
-        throw new Error(`Invalid filename: ${filename}`);
+    try {
+      for (const [filename, content] of Object.entries(files)) {
+        if (!filename || filename.includes('..') || filename.includes('/') || path.basename(filename) !== filename) {
+          throw new Error(`Invalid filename: ${filename}`);
+        }
+        if (typeof content !== 'string') {
+          throw new Error(`File '${filename}' must have string content`);
+        }
+        await fs.writeFile(path.join(tempDir, filename), content, { mode: 0o600 });
       }
-      await fs.writeFile(path.join(tempDir, filename), content);
+    } catch (err) {
+      await fs.rm(tempDir, { recursive: true, force: true });
+      throw err;
     }
   }
 
@@ -76,7 +87,7 @@ export async function runSandboxedCode({ language, code, allowNetwork = false, t
       }
 
       resolve({
-        success: !err || err.killed,
+        success: !err,
         stdout: out.trim(),
         stderr: errOut.trim(),
         truncated,

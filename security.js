@@ -132,6 +132,7 @@ export function authenticate(req, res, next) {
     scopes: keyEntry.scopes,
     keyVersion: keyEntry.version,
     keyId: keyEntry.keyId,
+    authType: 'apiKey',
   };
 
   logAuth({ ip, apiKey, userId: keyEntry.userId, event: 'AUTH_SUCCESS' });
@@ -196,33 +197,21 @@ export function issueToken(req, res) {
 let _jwksCache = null;
 let _jwksCacheTime = 0;
 const JWKS_CACHE_TTL = 3600000; // 1 hour
-const AUTHELIA_ISSUER = 'https://begin.shopping:2083';
-const AUTHELIA_JWKS_URL = 'https://127.0.0.1:2083/api/oidc/jwks';
-const MAPPINGS_FILE = '/etc/authelia/user-mappings.json';
+const AUTHELIA_ISSUER = process.env.AUTHELIA_ISSUER || '';
+const AUTHELIA_JWKS_URL = process.env.AUTHELIA_JWKS_URL || '';
+const MAPPINGS_FILE = process.env.AUTHELIA_MAPPINGS_FILE || '/etc/authelia/user-mappings.json';
 
 async function getAutheliaJWKS(forceRefresh = false) {
+  if (!AUTHELIA_JWKS_URL) return null;
   if (_jwksCache && !forceRefresh && (Date.now() - _jwksCacheTime < JWKS_CACHE_TTL)) {
     return _jwksCache;
   }
   try {
     const { createRemoteJWKSet } = await import('jose');
-    const { Agent, setGlobalDispatcher } = await import('undici');
-    
-    // Create an undici agent that ignores self-signed certs for loopback JWKS
-    const agent = new Agent({
-      connect: { rejectUnauthorized: false }
-    });
-
     _jwksCache = createRemoteJWKSet(new URL(AUTHELIA_JWKS_URL), {
       cooldownDuration: 30000,
       cacheMaxAge: JWKS_CACHE_TTL,
-      [Symbol.asyncIterator]: undefined, // trick for formatting
     });
-    
-    // Override the global fetch dispatcher just for this internal fetch,
-    // or better yet, inject the fetch option if jose supports it.
-    // In jose v5, you can pass custom fetch or use undici globally.
-    setGlobalDispatcher(agent);
     _jwksCacheTime = Date.now();
     return _jwksCache;
   } catch (err) {
@@ -280,6 +269,9 @@ export function authenticateJWT(req, res, next) {
       userId: decoded.sub,
       role: decoded.role,
       scopes: decoded.scopes,
+      keyId: decoded.keyId,
+      keyVersion: decoded.keyVersion,
+      authType: 'apiKey',
     };
 
     return next();
@@ -288,6 +280,10 @@ export function authenticateJWT(req, res, next) {
   }
 
   // ── Try 2: Authelia RS256 OIDC Token ──────────────────
+  if (!AUTHELIA_ISSUER || !AUTHELIA_JWKS_URL) {
+    logSecurityEvent({ ip, event: 'INVALID_BEARER_TOKEN', detail: {} });
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
   (async () => {
     try {
       const { jwtVerify } = await import('jose');
@@ -301,6 +297,7 @@ export function authenticateJWT(req, res, next) {
       try {
         result = await jwtVerify(token, jwks, {
           issuer: AUTHELIA_ISSUER,
+          algorithms: ['RS256', 'ES256', 'ES384', 'ES512'],
         });
       } catch (verifyErr) {
         // Force refresh JWKS and retry once (handles key rotation)
@@ -310,6 +307,7 @@ export function authenticateJWT(req, res, next) {
         }
         result = await jwtVerify(token, refreshedJwks, {
           issuer: AUTHELIA_ISSUER,
+          algorithms: ['RS256', 'ES256', 'ES384', 'ES512'],
         });
       }
 
@@ -360,6 +358,7 @@ export function authenticateJWT(req, res, next) {
         oauthUser: oauthUsername,
         oauthClient: clientId,
         oauthProvider: 'authelia',
+        authType: 'oauth',
       };
 
       logAuth({ ip, userId: mappedUser, event: 'OAUTH_TOKEN_VALIDATED', reason: `OAuth user: ${oauthUsername}` });

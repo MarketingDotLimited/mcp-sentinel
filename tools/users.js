@@ -4,7 +4,17 @@
 import { secureExec } from '../lib/exec.js';
 import { execFile } from 'child_process';
 import fs from 'fs/promises';
+import { constants as fsConstants } from 'fs';
 import path from 'path';
+import crypto from 'crypto';
+
+const { O_NOFOLLOW } = fsConstants;
+
+function validateExistingUsername(username) {
+  if (!username || !/^[a-z_][a-z0-9_-]{0,31}$/.test(username)) {
+    throw new Error(`Invalid username: '${username}'. Use lowercase letters, digits, underscore, hyphen. Max 32 chars.`);
+  }
+}
 
 function requireAdmin(identity) {
   if (identity.role !== 'admin') {
@@ -21,6 +31,26 @@ function validateUsername(username) {
   if (reserved.includes(username)) {
     throw new Error(`Cannot modify reserved system user: '${username}'`);
   }
+}
+
+function validateGroups(groups, fieldName = 'groups') {
+  if (groups === undefined || groups === '') return;
+  if (typeof groups !== 'string' || !groups.split(',').every(group => /^[a-z_][a-z0-9_-]*$/i.test(group))) {
+    throw new Error(`${fieldName} must be a comma-separated list of valid group names`);
+  }
+}
+
+function sshFingerprint(key) {
+  const encoded = key.trim().split(/\s+/)[1] || '';
+  if (!encoded) return '';
+  return crypto.createHash('sha256').update(Buffer.from(encoded, 'base64')).digest('base64').replace(/=+$/, '');
+}
+
+async function getUserHome(username) {
+  const passwd = await fs.readFile('/etc/passwd', 'utf8');
+  const line = passwd.split('\n').find(entry => entry.startsWith(`${username}:`));
+  if (!line) throw new Error(`User '${username}' does not exist`);
+  return line.split(':')[5];
 }
 
 // ── Tool: list_users ──────────────────────────────────────
@@ -77,6 +107,7 @@ export async function getUserInfo({ username }, identity) {
     throw new Error('You can only view your own user info');
   }
   if (!username) throw new Error('username is required');
+  validateExistingUsername(username);
 
   const [idOut, groupsOut, lastlogOut, passwdEntry] = await Promise.allSettled([
     secureExec(['id', username], identity),
@@ -123,6 +154,10 @@ export async function getUserInfo({ username }, identity) {
 export async function createUser({ username, password, groups, shell = '/bin/bash', comment, createHome = true }, identity) {
   requireAdmin(identity);
   validateUsername(username);
+  validateGroups(groups);
+  if (typeof shell !== 'string' || !path.isAbsolute(shell) || shell.includes('\0')) {
+    throw new Error('shell must be an absolute path');
+  }
 
   const { stdout: idOut } = await secureExec(['id', username], identity).catch(() => ({ stdout: '' }));
   if (idOut) throw new Error(`User '${username}' already exists`);
@@ -152,7 +187,7 @@ export async function createUser({ username, password, groups, shell = '/bin/bas
     }
   }
 
-  const passwdLine = await fs.readFile('/etc/passwd', 'utf8').then(c => c.split('\\n').find(l => l.startsWith(username + ':'))).catch(()=>'');
+  const passwdLine = await fs.readFile('/etc/passwd', 'utf8').then(c => c.split('\n').find(l => l.startsWith(username + ':'))).catch(()=>'');
   const actualHome = passwdLine ? passwdLine.split(':')[5] : `/home/${username}`;
 
   return {
@@ -190,7 +225,7 @@ export async function setUserPassword({ username, password }, identity) {
   if (!username || !password) throw new Error('username and password are required');
   validateUsername(username);
 
-  if (/[\\n\\r\\0:]/.test(password)) {
+  if (/[\n\r\0:]/.test(password)) {
     throw new Error('Password contains invalid characters (newline, carriage return, null, colon)');
   }
 
@@ -212,6 +247,14 @@ export async function setUserPassword({ username, password }, identity) {
 export async function modifyUser({ username, addGroups, removeGroups, shell, lockAccount, unlockAccount, expireDate }, identity) {
   requireAdmin(identity);
   validateUsername(username);
+  validateGroups(addGroups, 'addGroups');
+  validateGroups(removeGroups, 'removeGroups');
+  if (shell !== undefined && (typeof shell !== 'string' || !path.isAbsolute(shell) || shell.includes('\0'))) {
+    throw new Error('shell must be an absolute path');
+  }
+  if (expireDate !== undefined && expireDate !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(expireDate)) {
+    throw new Error('expireDate must be YYYY-MM-DD or an empty string');
+  }
 
   const results = [];
 
@@ -265,9 +308,9 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
   }
 
   if (!username || !action) throw new Error('username and action are required');
+  validateExistingUsername(username);
 
-  const passwdLine = await fs.readFile('/etc/passwd', 'utf8').then(c => c.split('\n').find(l => l.startsWith(username + ':'))).catch(()=>'');
-  const homeDir = passwdLine ? passwdLine.split(':')[5] : `/home/${username}`;
+  const homeDir = await getUserHome(username);
   const sshDir = path.join(homeDir, '.ssh');
   const authKeysPath = path.join(sshDir, 'authorized_keys');
 
@@ -283,14 +326,28 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
     if (publicKey.includes('\n') || publicKey.includes('\r')) throw new Error('Key must be a single line');
     if (publicKey.length > 8192) throw new Error('Key too long');
 
-    const keyParts = publicKey.trim().split(' ');
+    const normalizedKey = publicKey.trim();
+    const keyParts = normalizedKey.split(/\s+/);
     const validTypes = ['ssh-rsa', 'ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'sk-ssh-ed25519@openssh.com'];
     if (!validTypes.includes(keyParts[0])) {
       throw new Error(`Invalid SSH key type: '${keyParts[0]}'`);
     }
+    if (keyParts.length < 2 || !/^[A-Za-z0-9+/]+={0,2}$/.test(keyParts[1])) {
+      throw new Error('Invalid SSH public key payload');
+    }
 
-    const cmd = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo "${publicKey.trim().replace(/"/g, '\\"')}" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`;
-    await secureExec(['bash', '-c', cmd], { userId: username, role: 'user' });
+    await fs.mkdir(sshDir, { recursive: true, mode: 0o700 });
+    const sshStat = await fs.lstat(sshDir);
+    if (!sshStat.isDirectory() || sshStat.isSymbolicLink()) throw new Error('.ssh must be a directory, not a symlink');
+    const file = await fs.open(authKeysPath, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_APPEND | O_NOFOLLOW, 0o600);
+    try {
+      await file.writeFile(`${normalizedKey}\n`);
+    } finally {
+      await file.close();
+    }
+    await secureExec(['chown', '-R', username, sshDir], { role: 'admin' });
+    await secureExec(['chmod', '700', sshDir], { role: 'admin' });
+    await secureExec(['chmod', '600', authKeysPath], { role: 'admin' });
 
     return { success: true, action: 'add', username, message: 'SSH key added' };
   }
@@ -303,7 +360,7 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
         type: k.split(' ')[0],
         comment: k.split(' ')[2] || '(no comment)',
         preview: k.split(' ')[1]?.slice(0, 20) + '...',
-        fingerprint: require('crypto').createHash('sha256').update(Buffer.from(k.split(' ')[1] || '', 'base64')).digest('base64').replace(/=$/, ''),
+        fingerprint: sshFingerprint(k),
       }));
       return { username, keys, count: keys.length };
     } catch {
@@ -312,27 +369,33 @@ export async function manageSshKeys({ username, action, publicKey, keyIndex }, i
   }
 
   if (action === 'remove') {
-    if (!publicKey) throw new Error('publicKey (exact key or fingerprint) is required for remove action');
+    if (!publicKey && keyIndex === undefined) throw new Error('publicKey (exact key or fingerprint) or keyIndex is required for remove action');
 
     const content = await fs.readFile(authKeysPath, 'utf8');
     const keys = content.trim().split('\n').filter(Boolean);
 
-    const targetKeyIndex = keys.findIndex(k => {
-      const b64 = k.split(' ')[1] || '';
-      const fp = require('crypto').createHash('sha256').update(Buffer.from(b64, 'base64')).digest('base64').replace(/=$/, '');
-      return k === publicKey.trim() || fp === publicKey || `SHA256:${fp}` === publicKey;
-    });
+    const targetKeyIndex = keyIndex !== undefined
+      ? keyIndex
+      : keys.findIndex(k => {
+        const fp = sshFingerprint(k);
+        return k === publicKey.trim() || fp === publicKey || `SHA256:${fp}` === publicKey;
+      });
 
-    if (targetKeyIndex === -1) {
+    if (!Number.isInteger(targetKeyIndex) || targetKeyIndex < 0 || targetKeyIndex >= keys.length) {
       throw new Error(`Key not found in authorized_keys`);
     }
 
     const removed = keys.splice(targetKeyIndex, 1)[0];
     
-    // Write via su to preserve ownership safely
     const newContent = keys.join('\n') + (keys.length ? '\n' : '');
-    const cmd = `echo -n "${newContent.replace(/"/g, '\\"')}" > ~/.ssh/authorized_keys`;
-    await secureExec(['bash', '-c', cmd], { userId: username, role: 'user' });
+    const sshStat = await fs.lstat(sshDir);
+    if (!sshStat.isDirectory() || sshStat.isSymbolicLink()) throw new Error('.ssh must be a directory, not a symlink');
+    const file = await fs.open(authKeysPath, fsConstants.O_WRONLY | fsConstants.O_TRUNC | O_NOFOLLOW);
+    try {
+      await file.writeFile(newContent);
+    } finally {
+      await file.close();
+    }
 
     return { success: true, action: 'remove', removed_key_preview: removed.split(' ')[2] || removed.slice(0, 30) };
   }

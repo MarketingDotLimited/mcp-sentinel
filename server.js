@@ -382,9 +382,11 @@ app.post('/admin/backups/restore', authenticateJWT, async (req, res) => {
 // ── OAuth Metadata (RFC 9728) ──────────────────────────────
 
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
+  const resource = process.env.OAUTH_RESOURCE_URL || `${req.protocol}://${req.get('host')}`;
+  const authorizationServer = process.env.AUTHELIA_ISSUER;
   res.json({
-    resource: "https://begin.shopping:2053",
-    authorization_servers: ["https://begin.shopping:2083"],
+    resource,
+    ...(authorizationServer ? { authorization_servers: [authorizationServer] } : {}),
     scopes_supported: ["openid", "profile", "email"],
     bearer_methods_supported: ["header"],
     resource_documentation: "https://github.com/MarketingDotLimited/mcp-sentinel"
@@ -493,70 +495,55 @@ app.post('/admin/oauth-restart', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get('/mcp', authenticateJWT, (req, res) => {
-  const sessionId = randomUUID();
-  const identity = req.identity;
-  const ip = req.clientIP;
-
-  // Enforce global connection limit
-  const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
-  if (activeTransports.size >= maxConns) {
-    return res.status(503).json({ error: 'Too many active connections globally' });
-  }
-
-  // Enforce per-user limit
-  let userCount = 0;
-  for (const s of activeTransports.values()) {
-    if (s.identity?.userId === identity.userId) userCount++;
-  }
-  if (userCount >= MAX_SESSIONS_PER_USER) {
-    return res.status(429).json({ error: 'Too many active connections for this user' });
-  }
-
-  // Create a per-session MCP server instance
-  const mcpServer = createMcpServer(identity, ip);
-
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => sessionId,
-    enableDnsRebindingProtection: true
-  });
-
-  activeTransports.set(sessionId, {
-    transport,
-    identity,
-    ip,
-    connectedAt: new Date().toISOString(),
-    lastActivity: Date.now(),
-    mcpServer,
-  });
-
-  res.on('close', () => {
-    activeTransports.delete(sessionId);
-    monitor.unsubscribeAll(sessionId);
-    mcpServer.close().catch(() => {});
-  });
-
-  mcpServer.connect(transport).catch(err => {
-    logError({ ip, userId: identity.userId, tool: 'SSE_CONNECT', error: err });
-  });
-
-  // Handle the initial GET request to establish the SSE stream
-  transport.handleRequest(req, res).catch(err => {
-    logError({ ip, userId: identity.userId, tool: 'HANDLE_REQUEST_GET', error: err });
-  });
-});
-
-// MCP message endpoint (POST from client)
-app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
+// MCP Streamable HTTP endpoint. A session is created only by a POST initialize
+// request; subsequent POST/GET requests must present its session id.
+app.all(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
   const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'];
-  const session = activeTransports.get(sessionId);
+  let session = activeTransports.get(sessionId);
 
-  if (!session) {
-    return res.status(400).json({ error: 'Unknown session. Reconnect to /mcp first.' });
+  if (!session && req.method === 'POST' && req.path === '/mcp' && !sessionId) {
+    if (!req.body || req.body.method !== 'initialize') {
+      return res.status(400).json({ error: 'A new MCP session must start with an initialize request' });
+    }
+    const identity = req.identity;
+    const ip = req.clientIP;
+    const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
+    if (activeTransports.size >= maxConns) {
+      return res.status(503).json({ error: 'Too many active connections globally' });
+    }
+    const userCount = [...activeTransports.values()].filter(s => s.identity?.userId === identity.userId).length;
+    if (userCount >= MAX_SESSIONS_PER_USER) {
+      return res.status(429).json({ error: 'Too many active connections for this user' });
+    }
+
+    const newSessionId = randomUUID();
+    const mcpServer = createMcpServer(identity, ip);
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => newSessionId,
+      enableDnsRebindingProtection: true,
+    });
+    session = { transport, identity, ip, connectedAt: new Date().toISOString(), lastActivity: Date.now(), mcpServer };
+    activeTransports.set(newSessionId, session);
+    transport.onclose = () => {
+      activeTransports.delete(newSessionId);
+      monitor.unsubscribeAll(newSessionId);
+    };
+    try {
+      await mcpServer.connect(transport);
+    } catch (err) {
+      activeTransports.delete(newSessionId);
+      logError({ ip, userId: identity.userId, tool: 'MCP_CONNECT', error: err });
+      return res.status(500).json({ error: 'Unable to initialize MCP session' });
+    }
+  } else if (!session) {
+    return res.status(404).json({ error: 'Unknown MCP session' });
   }
 
   // Verify session ownership — prevent hijacking
-  if (session.identity?.userId !== req.identity?.userId) {
+  if (session.identity?.userId !== req.identity?.userId ||
+      session.identity?.authType !== req.identity?.authType ||
+      (session.identity?.authType === 'apiKey' && session.identity?.keyId !== req.identity?.keyId) ||
+      (session.identity?.authType === 'oauth' && (session.identity?.oauthUser !== req.identity?.oauthUser || session.identity?.oauthClient !== req.identity?.oauthClient))) {
     logSecurityEvent({ ip: req.clientIP, event: 'SESSION_HIJACK_ATTEMPT', detail: { sessionOwner: session.identity?.userId, requestUser: req.identity?.userId } });
     return res.status(403).json({ error: 'Session does not belong to you' });
   }
@@ -564,7 +551,7 @@ app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
   session.lastActivity = Date.now();
 
   try {
-    await session.transport.handleRequest(req, res);
+    await session.transport.handleRequest(req, res, req.body);
   } catch (err) {
     logError({ ip: req.clientIP, userId: req.identity?.userId, tool: 'POST_MESSAGE', error: err });
     if (!res.headersSent) {
@@ -576,7 +563,7 @@ app.post(['/mcp', '/mcp/message'], authenticateJWT, async (req, res) => {
 // ── Centralized Error Handler ──────────────────────────────
 
 app.use((err, req, res, next) => {
-  const errorId = require('crypto').randomUUID();
+  const errorId = randomUUID();
   logError({ ip: req.clientIP || 'unknown', userId: req.identity?.userId || 'unknown', tool: 'HTTP_ERROR', errorId, error: err });
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
@@ -606,8 +593,15 @@ function createMcpServer(identity, ip) {
         return { content: [{ type: 'text', text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }) }], isError: true };
       }
       
-      const destructiveTools = ['delete_file', 'delete_user', 'manage_firewall', 'kill_process'];
-      if (destructiveTools.includes(name) && !args.confirm) {
+      const requiresConfirmation =
+        ['delete_file', 'delete_user', 'create_user', 'set_user_password', 'apply_config', 'restore_config', 'kill_process'].includes(name) ||
+        (name === 'modify_user' && Object.keys(args).some(key => !['username', 'confirm'].includes(key))) ||
+        (name === 'manage_ssh_keys' && ['add', 'remove'].includes(args.action)) ||
+        (name === 'manage_firewall' && !['status', 'list'].includes(args.action)) ||
+        (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
+        (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
+        (name === 'execute_query' && /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || ''));
+      if (requiresConfirmation && !args.confirm) {
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'This is a destructive action. You must include "confirm": true in your arguments to proceed.' }) }], isError: true };
       }
       
@@ -617,7 +611,7 @@ function createMcpServer(identity, ip) {
         const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
         return { content: [{ type: 'text', text: textContent || 'Success' }] };
       } catch (err) {
-        const errorId = require('crypto').randomUUID();
+        const errorId = randomUUID();
         logError({ ip, userId: identity.userId, tool: name, errorId, error: err });
         logAccess({ ip, userId: identity.userId, tool: name, args, errorId, result: 'failure', duration: Date.now() - start });
         return {
@@ -696,6 +690,7 @@ function createMcpServer(identity, ip) {
   tool('manage_service', 'Start, stop, restart, enable, or disable a systemd service. Admin only.', {
     service: z.string().max(4096).describe('Service name (e.g. nginx, mysql, sshd)'),
     action: z.enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'status', 'is-active']).describe('Action to perform'),
+    confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
   }, manageService);
 
   tool('get_service_status', 'Get detailed status and recent logs for a systemd service. Admin only.', {
@@ -739,6 +734,7 @@ function createMcpServer(identity, ip) {
     shell: z.string().max(4096).optional().describe('Login shell (default: /bin/bash)'),
     comment: z.string().max(4096).optional().describe('User comment/description'),
     createHome: z.boolean().optional().describe('Create home directory (default: true)'),
+    confirm: z.boolean().optional().describe('Must be true to create a user'),
   }, createUser);
 
   tool('delete_user', 'Delete a system user. Admin only.', {
@@ -750,6 +746,7 @@ function createMcpServer(identity, ip) {
   tool('set_user_password', 'Set or change a user password. Admin only.', {
     username: z.string().max(4096).describe('Username'),
     password: z.string().max(4096).describe('New password'),
+    confirm: z.boolean().optional().describe('Must be true to change a password'),
   }, setUserPassword);
 
   tool('modify_user', 'Modify user properties: groups, shell, lock/unlock, expiry. Admin only.', {
@@ -760,6 +757,7 @@ function createMcpServer(identity, ip) {
     lockAccount: z.boolean().optional().describe('Lock the user account'),
     unlockAccount: z.boolean().optional().describe('Unlock the user account'),
     expireDate: z.string().max(4096).optional().describe('Account expiry date (YYYY-MM-DD), empty string to disable'),
+    confirm: z.boolean().optional().describe('Must be true to modify a user'),
   }, modifyUser);
 
   tool('manage_ssh_keys', 'Add, list, or remove SSH authorized keys for a user.', {
@@ -767,6 +765,7 @@ function createMcpServer(identity, ip) {
     action: z.enum(['add', 'list', 'remove']).describe('Action to perform'),
     publicKey: z.string().max(4096).optional().describe('Full SSH public key string (for add action)'),
     keyIndex: z.number().int().nonnegative().optional().describe('Key index to remove (for remove action, use list first)'),
+    confirm: z.boolean().optional().describe('Must be true to add or remove a key'),
   }, manageSshKeys);
 
   // ── Docker Sandboxing ────────────────────────────────────
@@ -806,6 +805,7 @@ function createMcpServer(identity, ip) {
     repoPath: z.string().max(4096).describe('Path to git repository'),
     action: z.enum(['status', 'diff', 'log', 'branch', 'checkout', 'add', 'commit', 'pull', 'push']).describe('Git action'),
     args: z.record(z.any()).optional().describe('Action-specific arguments (e.g. { message: "msg" })'),
+    confirm: z.boolean().optional().describe('Must be true for state-changing actions'),
   }, gitOperation);
 
   tool('execute_query', 'Execute a SQL query against a configured database alias.', {
