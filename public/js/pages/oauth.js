@@ -173,8 +173,8 @@ window.OAuthPage = (function() {
             tbody.innerHTML = '';
             
             if (res.error) throw new Error(res.error);
-            
-            res.data.forEach(user => {
+            const users = Array.isArray(res) ? res : (res.data || []);
+            users.forEach(user => {
                 const tr = document.createElement('tr');
                 
                 const tdUsername = document.createElement('td');
@@ -458,8 +458,8 @@ window.OAuthPage = (function() {
             tbody.innerHTML = '';
             
             if (res.error) throw new Error(res.error);
-            
-            res.data.forEach(client => {
+            const clients = Array.isArray(res) ? res : (res.data || []);
+            clients.forEach(client => {
                 const tr = document.createElement('tr');
                 
                 const tdId = document.createElement('td');
