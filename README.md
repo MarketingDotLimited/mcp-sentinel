@@ -15,6 +15,9 @@ A **security-hardened MCP (Model Context Protocol) server** that lets AI cloud s
 - **Role-Based Access** — `admin` gets full control; `user` is sandboxed to their home directory
 - **Per-User API Keys** — issue scoped keys for different users/services
 - **Audit Logging** — every tool call logged with user, IP, duration, result (daily rotating JSON)
+- **Approval Control Plane** — optionally require a human administrator to approve exact high-risk AI actions before they run
+- **Guided Workflows** — plain-language diagnostics, security review, backup, and deployment prompts for any MCP-compatible AI
+- **Project Registry** — register approved repositories and generate safe deployment plans for developers and AI coding agents
 - **systemd Ready** — auto-start on boot
 
 ## 🚀 Quick Start
@@ -39,6 +42,8 @@ systemctl enable --now mcp-server
 ```
 
 ## 🔗 Connect Your AI Client
+
+The web dashboard now includes **Connect AI**, which provides the current endpoint and a platform-neutral configuration snippet. Create a scoped key for each AI client and enable approval mode for agents that can make changes.
 
 > **Note:** The examples use `https://`. HTTPS is **required** for production use to protect your credentials and data.
 
@@ -130,7 +135,36 @@ AUDIT_LOG_KEEP_DAYS=30
 AUTHELIA_ISSUER=https://auth.example.com
 AUTHELIA_JWKS_URL=https://auth.example.com/jwks.json
 OAUTH_RESOURCE_URL=https://mcp.example.com
+
+# Optional control-plane storage and project allow-list
+CONTROL_PLANE_STATE_FILE=./data/control-plane.json
+GIT_ALLOWED_REPOS=/srv/my-app,/srv/another-app
+PUBLIC_URL=https://mcp.example.com
+MCP_POLICY_FILE=./policy.json
+
+# Enterprise operations: these are mandatory before configuring each feature.
+# Generate CONTROL_PLANE_ENCRYPTION_KEY with: openssl rand -hex 32
+CONTROL_PLANE_ENCRYPTION_KEY=<64-hex-character-secret>
+MCP_FLEET_ALLOWED_HOSTS=sentinel-1.example.com,sentinel-2.example.com
+BACKUP_ALLOWED_PATHS=/etc/my-app,/srv/my-app/config
+BACKUP_ALLOWED_ROOTS=/var/lib/mcp-sentinel/backups
+S3_ALLOWED_HOSTS=s3.example.com
+WEBHOOK_ALLOWED_HOSTS=hooks.example.com
+PROJECT_HEALTH_ALLOWED_HOSTS=app.example.com
 ```
+
+For enterprise policy-as-code, copy [policy.example.json](policy.example.json) outside the repository or to a protected configuration path, set `MCP_POLICY_FILE`, and review changes through your normal configuration-management process. A policy can deny tools for a role or require an approval even when the key would otherwise allow the action.
+
+## Enterprise operations
+
+MCP Sentinel keeps a small, encrypted control-plane state file (mode `0600`) for registered fleet servers, backup destinations, webhooks, approvals, projects, and schedules. Do not place it in source control.
+
+- **Fleet:** register each Sentinel health endpoint. Sentinel only performs a timed `GET` to hosts explicitly listed in `MCP_FLEET_ALLOWED_HOSTS`; it does not expose remote shell access through the fleet inventory.
+- **Backups:** backup targets can be a local allow-listed directory or an S3-compatible endpoint. Only allow-listed regular files up to 25 MiB are accepted. Each backup is AES-256-GCM encrypted before it reaches the destination; S3 credentials are encrypted at rest and never returned by the API.
+- **Webhooks:** events are sent only to `WEBHOOK_ALLOWED_HOSTS`, with redirects disabled, a ten-second timeout, and an `X-MCP-Sentinel-Signature-256: sha256=<hmac>` header. Keep the secret only in Sentinel and verify this HMAC on the receiver.
+- **Deployments:** create a registered project with an allow-listed repository and service. `deploy_project` performs only `git pull --ff-only`, restarts that exact registered systemd service, then checks a health URL whose host is in `PROJECT_HEALTH_ALLOWED_HOSTS`. It requires `confirm: true`, an administrator identity, and key-level approval when approval mode is enabled.
+
+For a nontechnical operator, the dashboard’s Guided Help, Approvals, Projects, Automations, Connect AI, Teams, and Security pages are the intended starting points. For AI clients, call `list_guided_workflows` first, use `plan_project_deployment` before deployment, and submit exact risky requests with `request_change_approval`.
 
 ## 🔑 Generate API Keys
 

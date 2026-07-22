@@ -26,7 +26,10 @@ import {
   issueToken,
   addApiKey,
   revokeApiKey,
+  revokeApiKeyById,
   listApiKeys,
+  getRoleTemplates,
+  scopeAllows,
   getClientIP,
 } from './security.js';
 
@@ -41,6 +44,8 @@ import { applyConfig, listConfigBackups, restoreConfig } from './tools/rollback.
 import { gitOperation } from './tools/git.js';
 import { executeQuery } from './tools/db.js';
 import { monitor } from './lib/monitor.js';
+import { evaluatePolicy, getPolicyStatus } from './lib/policy.js';
+import { assertProjectHealthUrlAllowed, assertRepositoryPermitted, checkFleetServer, consumeApproval, createAutomation, createBackupTarget, createOrganization, createProject, createTeam, createWebhook, decideApproval, deliverWebhook, getDeploymentPlan, getProject, getWorkflowCatalog, listApprovals, listAutomations, listBackupTargets, listFleet, listOrganizations, listProjects, listWebhooks, registerFleetServer, requestApproval, runBackup, runDueAutomations, validateKeyAssignment } from './lib/control-plane.js';
 import {
   getOAuthUsers, addOAuthUser, updateOAuthUser, deleteOAuthUser,
   getOAuthClients, addOAuthClient, deleteOAuthClient,
@@ -51,6 +56,38 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '4444');
 const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
+
+function summarizeHealth(stats) {
+  const checks = [
+    ['CPU', stats.cpu], ['Memory', stats.memory], ['Disk', stats.disk],
+  ].filter(([, value]) => typeof value === 'number');
+  const concerns = checks.filter(([, value]) => value >= 85).map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
+  const warnings = checks.filter(([, value]) => value >= 70 && value < 85).map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
+  if (concerns.length) return { status: 'needs-attention', message: concerns.join('. '), concerns, warnings };
+  if (warnings.length) return { status: 'watch', message: `${warnings.join('. ')}. Your server is working, but keep an eye on it.`, concerns, warnings };
+  return { status: 'healthy', message: 'Your server is healthy. CPU, memory, and disk usage are within normal limits.', concerns, warnings };
+}
+
+async function buildSecurityPosture() {
+  const checks = [];
+  const add = (id, status, message) => checks.push({ id, status, message });
+  add('transport', USE_HTTPS ? 'pass' : 'warning', USE_HTTPS ? 'HTTPS is enabled.' : 'HTTPS is disabled. Do not expose this server publicly until TLS is enabled.');
+  const jwtSecret = process.env.JWT_SECRET || '';
+  add('jwt-secret', jwtSecret.length >= 64 ? 'pass' : 'fail', jwtSecret.length >= 64 ? 'JWT signing secret meets the minimum length.' : 'JWT signing secret is missing or too short.');
+  const allowedIps = (process.env.ALLOWED_IPS || '').trim();
+  add('ip-access', allowedIps ? 'pass' : 'warning', allowedIps ? 'A global IP allow-list is configured.' : 'No global IP allow-list is configured; use per-key restrictions or configure ALLOWED_IPS.');
+  const trustProxy = process.env.TRUST_PROXY === 'true';
+  const trustedProxies = (process.env.TRUSTED_PROXIES || '').trim();
+  add('proxy', !trustProxy || trustedProxies ? 'pass' : 'warning', trustProxy && !trustedProxies ? 'Proxy trust is enabled without a trusted-proxy allow-list; forwarded headers will be ignored.' : 'Proxy trust configuration is explicit.');
+  const policy = await getPolicyStatus().catch(err => ({ enabled: false, error: err.message }));
+  add('policy', policy.error ? 'fail' : policy.enabled ? 'pass' : 'warning', policy.error ? `Policy configuration error: ${policy.error}` : policy.enabled ? `Policy-as-code is active with ${policy.rules} rules.` : 'No policy-as-code file is configured.');
+  const keys = listApiKeys();
+  const approvalKeys = keys.filter(key => key.requireApproval).length;
+  add('approvals', approvalKeys > 0 ? 'pass' : 'warning', approvalKeys > 0 ? `${approvalKeys} API key(s) require approval for risky actions.` : 'No API keys currently require approval for risky actions.');
+  const failed = checks.filter(check => check.status === 'fail').length;
+  const warnings = checks.filter(check => check.status === 'warning').length;
+  return { status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong', score: Math.max(0, 100 - failed * 35 - warnings * 12), checks, generatedAt: new Date().toISOString() };
+}
 
 // ── Active SSE connections ─────────────────────────────────
 const activeTransports = new Map(); // sessionId -> { transport, identity, ip }
@@ -182,11 +219,12 @@ app.post('/admin/keys', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const { key, userId, role, allowedIPs, scopes, label } = req.body;
+  const { key, userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId } = req.body;
   if (!key || !userId) return res.status(400).json({ error: 'key and userId required' });
 
   try {
-    await addApiKey(key, { userId, role, allowedIPs, scopes, label });
+    await validateKeyAssignment({ organizationId, teamId });
+    await addApiKey(key, { userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId });
     return res.json({ success: true, message: `Key added for user '${userId}'` });
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -197,10 +235,10 @@ app.post('/admin/keys/revoke', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const { key } = req.body;
-  if (!key) return res.status(400).json({ error: 'key required in body' });
+  const { key, keyId } = req.body;
+  if (!key && !keyId) return res.status(400).json({ error: 'keyId required in body' });
   
-  const revoked = await revokeApiKey(key);
+  const revoked = keyId ? await revokeApiKeyById(keyId) : await revokeApiKey(key);
   return res.json({ success: revoked, message: revoked ? 'Key revoked' : 'Key not found' });
 });
 
@@ -209,6 +247,40 @@ app.get('/admin/keys', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin role required' });
   }
   return res.json({ keys: listApiKeys() });
+});
+
+app.get('/admin/access-templates', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  return res.json({ templates: getRoleTemplates() });
+});
+
+app.get('/admin/connection-info', authenticateJWT, (req, res) => {
+  const baseUrl = process.env.PUBLIC_URL || `${USE_HTTPS ? 'https' : 'http'}://${req.get('host')}`;
+  return res.json({
+    transport: 'streamable-http',
+    mcpUrl: `${baseUrl.replace(/\/$/, '')}/mcp`,
+    authorization: 'Use an X-API-Key header or exchange the key for a short-lived bearer token.',
+    platforms: [
+      { id: 'chatgpt', name: 'ChatGPT', hint: 'Add the MCP URL and an X-API-Key header in your connector configuration.' },
+      { id: 'claude', name: 'Claude', hint: 'Use the Streamable HTTP MCP connection and include the X-API-Key header.' },
+      { id: 'cursor', name: 'Cursor / VS Code', hint: 'Add a remote MCP server with this URL and header.' },
+      { id: 'custom', name: 'Any MCP client', hint: 'Use the standard Streamable HTTP endpoint below.' },
+    ],
+  });
+});
+
+app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  try {
+    return res.json(await getPolicyStatus());
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  return res.json(await buildSecurityPosture());
 });
 
 app.get('/admin/sessions', authenticateJWT, (req, res) => {
@@ -236,10 +308,174 @@ app.get('/admin/stats', authenticateJWT, (req, res) => {
   const keys = listApiKeys();
   return res.json({
     ...stats,
+    healthSummary: summarizeHealth(stats),
     activeSessions: sessions,
     totalKeys: keys.length,
     serverUptime: process.uptime(),
   });
+});
+
+// ── Control Plane: approvals and guided workflows ─────────
+
+app.get('/admin/workflows', authenticateJWT, (req, res) => {
+  return res.json({ workflows: getWorkflowCatalog() });
+});
+
+app.get('/admin/approvals', authenticateJWT, async (req, res) => {
+  try {
+    const approvals = await listApprovals(req.identity, { includeResolved: req.query.includeResolved === 'true' });
+    return res.json({ approvals, count: approvals.length });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/approvals/:id', authenticateJWT, async (req, res) => {
+  try {
+    const approval = await decideApproval({
+      id: req.params.id,
+      decision: req.body?.decision,
+      note: req.body?.note,
+      identity: req.identity,
+    });
+    logSecurityEvent({ ip: req.clientIP, event: 'APPROVAL_DECIDED', detail: { approvalId: approval.id, decision: approval.status, by: req.identity.userId } });
+    return res.json({ approval });
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.get('/admin/projects', authenticateJWT, async (req, res) => {
+  try {
+    return res.json({ projects: await listProjects(req.identity) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/projects', authenticateJWT, async (req, res) => {
+  try {
+    const project = await createProject(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'PROJECT_CREATED', detail: { projectId: project.id, name: project.name, by: req.identity.userId } });
+    return res.status(201).json({ project });
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.get('/admin/automations', authenticateJWT, async (req, res) => {
+  try {
+    return res.json({ automations: await listAutomations(req.identity) });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/automations', authenticateJWT, async (req, res) => {
+  try {
+    const automation = await createAutomation(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'AUTOMATION_CREATED', detail: { automationId: automation.id, type: automation.type, by: req.identity.userId } });
+    return res.status(201).json({ automation });
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.get('/admin/organizations', authenticateJWT, async (req, res) => {
+  try {
+    return res.json(await listOrganizations(req.identity));
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/admin/organizations', authenticateJWT, async (req, res) => {
+  try {
+    const organization = await createOrganization(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'ORGANIZATION_CREATED', detail: { organizationId: organization.id, by: req.identity.userId } });
+    return res.status(201).json({ organization });
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.post('/admin/teams', authenticateJWT, async (req, res) => {
+  try {
+    const team = await createTeam(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'TEAM_CREATED', detail: { teamId: team.id, organizationId: team.organizationId, by: req.identity.userId } });
+    return res.status(201).json({ team });
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+// ── Enterprise operations: fleet, backups, and webhooks ───
+
+function controlPlaneResponse(res, err) {
+  return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+}
+
+app.get('/admin/fleet', authenticateJWT, async (req, res) => {
+  try { return res.json({ servers: await listFleet(req.identity) }); }
+  catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.post('/admin/fleet', authenticateJWT, async (req, res) => {
+  try {
+    const server = await registerFleetServer(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'FLEET_SERVER_REGISTERED', detail: { serverId: server.id, by: req.identity.userId } });
+    return res.status(201).json({ server });
+  } catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.post('/admin/fleet/:id/check', authenticateJWT, async (req, res) => {
+  try { return res.json({ server: await checkFleetServer(req.params.id, req.identity) }); }
+  catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.get('/admin/backup-targets', authenticateJWT, async (req, res) => {
+  try { return res.json({ targets: await listBackupTargets(req.identity) }); }
+  catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.post('/admin/backup-targets', authenticateJWT, async (req, res) => {
+  try {
+    const target = await createBackupTarget(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'BACKUP_TARGET_CREATED', detail: { targetId: target.id, type: target.type, by: req.identity.userId } });
+    return res.status(201).json({ target });
+  } catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.post('/admin/backups/run', authenticateJWT, async (req, res) => {
+  if (!req.body?.confirm) return res.status(400).json({ error: 'confirm: true required' });
+  try {
+    if (req.identity.role !== 'admin') throw new Error('Only administrators can run backups');
+    const backup = await runBackup(req.body || {});
+    logSecurityEvent({ ip: req.clientIP, event: 'ENCRYPTED_BACKUP_COMPLETED', detail: { backupId: backup.id, targetId: backup.targetId, by: req.identity.userId } });
+    return res.json({ backup });
+  } catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.get('/admin/webhooks', authenticateJWT, async (req, res) => {
+  try { return res.json({ webhooks: await listWebhooks(req.identity) }); }
+  catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.post('/admin/webhooks', authenticateJWT, async (req, res) => {
+  try {
+    const webhook = await createWebhook(req.body || {}, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'WEBHOOK_CREATED', detail: { webhookId: webhook.id, by: req.identity.userId } });
+    return res.status(201).json({ webhook });
+  } catch (err) { return controlPlaneResponse(res, err); }
+});
+
+app.post('/admin/webhooks/:id/deliver', authenticateJWT, async (req, res) => {
+  if (!req.body?.confirm) return res.status(400).json({ error: 'confirm: true required' });
+  try {
+    const delivery = await deliverWebhook({ webhookId: req.params.id, event: req.body.event, payload: req.body.payload }, req.identity);
+    logSecurityEvent({ ip: req.clientIP, event: 'WEBHOOK_DELIVERED', detail: { webhookId: req.params.id, event: req.body.event, by: req.identity.userId, status: delivery.status } });
+    return res.json({ delivery });
+  } catch (err) { return controlPlaneResponse(res, err); }
 });
 
 app.get('/admin/os-users', authenticateJWT, async (req, res) => {
@@ -588,9 +824,21 @@ function createMcpServer(identity, ip) {
       const start = Date.now();
       // Enforce scope authorization
       const scopes = identity.scopes || [];
-      if (!scopes.includes('*') && !scopes.includes(name)) {
+      if (!scopeAllows(scopes, name)) {
         logSecurityEvent({ ip, event: 'SCOPE_DENIED', detail: { userId: identity.userId, tool: name } });
         return { content: [{ type: 'text', text: JSON.stringify({ error: `Access to tool '${name}' is not permitted by your API key scopes` }) }], isError: true };
+      }
+
+      let policyDecision;
+      try {
+        policyDecision = await evaluatePolicy({ tool: name, identity });
+      } catch (err) {
+        logSecurityEvent({ ip, event: 'POLICY_ERROR', detail: { tool: name, error: err.message } });
+        return { content: [{ type: 'text', text: JSON.stringify({ error: 'Server policy could not be evaluated. The action was not run.' }) }], isError: true };
+      }
+      if (!policyDecision.allowed) {
+        logSecurityEvent({ ip, event: 'POLICY_DENIED', detail: { userId: identity.userId, tool: name } });
+        return { content: [{ type: 'text', text: JSON.stringify({ error: policyDecision.reason }) }], isError: true };
       }
       
       const requiresConfirmation =
@@ -600,12 +848,42 @@ function createMcpServer(identity, ip) {
         (name === 'manage_firewall' && !['status', 'list'].includes(args.action)) ||
         (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
         (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
-        (name === 'execute_query' && /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || ''));
+        ['deploy_project', 'run_encrypted_backup', 'deliver_webhook'].includes(name) ||
+        (name === 'execute_query' && /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || '')) ||
+        policyDecision.requireApproval;
       if (requiresConfirmation && !args.confirm) {
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'This is a destructive action. You must include "confirm": true in your arguments to proceed.' }) }], isError: true };
       }
+
+      // Keys created with approval mode cannot execute a risky action until an
+      // administrator has approved this exact, redacted request. The approved
+      // grant is single-use and expires automatically.
+      const approvalSensitive = requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
+      if (approvalSensitive && identity.requireApproval) {
+        const approved = await consumeApproval({ tool: name, args, identity });
+        if (!approved) {
+          const { approval, created } = await requestApproval({
+            tool: name,
+            args,
+            identity,
+            risk: 'high',
+            summary: `AI requested ${name.replaceAll('_', ' ')}`,
+          });
+          return {
+            content: [{ type: 'text', text: JSON.stringify({
+              pendingApproval: true,
+              approvalId: approval.id,
+              message: created
+                ? 'This action is waiting for an administrator to approve it. Resubmit the exact request after approval.'
+                : 'This action is already waiting for administrator approval.',
+            }) }],
+            isError: true,
+          };
+        }
+      }
       
       try {
+        if (name === 'git_operation') await assertRepositoryPermitted(args.repoPath, identity);
         const result = await handler(args, identity);
         logAccess({ ip, apiKey: null, userId: identity.userId, tool: name, args, result: 'success', duration: Date.now() - start });
         const textContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
@@ -817,6 +1095,113 @@ function createMcpServer(identity, ip) {
 
   // ── Pub/Sub Alert Tools ──────────────────────────────────
 
+  tool('list_guided_workflows', 'List safe, plain-language workflows for diagnosing, securing, backing up, and deploying a server.', {}, async () => {
+    return { workflows: getWorkflowCatalog() };
+  });
+
+  tool('get_security_posture', 'Review the server security posture in plain language. This read-only tool reports TLS, access controls, approvals, and policy configuration.', {}, async (_, toolIdentity) => {
+    if (toolIdentity.role !== 'admin' && toolIdentity.role !== 'auditor') throw new Error('Security posture requires an administrator or auditor role');
+    return buildSecurityPosture();
+  });
+
+  tool('request_change_approval', 'Submit a proposed MCP action for administrator approval. After approval, resubmit the exact original action once.', {
+    tool: z.string().max(128).describe('The MCP tool that will be run after approval'),
+    arguments: z.record(z.any()).describe('The exact arguments that will be used when the action is resubmitted'),
+    summary: z.string().max(500).optional().describe('Plain-language explanation of the requested change'),
+    risk: z.enum(['medium', 'high', 'critical']).optional().describe('Impact level for the reviewer'),
+  }, async ({ tool: requestedTool, arguments: requestedArgs, summary, risk }, toolIdentity) => {
+    if (requestedTool === 'request_change_approval' || requestedTool === 'list_guided_workflows') {
+      throw new Error('Approval requests must target an operational tool');
+    }
+    const { approval, created } = await requestApproval({
+      tool: requestedTool,
+      args: requestedArgs,
+      identity: toolIdentity,
+      summary,
+      risk: risk || 'high',
+    });
+    return {
+      approvalId: approval.id,
+      status: approval.status,
+      message: created
+        ? 'Approval requested. Do not execute the change until it is approved.'
+        : 'An identical approval request is already pending.',
+    };
+  });
+
+  tool('list_projects', 'List the software projects this identity is allowed to inspect and deploy.', {}, async (_, toolIdentity) => {
+    return { projects: await listProjects(toolIdentity) };
+  });
+
+  tool('plan_project_deployment', 'Create a safe, plain-language deployment plan for a registered project. This tool never deploys anything.', {
+    projectId: z.string().uuid().describe('Registered project identifier'),
+  }, async ({ projectId }, toolIdentity) => {
+    const project = await getProject(projectId, toolIdentity);
+    return getDeploymentPlan(project);
+  });
+
+  tool('deploy_project', 'Deploy a registered project using a controlled Git fast-forward pull, a registered systemd service restart, and an optional health check. Administrator approval is required.', {
+    projectId: z.string().uuid().describe('Registered project identifier'),
+    confirm: z.boolean().describe('Must be true to deploy'),
+  }, async ({ projectId }, toolIdentity) => {
+    if (toolIdentity.role !== 'admin') throw new Error('Deploying a project requires an administrator role');
+    const project = await getProject(projectId, toolIdentity);
+    if (!project.serviceName) throw new Error('This project has no registered systemd service, so it cannot use the managed deployment playbook');
+    await assertRepositoryPermitted(project.repoPath, toolIdentity);
+    const git = await gitOperation({ repoPath: project.repoPath, action: 'pull', args: {} }, toolIdentity);
+    const service = await manageService({ service: project.serviceName, action: 'restart' }, toolIdentity);
+    let health = { status: 'not-configured' };
+    if (project.healthUrl) {
+      const healthUrl = assertProjectHealthUrlAllowed(project);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const response = await fetch(healthUrl, { redirect: 'error', signal: controller.signal });
+        health = { status: response.ok ? 'healthy' : 'unhealthy', httpStatus: response.status };
+      } catch (err) {
+        health = { status: 'unreachable', message: err.name === 'AbortError' ? 'Timed out' : 'Connection failed' };
+      } finally { clearTimeout(timer); }
+    }
+    return { projectId: project.id, project: project.name, git, service, health, rollback: 'Use the project’s previous Git revision and restart its registered service if verification fails.' };
+  });
+
+  tool('list_automations', 'List the scheduled read-only health checks available to this identity.', {}, async (_, toolIdentity) => {
+    return { automations: await listAutomations(toolIdentity) };
+  });
+
+  tool('schedule_health_check', 'Schedule a read-only server health check. It records CPU, memory, and disk health and never changes the server.', {
+    name: z.string().max(80).optional().describe('Friendly automation name'),
+    intervalMinutes: z.number().int().min(5).max(10080).optional().describe('How often to check, in minutes'),
+  }, async ({ name, intervalMinutes }, toolIdentity) => {
+    return { automation: await createAutomation({ name, intervalMinutes, type: 'health_check' }, toolIdentity) };
+  });
+
+  tool('list_fleet_servers', 'List registered MCP Sentinel servers and their most recent health checks. Read-only.', {}, async (_, toolIdentity) => ({ servers: await listFleet(toolIdentity) }));
+
+  tool('check_fleet_server', 'Check the health endpoint of a registered Sentinel server. The destination must be on the administrator allow-list.', {
+    serverId: z.string().uuid().describe('Registered fleet server identifier'),
+  }, async ({ serverId }, toolIdentity) => ({ server: await checkFleetServer(serverId, toolIdentity) }));
+
+  tool('list_backup_targets', 'List encrypted backup destinations without exposing credentials. Administrator only.', {}, async (_, toolIdentity) => ({ targets: await listBackupTargets(toolIdentity) }));
+
+  tool('run_encrypted_backup', 'Encrypt a permitted configuration file with AES-256-GCM and send it to a registered local or S3-compatible destination. Administrator approval is required.', {
+    targetId: z.string().uuid().describe('Registered backup target identifier'),
+    sourcePath: z.string().max(4096).describe('Permitted regular file to back up'),
+    confirm: z.boolean().describe('Must be true to create a backup'),
+  }, async ({ targetId, sourcePath }, toolIdentity) => {
+    if (toolIdentity.role !== 'admin') throw new Error('Encrypted backups require an administrator role');
+    return { backup: await runBackup({ targetId, sourcePath }) };
+  });
+
+  tool('list_webhooks', 'List signed webhook integrations without exposing their signing secrets. Administrator only.', {}, async (_, toolIdentity) => ({ webhooks: await listWebhooks(toolIdentity) }));
+
+  tool('deliver_webhook', 'Deliver a signed generic webhook event to a registered allow-listed endpoint. Administrator approval is required.', {
+    webhookId: z.string().uuid().describe('Registered webhook identifier'),
+    event: z.string().regex(/^[a-z0-9._-]{1,80}$/).describe('Subscribed event name'),
+    payload: z.record(z.any()).optional().describe('Non-secret event data'),
+    confirm: z.boolean().describe('Must be true to deliver'),
+  }, async ({ webhookId, event, payload }, toolIdentity) => deliverWebhook({ webhookId, event, payload }, toolIdentity));
+
   tool('subscribe_to_alert', 'Subscribe to a system alert. Will send an MCP resource list_changed notification when triggered.', {
     alertType: z.enum(['cpu_threshold', 'memory_threshold', 'disk_threshold']).describe('Type of alert'),
     threshold: z.number().positive().max(100).describe('Threshold percentage (e.g. 90 for 90%)'),
@@ -1001,6 +1386,19 @@ async function startServer() {
       }
     }
   });
+
+  // Automations are intentionally read-only until a future playbook has an
+  // explicit policy, approval, and rollback contract.
+  setInterval(async () => {
+    try {
+      const completed = await runDueAutomations(monitor.getLatestStats());
+      for (const automation of completed) {
+        logSecurityEvent({ ip: 'internal', event: 'AUTOMATION_COMPLETED', detail: automation });
+      }
+    } catch (err) {
+      logError({ ip: 'internal', userId: 'system', tool: 'AUTOMATION_RUNNER', error: err });
+    }
+  }, 60000);
 }
 
 startServer().catch(err => {

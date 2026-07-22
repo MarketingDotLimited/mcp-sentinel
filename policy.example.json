@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "effect": "deny",
+      "tools": ["delete_user", "manage_firewall"],
+      "roles": ["developer"]
+    },
+    {
+      "effect": "require_approval",
+      "tools": ["write_file", "git_operation", "manage_service"],
+      "roles": ["*"]
+    }
+  ]
+}

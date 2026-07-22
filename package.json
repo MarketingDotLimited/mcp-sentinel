@@ -9,9 +9,10 @@
     "dev": "node --watch server.js",
     "setup": "node setup.js",
     "keygen": "node keygen.js",
-    "test": "node --test tests/smoke.test.js"
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1092.0",
     "@modelcontextprotocol/sdk": "^1.25.4",
     "acme-client": "^5.4.0",
     "cors": "^2.8.6",

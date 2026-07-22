@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const KEYS_FILE = path.join(__dirname, 'keys.json');
+const KEYS_FILE = process.env.KEYSTORE_FILE || path.join(__dirname, 'keys.json');
 
 let keyStore = {};
 
@@ -60,6 +60,15 @@ export async function revokeKeyEntry(key) {
   return false;
 }
 
+export async function revokeKeyEntryById(keyId) {
+  const entry = Object.values(keyStore).find(candidate => candidate.keyId === keyId);
+  if (!entry || entry.active === false) return false;
+  entry.active = false;
+  entry.version++;
+  await saveKeystore();
+  return true;
+}
+
 export function getKeyEntry(key) {
   const hash = hashKey(key);
   return keyStore[hash];
@@ -70,13 +79,17 @@ export function getKeyById(keyId) {
 }
 
 export function getKeys() {
-  return Object.values(keyStore).map(({ active, createdAt, role, userId, scopes, label, keyId }) => ({
+  return Object.values(keyStore).map(({ active, createdAt, role, userId, scopes, label, keyId, requireApproval, projectIds, organizationId, teamId }) => ({
     keyId,
     active,
     createdAt,
     role,
     userId,
     scopes,
-    label
+    label,
+    requireApproval: requireApproval === true,
+    projectIds: Array.isArray(projectIds) ? projectIds : [],
+    organizationId: organizationId || null,
+    teamId: teamId || null,
   }));
 }

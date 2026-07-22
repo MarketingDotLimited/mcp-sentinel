@@ -116,6 +116,14 @@ const LoginPage = {
   // Register routes
   Router.register('/login', LoginPage);
   Router.register('/dashboard', window.DashboardPage);
+  Router.register('/workflows', window.WorkflowsPage);
+  Router.register('/approvals', window.ApprovalsPage);
+  Router.register('/projects', window.ProjectsPage);
+  Router.register('/automations', window.AutomationsPage);
+  Router.register('/operations', window.OperationsPage);
+  Router.register('/connect', window.ConnectPage);
+  Router.register('/teams', window.TeamsPage);
+  Router.register('/security', window.SecurityPage);
   Router.register('/logs', window.LogsPage);
   Router.register('/sessions', window.SessionsPage);
   Router.register('/keys', window.KeysPage);

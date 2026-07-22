@@ -83,7 +83,7 @@ const DashboardPage = (() => {
     }
   }
 
-  function updateTextCard(id, value, isStatus = false) {
+  function updateTextCard(id, value, isStatus = false, statusColor = '#10b981') {
     const valueEl = document.getElementById(`value-${id}`);
     const card = document.getElementById(`card-${id}`);
     
@@ -96,7 +96,7 @@ const DashboardPage = (() => {
         dot.style.width = '12px';
         dot.style.height = '12px';
         dot.style.borderRadius = '50%';
-        dot.style.backgroundColor = '#10b981';
+        dot.style.backgroundColor = statusColor;
         dot.style.marginRight = '10px';
         dot.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.6)';
         valueEl.appendChild(dot);
@@ -128,15 +128,23 @@ const DashboardPage = (() => {
         updateProgressRing('memory', data.memory || 0);
         updateProgressRing('disk', data.disk || 0);
         
-        if (data.load && Array.isArray(data.load)) {
-          updateTextCard('load', `${data.load[0].toFixed(2)} / ${data.load[1].toFixed(2)} / ${data.load[2].toFixed(2)}`);
+        const load = data.loadAvg || data.load;
+        if (load && typeof load === 'object' && !Array.isArray(load)) {
+          updateTextCard('load', `${Number(load['1m'] || 0).toFixed(2)} / ${Number(load['5m'] || 0).toFixed(2)} / ${Number(load['15m'] || 0).toFixed(2)}`);
+        } else if (Array.isArray(load)) {
+          updateTextCard('load', `${load[0].toFixed(2)} / ${load[1].toFixed(2)} / ${load[2].toFixed(2)}`);
         } else {
           updateTextCard('load', 'N/A');
         }
         
         updateTextCard('sessions', data.activeSessions || 0, true);
-        updateTextCard('keys', data.apiKeys || 0);
-        updateTextCard('uptime', formatUptime(data.uptime || 0));
+        updateTextCard('keys', data.totalKeys ?? data.apiKeys ?? 0);
+        updateTextCard('uptime', formatUptime(data.serverUptime ?? data.uptime ?? 0));
+        const summary = data.healthSummary;
+        const healthColor = summary?.status === 'needs-attention' ? '#ef4444' : summary?.status === 'watch' ? '#f59e0b' : '#10b981';
+        updateTextCard('health', summary?.status === 'needs-attention' ? 'Needs attention' : summary?.status === 'watch' ? 'Keep an eye on it' : 'Healthy', true, healthColor);
+        const healthMessage = document.getElementById('health-message');
+        if (healthMessage) healthMessage.textContent = summary?.message || 'Checking server health…';
       }
     } catch (err) {
       console.error('Failed to fetch stats:', err);
@@ -169,7 +177,7 @@ const DashboardPage = (() => {
     containerEl.innerHTML = `
       <div class="page-header" style="margin-bottom: 2.5rem;">
         <h1 class="page-title" style="font-size: 2.25rem; font-weight: 800; letter-spacing: -0.025em; margin: 0; background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Dashboard</h1>
-        <p class="page-subtitle" style="color: #a1a1aa; margin-top: 0.5rem; font-size: 1.1rem;">System Overview</p>
+        <p class="page-subtitle" style="color: #a1a1aa; margin-top: 0.5rem; font-size: 1.1rem;">Your server at a glance. Start with Guided Help when you need a safe AI-assisted task.</p>
       </div>
       
       <div class="content-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
@@ -180,10 +188,12 @@ const DashboardPage = (() => {
       </div>
       
       <div class="content-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+        ${createTextCard('health', 'Server Health')}
         ${createTextCard('sessions', 'Active Sessions')}
         ${createTextCard('keys', 'API Keys')}
         ${createTextCard('uptime', 'Server Uptime')}
       </div>
+      <p id="health-message" style="color: #a1a1aa; margin-top: 1rem;">Checking server health…</p>
     `;
 
     // Initial fetch
