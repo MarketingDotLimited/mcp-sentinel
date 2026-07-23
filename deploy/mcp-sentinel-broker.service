@@ -23,7 +23,9 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx /etc/passwd /etc/shadow /etc/group /etc/gshadow /var/www/vhosts/rabeeb.com/httpdocs
+ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx /etc/passwd /etc/shadow /etc/group /etc/gshadow
+# Exact registered project write paths are installed as a root-owned generated
+# drop-in by the signed release activator.
 Restart=on-failure
 
 [Install]
