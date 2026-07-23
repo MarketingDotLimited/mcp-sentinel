@@ -32,6 +32,10 @@ describe('remote node project registration', () => {
       validateNodeProject({ ...project, permittedTasks: ['shell'] }, { verifyUser: false }),
       /invalid task/
     );
+    await assert.rejects(
+      validateNodeProject({ ...project, testNetworkHosts: ['database.internal'] }, { verifyUser: false }),
+      /explicit IP/
+    );
     const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-node-outside-'));
     try {
       await assert.rejects(
