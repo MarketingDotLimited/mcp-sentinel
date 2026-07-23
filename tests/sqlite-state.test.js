@@ -4,7 +4,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
-import { loadSqliteState, openSqliteState, saveSqliteState } from '../lib/sqlite-state.js';
+import { loadSqliteState, loadTaskRun, openSqliteState, saveSqliteState, upsertTaskRun } from '../lib/sqlite-state.js';
 
 const temporaryDirectories = [];
 
@@ -69,6 +69,7 @@ describe('SQLite state migrations', () => {
 
     const version4 = new DatabaseSync(databaseFile);
     version4.prepare('DELETE FROM schema_migrations WHERE version = 5').run();
+    version4.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
     version4.prepare('DELETE FROM hosts').run();
     version4.prepare('DELETE FROM ssh_policies').run();
     version4
@@ -112,5 +113,57 @@ describe('SQLite state migrations', () => {
     assert.equal(reopenedState.hosts.filter(host => host.id === 'local').length, 1);
     assert.equal(reopenedState.sshPolicies.filter(policy => policy.id === 'global').length, 1);
     reopened.close();
+  });
+
+  it('encrypts secret-bearing fields and complete task results before SQLite persistence', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-sqlite-encryption-'));
+    temporaryDirectories.push(directory);
+    const credentials = path.join(directory, 'credentials');
+    const databaseFile = path.join(directory, 'state.sqlite3');
+    await fs.mkdir(credentials, { mode: 0o700 });
+    await fs.writeFile(path.join(credentials, 'state-key'), 'ab'.repeat(32), { mode: 0o600 });
+    const previousDirectory = process.env.CREDENTIALS_DIRECTORY;
+    const previousKeyId = process.env.CONTROL_PLANE_KEY_ID;
+    process.env.CREDENTIALS_DIRECTORY = credentials;
+    process.env.CONTROL_PLANE_KEY_ID = 'test-state-v1';
+    try {
+      const database = await openSqliteState(databaseFile);
+      const state = loadSqliteState(database);
+      state.projects.push({
+        id: '436b432a-206b-43cd-abfa-6291dbef0c50',
+        name: 'Encrypted project',
+        rootPath: '/srv/encrypted',
+        password: 'database-password-plaintext',
+        nested: { refreshToken: 'refresh-token-plaintext' },
+      });
+      saveSqliteState(database, state);
+      upsertTaskRun(database, {
+        runId: '4b3c767a-07ae-4591-b8cf-900e35028375',
+        projectId: state.projects[0].id,
+        owner: 'developer',
+        state: 'failed',
+        startedAt: Date.now(),
+        stdout: 'sensitive-test-output-plaintext',
+      });
+
+      const rawProject = database.prepare('SELECT payload FROM projects WHERE id = ?').get(state.projects[0].id);
+      const rawRun = database
+        .prepare('SELECT payload FROM task_runs WHERE id = ?')
+        .get('4b3c767a-07ae-4591-b8cf-900e35028375');
+      assert.doesNotMatch(rawProject.payload, /database-password-plaintext|refresh-token-plaintext/);
+      assert.doesNotMatch(rawRun.payload, /sensitive-test-output-plaintext/);
+      assert.equal(loadSqliteState(database).projects[0].password, 'database-password-plaintext');
+      assert.equal(
+        loadTaskRun(database, '4b3c767a-07ae-4591-b8cf-900e35028375').stdout,
+        'sensitive-test-output-plaintext'
+      );
+      assert.equal(database.prepare('SELECT version FROM schema_migrations WHERE version = 6').get().version, 6);
+      database.close();
+    } finally {
+      if (previousDirectory === undefined) delete process.env.CREDENTIALS_DIRECTORY;
+      else process.env.CREDENTIALS_DIRECTORY = previousDirectory;
+      if (previousKeyId === undefined) delete process.env.CONTROL_PLANE_KEY_ID;
+      else process.env.CONTROL_PLANE_KEY_ID = previousKeyId;
+    }
   });
 });

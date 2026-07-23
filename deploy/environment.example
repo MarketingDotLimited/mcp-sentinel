@@ -10,6 +10,7 @@ OAUTH_RESOURCE_URL=https://mcp.example.com
 AUTHELIA_ISSUER=https://auth.example.com
 AUTHELIA_JWKS_URL=https://auth.example.com/jwks.json
 MCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3
+CONTROL_PLANE_KEY_ID=state-v1
 MCP_BROKER_SOCKET=/run/mcp-sentinel/broker.sock
 MCP_SSH_RUNTIME_DIR=/run/mcp-sentinel/ssh
 MCP_SSH_CREDENTIAL_DIR=/etc/mcp-sentinel/ssh-credentials
