@@ -9,10 +9,8 @@ import { parseEnvironment } from '../lib/deployment.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(__dirname, '..');
 const rootPrefix = path.resolve(process.env.MCP_PREFLIGHT_ROOT || '/');
-const expectedProjectId = '436b432a-206b-43cd-abfa-6291dbef0c50';
-const expectedProjectRoot = '/var/www/vhosts/rabeeb.com/httpdocs';
-const expectedProjectUser = 'rabeeb.com_07v7ld45234';
 const checks = [];
+let brokerEnvironment;
 
 function hostPath(absolutePath) {
   if (!path.isAbsolute(absolutePath)) throw new Error('Preflight paths must be absolute');
@@ -128,16 +126,26 @@ function inspectBrokerEnvironment() {
   const protectedServices = new Set((environment.BROKER_PROTECTED_SERVICES || '').split(','));
   for (const service of ['mcp-sentinel', 'mcp-sentinel-broker', 'ssh', 'sshd', 'nginx', 'authelia'])
     if (!protectedServices.has(service)) throw new Error(`Protected service '${service}' is missing`);
-  if (!(environment.BROKER_GIT_ALLOWED_REPOS || '').split(',').includes(expectedProjectRoot))
-    throw new Error('The global Git ceiling does not contain the exact Rabeeb repository');
-  if (!(environment.BROKER_MANAGED_USERS || '').split(',').includes(expectedProjectUser))
-    throw new Error('The Rabeeb execution user is not registered with the broker');
+  const repositories = (environment.BROKER_GIT_ALLOWED_REPOS || '').split(',').filter(Boolean);
+  const managedUsers = (environment.BROKER_MANAGED_USERS || '').split(',').filter(Boolean);
+  if (!repositories.length) throw new Error('At least one global Git repository ceiling is required');
+  if (!managedUsers.length) throw new Error('At least one managed non-root project user is required');
+  for (const repository of repositories) {
+    const normalized = path.resolve(repository);
+    if (
+      normalized !== repository ||
+      ['/', '/etc', '/usr', '/var', '/var/www', '/srv', '/opt', '/root', '/home'].includes(normalized)
+    )
+      throw new Error(`Repository ceiling '${repository}' is too broad or is not a normalized absolute path`);
+  }
+  if (managedUsers.includes('root')) throw new Error('The root account cannot be a managed project user');
   const managementPorts = new Set((environment.BROKER_MANAGEMENT_PORTS || '').split(','));
   for (const port of ['22', '443'])
     if (!managementPorts.has(port)) throw new Error(`Management port ${port} is not preserved`);
   if (environment.MCP_STATE_DB !== '/var/lib/mcp-sentinel/state.sqlite3')
     throw new Error('Broker and API must share the protected SQLite state');
-  return 'Broker allow-lists preserve SSH/HTTPS and the exact Rabeeb boundary';
+  brokerEnvironment = environment;
+  return `Broker allow-lists preserve SSH/HTTPS with ${repositories.length} repository ceiling(s) and ${managedUsers.length} managed user(s)`;
 }
 
 function inspectDatabase(sentinel) {
@@ -149,37 +157,52 @@ function inspectDatabase(sentinel) {
       throw new Error('SQLite integrity check failed');
     const migrations = database.prepare('SELECT version FROM schema_migrations ORDER BY version').all();
     if (!migrations.some(row => row.version === 6)) throw new Error('Schema migration 6 is not applied');
-    const projectRow = database.prepare('SELECT payload FROM projects WHERE id = ?').get(expectedProjectId);
-    if (!projectRow) throw new Error('Rabeeb UUID project is missing');
-    const project = JSON.parse(projectRow.payload);
-    if (
-      project.rootPath !== expectedProjectRoot ||
-      project.repoPath !== expectedProjectRoot ||
-      project.runAsUser !== expectedProjectUser ||
-      project.testDatabase !== 'rabeeb_test' ||
-      project.allowFullSuite === true
-    )
-      throw new Error('Rabeeb project registration does not match the production safety boundary');
+    if (!brokerEnvironment) throw new Error('Broker environment could not be validated');
+    const repositories = new Set((brokerEnvironment.BROKER_GIT_ALLOWED_REPOS || '').split(',').filter(Boolean));
+    const managedUsers = new Set((brokerEnvironment.BROKER_MANAGED_USERS || '').split(',').filter(Boolean));
+    const projects = database
+      .prepare('SELECT id, payload FROM projects')
+      .all()
+      .map(row => ({ id: row.id, ...JSON.parse(row.payload) }));
+    if (!projects.length) throw new Error('At least one registered project is required');
+    for (const project of projects) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(project.id))
+        throw new Error(`Project '${project.id}' is not a canonical UUID`);
+      if (project.runAsUser === 'root' || !managedUsers.has(project.runAsUser))
+        throw new Error(`Project '${project.id}' does not use an explicitly managed non-root user`);
+      if ((project.transportKind || 'local') === 'local') {
+        if (!repositories.has(project.repoPath) || !repositories.has(project.rootPath))
+          throw new Error(`Local project '${project.id}' is outside the exact global repository ceiling`);
+      } else if (project.transportKind !== 'ssh-gateway' || !project.sshConnectionId || !project.hostId) {
+        throw new Error(`Remote project '${project.id}' lacks a typed SSH host and connection binding`);
+      }
+    }
+    const projectIds = new Set(projects.map(project => project.id));
     const mappingRows = database
       .prepare('SELECT username, payload FROM oauth_mappings')
       .all()
       .map(row => ({ username: row.username, ...JSON.parse(row.payload) }));
-    const mapping = mappingRows.find(candidate => candidate.username === 'rabeeb');
-    if (
-      !mapping ||
-      mapping.role !== 'developer' ||
-      mapping.requireApproval !== true ||
-      mapping.projectIds?.length !== 1 ||
-      mapping.projectIds[0] !== expectedProjectId
-    )
-      throw new Error('Rabeeb OAuth mapping is not least-privileged and project-bound');
+    for (const mapping of mappingRows) {
+      if (mapping.role !== 'admin' && mapping.scopes?.includes('*'))
+        throw new Error(`Non-admin OAuth mapping '${mapping.username}' has wildcard scope`);
+      for (const projectId of mapping.projectIds || [])
+        if (!projectIds.has(projectId))
+          throw new Error(`OAuth mapping '${mapping.username}' references unknown project '${projectId}'`);
+      for (const [clientId, client] of Object.entries(mapping.clients || {})) {
+        if (client.role !== 'admin' && client.scopes?.includes('*'))
+          throw new Error(`Non-admin OAuth client override '${mapping.username}/${clientId}' has wildcard scope`);
+        for (const projectId of client.projectIds || [])
+          if (!projectIds.has(projectId))
+            throw new Error(`OAuth client override '${mapping.username}/${clientId}' references an unknown project`);
+      }
+    }
     const adminKeys = database
       .prepare('SELECT payload FROM api_keys')
       .all()
       .map(row => JSON.parse(row.payload))
       .filter(key => key.active !== false && key.role === 'admin');
     if (!adminKeys.length) throw new Error('No active stored administrator key remains for recovery');
-    return `SQLite integrity, migration 6, Rabeeb project, OAuth mapping, and recovery admin verified`;
+    return `SQLite integrity, migration 6, ${projects.length} project registration(s), ${mappingRows.length} OAuth mapping(s), and recovery admin verified`;
   } finally {
     database.close();
   }
