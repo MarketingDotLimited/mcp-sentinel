@@ -292,6 +292,14 @@ function alertOwnerKey(identity) {
 const oauthDiagnostics = new Map();
 const manifestSnapshots = new Map();
 
+async function invalidateOAuthSessions(username) {
+  for (const [sessionId, session] of activeTransports) {
+    if (session.identity?.authType !== 'oauth' || session.identity.oauthUser !== username) continue;
+    await session.mcpServer?.close().catch(() => {});
+    activeTransports.delete(sessionId);
+  }
+}
+
 function manifestIdentityKey(identity) {
   return [identity.authType, identity.oauthSubject || identity.userId, identity.oauthClient || identity.keyId].join(
     ':'
@@ -1142,6 +1150,7 @@ app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
     if (bodyUsername && bodyUsername !== req.params.username)
       return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
     await updateOAuthUser(req.params.username, updates);
+    await invalidateOAuthSessions(req.params.username);
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
@@ -1153,6 +1162,7 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => 
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     await deleteOAuthUser(req.params.username);
+    await invalidateOAuthSessions(req.params.username);
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
