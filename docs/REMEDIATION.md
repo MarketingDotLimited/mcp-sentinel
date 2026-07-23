@@ -79,7 +79,7 @@ Before enabling traffic, verify:
 
 ## 5. Refresh ChatGPT actions
 
-After deployment and rotation, open `/admin/action-manifest` and record its version/hash. In ChatGPT, refresh the connector snapshot, review the schema/annotation diff, explicitly enable `run_project_tests`, `get_project_test_run`, and `cancel_project_test_run`, and reauthorize OAuth. Start a new chat and run one small assigned Rabeeb test target. Confirm the structured result contains a run ID, state, exit code, duration, bounded output, truncation flag, and failure classification.
+After deployment and rotation, open `/admin/action-manifest` and record its version/hash. In ChatGPT, use **Update actions** to replace the frozen connector snapshot, review the schema/annotation diff, explicitly enable `get_my_ssh_access`, `set_my_ssh_access`, `run_project_tests`, `get_project_test_run`, and `cancel_project_test_run`, and reauthorize OAuth. Start a new chat and run one small assigned-project test target. Confirm the structured result contains a run ID, state, exit code, duration, bounded output, truncation flag, and failure classification.
 
 ## 6. Release and rollback gates
 

@@ -59,7 +59,13 @@ import { Toast } from '../toast.js';
       await API.post('/admin/action-refresh-status', {
         confirm: true,
         manifestHash: currentManifest.hash,
-        enabledTools: ['run_project_tests', 'get_project_test_run', 'cancel_project_test_run'],
+        enabledTools: [
+          'get_my_ssh_access',
+          'set_my_ssh_access',
+          'run_project_tests',
+          'get_project_test_run',
+          'cancel_project_test_run',
+        ],
         oauthReauthorized: form.get('oauthReauthorized') === 'on',
         newChatTested: form.get('newChatTested') === 'on',
       });
@@ -72,7 +78,7 @@ import { Toast } from '../toast.js';
   function render(container) {
     root = container;
     root.innerHTML =
-      '<div class="page-header"><div><h1>ChatGPT action manifest</h1><p>Compare the exact live tools, schemas, risk annotations, and connector refresh checklist.</p></div><button class="btn btn-ghost" id="refresh-manifest">Refresh</button></div><section class="card"><h2 id="manifest-status">Loading manifest…</h2><ol id="manifest-checklist"></ol><form id="manifest-confirm"><label><input type="checkbox" name="oauthReauthorized" required> OAuth was reauthorized after credential rotation</label><br><label><input type="checkbox" name="newChatTested" required> A new chat completed a small assigned-project test</label><br><button class="btn btn-primary" type="submit">Record completed refresh</button></form></section><div id="manifest-tools" class="workflow-grid" style="margin-top:20px"></div>';
+      '<div class="page-header"><div><h1>ChatGPT action manifest</h1><p>Compare the exact live tools, schemas, risk annotations, and connector refresh checklist.</p></div><button class="btn btn-ghost" id="refresh-manifest">Refresh</button></div><section class="card"><h2 id="manifest-status">Loading manifest…</h2><p>If ChatGPT shows an older version or hash, use <strong>Update actions</strong> in Developer Mode before recording completion. A saved ChatGPT version is a frozen snapshot and does not update itself.</p><ol id="manifest-checklist"></ol><form id="manifest-confirm"><label><input type="checkbox" name="oauthReauthorized" required> OAuth was reauthorized after credential rotation</label><br><label><input type="checkbox" name="newChatTested" required> A new chat exposed both SSH controls and completed a small assigned-project test</label><br><button class="btn btn-primary" type="submit">Record completed refresh</button></form></section><div id="manifest-tools" class="workflow-grid" style="margin-top:20px"></div>';
     root.querySelector('#refresh-manifest').onclick = load;
     root.querySelector('#manifest-confirm').onsubmit = confirmRefresh;
     load();

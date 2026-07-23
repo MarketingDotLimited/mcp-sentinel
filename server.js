@@ -226,24 +226,13 @@ async function buildSecurityPosture() {
         ? `Broker is healthy; SQLite schema and ${broker.projectCount} project execution identity record(s) passed.`
         : `Broker reported invalid project users or migrations: ${broker.invalidProjectUsers?.join(', ') || 'unknown'}`
   );
-  const protectedFiles = [
-    process.env.AUTHELIA_CONFIG_FILE || '/etc/mcp-sentinel/authelia.yml',
-    process.env.AUTHELIA_USERS_FILE || '/etc/mcp-sentinel/users.yml',
-    process.env.MCP_STATE_DB || '/var/lib/mcp-sentinel/state.sqlite3',
-  ];
-  const unsafeFiles = protectedFiles.filter(file => {
-    try {
-      return (fs.statSync(file).mode & 0o077) !== 0;
-    } catch {
-      return true;
-    }
-  });
+  const protectedPermissions = broker.protectedFilePermissions;
   add(
     'protected-file-permissions',
-    unsafeFiles.length ? 'fail' : 'pass',
-    unsafeFiles.length
-      ? `Missing or over-permissive protected files: ${unsafeFiles.join(', ')}`
-      : 'Protected state files are mode 0600.'
+    protectedPermissions?.safe ? 'pass' : 'fail',
+    protectedPermissions?.safe
+      ? `${protectedPermissions.checked} protected state/configuration files are mode 0600.`
+      : `The privilege broker found missing or over-permissive protected files: ${protectedPermissions?.unsafeFiles?.join(', ') || 'broker result unavailable'}`
   );
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
   let discovery = null;
@@ -660,6 +649,7 @@ app.get('/admin/action-manifest', authenticateJWT, async (req, res) => {
     refreshChecklist: [
       'Refresh the connector action snapshot in ChatGPT.',
       'Review and approve the reported schema and annotation changes.',
+      'Explicitly enable get_my_ssh_access and set_my_ssh_access.',
       'Explicitly enable run_project_tests, get_project_test_run, and cancel_project_test_run.',
       'Reauthorize OAuth after the credential rotation.',
       'Open a new chat and run one small assigned-project test target.',
@@ -723,21 +713,30 @@ app.post('/admin/action-refresh-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   await createMcpServer(req.identity, req.clientIP);
   const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));
-  const companions = ['run_project_tests', 'get_project_test_run', 'cancel_project_test_run'];
+  const requiredActions = [
+    'get_my_ssh_access',
+    'set_my_ssh_access',
+    'run_project_tests',
+    'get_project_test_run',
+    'cancel_project_test_run',
+  ];
   if (
     req.body?.confirm !== true ||
     req.body.manifestHash !== manifest.hash ||
     req.body.oauthReauthorized !== true ||
     req.body.newChatTested !== true ||
     !Array.isArray(req.body.enabledTools) ||
-    !companions.every(tool => req.body.enabledTools.includes(tool))
+    !requiredActions.every(tool => req.body.enabledTools.includes(tool))
   )
     return res
       .status(400)
-      .json({ error: 'Manifest hash, OAuth reauthorization, enabled test tools, and new-chat test must be confirmed' });
+      .json({
+        error:
+          'Manifest hash, OAuth reauthorization, enabled SSH and project-test actions, and new-chat test must be confirmed',
+      });
   const status = setAdminState('action_refresh_status', {
     manifestHash: manifest.hash,
-    enabledTools: companions,
+    enabledTools: requiredActions,
     oauthReauthorized: true,
     newChatTested: true,
     recordedAt: new Date().toISOString(),
@@ -2666,7 +2665,9 @@ async function createMcpServer(identity, ip) {
   }
   const manifestBody = JSON.stringify(visibleTools);
   manifestSnapshots.set(manifestIdentityKey(identity), {
-    version: 2,
+    // Increment whenever the public action contract changes. Version 3 adds
+    // the scoped SSH access controls and constrained project-test companions.
+    version: 3,
     hash: createHash('sha256').update(manifestBody).digest('hex'),
     generatedAt: new Date().toISOString(),
     authorizationVersion: identity.authorizationVersion || identity.keyVersion || null,
