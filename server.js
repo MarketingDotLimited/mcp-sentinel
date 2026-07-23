@@ -446,6 +446,26 @@ app.use(express.json({ limit: '5mb' }));
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER || '5', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.IDLE_TIMEOUT_MS || '1800000', 10); // 30 min default
 
+async function makeSessionRoom(identity, ip) {
+  const owner = alertOwnerKey(identity);
+  const owned = [...activeTransports.entries()].filter(([, session]) => alertOwnerKey(session.identity) === owner);
+  if (owned.length < MAX_SESSIONS_PER_USER) return true;
+  const idle = owned
+    .filter(([, session]) => !session.inFlight)
+    .sort(([, left], [, right]) => left.lastActivity - right.lastActivity)[0];
+  if (!idle) return false;
+  const [sessionId, session] = idle;
+  await session.mcpServer?.close().catch(() => {});
+  monitor.unsubscribeAll(sessionId);
+  activeTransports.delete(sessionId);
+  logSecurityEvent({
+    ip,
+    event: 'IDLE_SESSION_REPLACED',
+    detail: { sessionId, userId: identity.userId, oauthClient: identity.oauthClient || null },
+  });
+  return true;
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [id, session] of activeTransports.entries()) {
@@ -1409,8 +1429,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     if (activeTransports.size >= maxConns) {
       return res.status(503).json({ error: 'Too many active connections globally' });
     }
-    const userCount = [...activeTransports.values()].filter(item => item.identity?.userId === identity.userId).length;
-    if (userCount >= MAX_SESSIONS_PER_USER) {
+    if (!(await makeSessionRoom(identity, ip))) {
       return res.status(429).json({ error: 'Too many active connections for this user' });
     }
 
@@ -1426,6 +1445,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
           ip,
           connectedAt: new Date().toISOString(),
           lastActivity: Date.now(),
+          inFlight: false,
           mcpServer,
         };
         activeTransports.set(initializedSessionId, streamableSession);
@@ -1469,8 +1489,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     if (activeTransports.size >= maxConns) {
       return res.status(503).json({ error: 'Too many active connections globally' });
     }
-    const userCount = [...activeTransports.values()].filter(s => s.identity?.userId === identity.userId).length;
-    if (userCount >= MAX_SESSIONS_PER_USER) {
+    if (!(await makeSessionRoom(identity, ip))) {
       return res.status(429).json({ error: 'Too many active connections for this user' });
     }
 
@@ -1494,7 +1513,15 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     res.setHeader('mcp-session-id', transport.sessionId);
     res.setHeader('X-Accel-Buffering', 'no');
 
-    session = { transport, identity, ip, connectedAt: new Date().toISOString(), lastActivity: Date.now(), mcpServer };
+    session = {
+      transport,
+      identity,
+      ip,
+      connectedAt: new Date().toISOString(),
+      lastActivity: Date.now(),
+      inFlight: false,
+      mcpServer,
+    };
     activeTransports.set(transport.sessionId, session);
     transport.onclose = () => {
       console.log('Session closed/deleted!', transport.sessionId);
@@ -1540,6 +1567,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
   }
 
   session.lastActivity = Date.now();
+  session.inFlight = true;
 
   try {
     if (session.transport instanceof StreamableHTTPServerTransport) {
@@ -1557,6 +1585,9 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }
+  } finally {
+    session.inFlight = false;
+    session.lastActivity = Date.now();
   }
 });
 
