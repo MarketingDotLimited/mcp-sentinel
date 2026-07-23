@@ -142,6 +142,7 @@ describe('typed Authelia administration state', () => {
     const invalid = [
       [{ ...base, role: 'owner' }, /role/],
       [{ ...base, scopes: ['valid', 'not allowed!'] }, /scopes/],
+      [{ ...base, role: 'developer', scopes: ['*'] }, /Wildcard OAuth scope/],
       [{ ...base, projectIds: ['not-a-uuid'] }, /project assignments/],
       [{ ...base, requireApproval: 'yes' }, /approval setting/],
       [{ ...base, linuxUser: 'root' }, /Linux user/],
