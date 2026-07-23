@@ -39,7 +39,7 @@ describe('approval control plane', () => {
     identity: requester,
   };
 
-  it('creates a redacted pending approval and consumes it once after approval', async () => {
+  it('creates a redacted pending approval and completes its single-use execution grant', async () => {
     const { approval, created } = await controlPlane.requestApproval({
       ...action,
       summary: 'Update application configuration',
@@ -53,8 +53,38 @@ describe('approval control plane', () => {
     assert.equal('actionHash' in pending[0], false);
 
     await controlPlane.decideApproval({ id: approval.id, decision: 'approved', identity: admin });
-    assert.ok(await controlPlane.consumeApproval(action));
+    const execution = await controlPlane.consumeApproval(action);
+    assert.equal(execution.status, 'executing');
     assert.equal(await controlPlane.consumeApproval(action), null);
+    const completed = await controlPlane.completeApprovalExecution(execution.id, requester);
+    assert.equal(completed.status, 'executed');
+  });
+
+  it('records a bounded failure and links the next reviewed retry', async () => {
+    const retryAction = {
+      tool: 'move_file',
+      args: { sourcePath: '/srv/app/a', destPath: '/srv/app/b', confirm: true },
+      identity: requester,
+    };
+    const first = await controlPlane.requestApproval(retryAction);
+    await controlPlane.decideApproval({ id: first.approval.id, decision: 'approved', identity: admin });
+    const execution = await controlPlane.consumeApproval(retryAction);
+    const failed = await controlPlane.failApprovalExecution(
+      execution.id,
+      requester,
+      `bounded failure\n${'x'.repeat(800)}`
+    );
+    assert.equal(failed.status, 'failed');
+
+    const retry = await controlPlane.requestApproval(retryAction);
+    assert.equal(retry.approval.retryOf, execution.id);
+    assert.equal(retry.approval.attempt, 2);
+    assert.equal(retry.approval.decisionHistory[0].state, 'retry-pending');
+    const resolved = await controlPlane.listApprovals(admin, { includeResolved: true });
+    const failure = resolved.find(item => item.id === execution.id);
+    assert.equal(failure.status, 'failed');
+    assert.equal(failure.failureReason.includes('\n'), false);
+    assert.equal(failure.failureReason.length, 500);
   });
 
   it('prevents non-admin users from deciding requests', async () => {

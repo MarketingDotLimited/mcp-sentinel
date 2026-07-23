@@ -85,6 +85,7 @@ import {
   assertProjectHealthUrlAllowed,
   adminSetSshAccess,
   assertRepositoryPermitted,
+  completeApprovalExecution,
   consumeApproval,
   createOrganization,
   createProject,
@@ -92,6 +93,7 @@ import {
   createSshHost,
   createTeam,
   decideApproval,
+  failApprovalExecution,
   getDeploymentPlan,
   getMySshAccess,
   getProject,
@@ -1815,6 +1817,7 @@ async function createMcpServer(identity, ip) {
         // grant is single-use and expires automatically.
         const approvalSensitive =
           requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
+        let approvedExecution = null;
         if (approvalSensitive && identity.requireApproval) {
           const approved = await consumeApproval({ tool: name, args, identity });
           if (!approved) {
@@ -1850,10 +1853,12 @@ async function createMcpServer(identity, ip) {
               isError: true,
             };
           }
+          approvedExecution = approved;
         }
 
         try {
           const result = await handler(args, identity);
+          if (approvedExecution) await completeApprovalExecution(approvedExecution.id, identity);
           logAccess({
             ip,
             apiKey: null,
@@ -1872,6 +1877,10 @@ async function createMcpServer(identity, ip) {
               : {}),
           };
         } catch (err) {
+          if (approvedExecution)
+            await failApprovalExecution(approvedExecution.id, identity, err.message).catch(approvalError =>
+              logError({ ip, userId: identity.userId, tool: `${name}:approval-failure`, error: approvalError })
+            );
           const errorId = randomUUID();
           logError({ ip, userId: identity.userId, tool: name, errorId, error: err });
           logAccess({
