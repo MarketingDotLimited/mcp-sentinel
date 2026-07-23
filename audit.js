@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import zlib from 'zlib';
+import { loadCredentialSecret } from './lib/credentials.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOG_DIR = process.env.AUDIT_LOG_DIR || path.join(__dirname, 'logs');
@@ -16,12 +17,12 @@ if (!fs.existsSync(LOG_DIR)) {
 }
 
 const CHECKPOINT_FILE = process.env.AUDIT_CHECKPOINT_FILE || '/var/lib/mcp-sentinel/audit-chain.json';
-let configuredHmacKey = process.env.AUDIT_HMAC_KEY || '';
-if (!configuredHmacKey && process.env.CREDENTIALS_DIRECTORY) {
-  try {
-    configuredHmacKey = fs.readFileSync(path.join(process.env.CREDENTIALS_DIRECTORY, 'audit-key'), 'utf8').trim();
-  } catch {}
-}
+const auditCredentialExpected = Boolean(
+  process.env.NODE_ENV === 'production' || process.env.AUDIT_HMAC_KEY || process.env.CREDENTIALS_DIRECTORY
+);
+const configuredHmacKey = auditCredentialExpected ? loadCredentialSecret('AUDIT_HMAC_KEY', 'audit-key') : '';
+if (auditCredentialExpected && !/^[a-f0-9]{64}$/i.test(configuredHmacKey))
+  throw new Error('Audit HMAC credential must contain exactly 32 bytes encoded as hexadecimal');
 const auditHmacKey = /^[a-f0-9]{64}$/i.test(configuredHmacKey)
   ? Buffer.from(configuredHmacKey, 'hex')
   : crypto.randomBytes(32);

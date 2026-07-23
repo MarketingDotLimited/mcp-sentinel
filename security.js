@@ -19,8 +19,14 @@ import fs from 'fs';
 import path from 'path';
 import { readOAuthMappings } from './lib/oauth-mappings-store.js';
 import { DatabaseSync } from 'node:sqlite';
+import { loadCredentialSecret } from './lib/credentials.js';
 
 const execFileAsync = promisify(execFile);
+const JWT_SECRET = loadCredentialSecret('JWT_SECRET', 'jwt-key');
+
+export function jwtSecretIsConfigured() {
+  return JWT_SECRET.length >= 64 && !JWT_SECRET.includes('CHANGE_ME');
+}
 
 // Load keystore
 await loadKeystore();
@@ -328,7 +334,7 @@ export function issueToken(req, res) {
     sub: req.identity.userId,
     role: req.identity.role,
     scopes: req.identity.scopes,
-    ip, // Bind token to issuing IP
+    ip, // Record the issuing IP for anomaly detection.
     keyVersion: req.identity.keyVersion,
     keyId: req.identity.keyId,
     requireApproval: req.identity.requireApproval === true,
@@ -349,7 +355,7 @@ export function issueToken(req, res) {
     expiresIn = '8h';
   }
 
-  const token = jwt.sign(payload, process.env.JWT_SECRET, {
+  const token = jwt.sign(payload, JWT_SECRET, {
     algorithm: 'HS256',
     expiresIn,
     issuer: 'mcp-server',
@@ -423,7 +429,7 @@ export function authenticateJWT(req, res, next) {
 
   // ── Try 1: Internal Sentinel HS256 Token ──────────────
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+    const decoded = jwt.verify(token, JWT_SECRET, {
       issuer: 'mcp-server',
       audience: 'mcp-client',
       algorithms: ['HS256'],
@@ -440,7 +446,7 @@ export function authenticateJWT(req, res, next) {
       return sendUnauthorized(req, res, 'Token invalidated (key revoked or changed)');
     }
 
-    // Enforce IP binding (soft check due to Cloudflare rotating proxy IPs)
+    // Detect IP changes without rejecting sessions behind rotating trusted proxies.
     if (decoded.ip && decoded.ip !== ip) {
       logSecurityEvent({ ip, event: 'TOKEN_IP_MISMATCH', detail: { tokenIP: decoded.ip, currentIP: ip } });
       // We don't block here anymore because Cloudflare can change the client IP mid-session

@@ -22,16 +22,24 @@ output_root="${MCP_RELEASE_OUTPUT_DIR:-$repository_root/dist}"
 mkdir -p "$output_root"
 artifact="$output_root/mcp-sentinel-${version}.tar.gz"
 checksum="$artifact.sha256"
+manifest="$artifact.manifest.json"
 
 git archive --format=tar --prefix="mcp-sentinel-${version}/" "$commit" | gzip -n -9 >"$artifact"
 (
   cd "$output_root"
   sha256sum "$(basename "$artifact")" >"$(basename "$checksum")"
 )
+printf '{"version":"%s","commit":"%s","artifact":"%s","sha256":"%s"}\n' \
+  "$version" \
+  "$commit" \
+  "$(basename "$artifact")" \
+  "$(cut -d' ' -f1 "$checksum")" >"$manifest"
 
 if [[ -n "${MCP_RELEASE_SIGNING_KEY:-}" ]]; then
   gpg --batch --yes --armor --local-user "$MCP_RELEASE_SIGNING_KEY" --detach-sign "$artifact"
+  gpg --batch --yes --armor --local-user "$MCP_RELEASE_SIGNING_KEY" --detach-sign "$manifest"
   gpg --batch --verify "$artifact.asc" "$artifact"
+  gpg --batch --verify "$manifest.asc" "$manifest"
 elif [[ "${MCP_ALLOW_UNSIGNED_RELEASE:-false}" != 'true' ]]; then
   echo 'MCP_RELEASE_SIGNING_KEY is required (or explicitly set MCP_ALLOW_UNSIGNED_RELEASE=true for CI verification).' >&2
   exit 1

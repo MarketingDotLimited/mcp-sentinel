@@ -5,8 +5,8 @@ Description=Verify MCP Sentinel HMAC audit chain
 Type=oneshot
 User=mcp-sentinel
 Group=mcp-sentinel
-WorkingDirectory=/opt/mcp-sentinel
-ExecStart=/usr/bin/node /opt/mcp-sentinel/scripts/verify-audit.js
+WorkingDirectory=/opt/mcp-sentinel/current
+ExecStart=/usr/bin/node /opt/mcp-sentinel/current/scripts/verify-audit.js
 Environment=AUDIT_VERIFICATION_STATUS_FILE=/var/lib/mcp-sentinel/audit-verification.json
 EnvironmentFile=/etc/mcp-sentinel/environment
 LoadCredential=audit-key:/etc/mcp-sentinel/credentials/audit-key
