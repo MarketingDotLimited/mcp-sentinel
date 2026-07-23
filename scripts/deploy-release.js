@@ -276,6 +276,7 @@ function restoreRollback(metadata, rollbackDirectory) {
     } catch {}
   }
   for (const unit of [
+    'mcp-server.service',
     'authelia.service',
     'mcp-sentinel-broker.service',
     'mcp-sentinel.service',
@@ -283,9 +284,12 @@ function restoreRollback(metadata, rollbackDirectory) {
     'mcp-sentinel-state-backup.timer',
     'mcp-sentinel-audit-verify.service',
     'mcp-sentinel-state-backup.service',
-    'mcp-server.service',
   ]) {
-    if (state[unit]?.active) command('systemctl', ['start', unit]);
+    if (state[unit]?.active) {
+      try {
+        command('systemctl', ['start', unit]);
+      } catch {}
+    }
   }
 }
 

@@ -29,7 +29,8 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictRealtime=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# Node/V8 requires executable JIT pages. MemoryDenyWriteExecute would make
+# the process fail closed at startup, so it cannot be enabled for this unit.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadWritePaths=/var/lib/mcp-sentinel /var/log/mcp-sentinel /run/mcp-sentinel
 RuntimeDirectory=mcp-sentinel
