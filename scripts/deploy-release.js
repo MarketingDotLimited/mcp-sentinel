@@ -326,7 +326,21 @@ function activateRelease(releaseId) {
     }
     atomicSymlink(release);
     fs.copyFileSync(path.join(release, '.release-receipt.json'), path.join(stateRoot, 'deployment.json'));
-    command('chown', ['-R', 'mcp-sentinel:mcp-sentinel', stateRoot, logRoot]);
+    // Do not recursively chown the durable-state root: it may also contain
+    // root-owned Authelia state and protected deployment rollback material.
+    // The public service only owns its explicit mutable files and log tree.
+    command('chown', ['mcp-sentinel:mcp-sentinel', stateRoot, logRoot]);
+    command('chown', ['-R', 'mcp-sentinel:mcp-sentinel', logRoot]);
+    for (const name of [
+      'state.sqlite3',
+      'state.sqlite3-wal',
+      'state.sqlite3-shm',
+      'audit-chain.json',
+      'audit-verification.json',
+    ]) {
+      const target = path.join(stateRoot, name);
+      if (fs.existsSync(target)) command('chown', ['mcp-sentinel:mcp-sentinel', target]);
+    }
     command('systemctl', ['daemon-reload']);
     if (metadata.previousLegacyActive) command('systemctl', ['stop', 'mcp-server.service']);
     command('systemctl', ['enable', '--now', 'mcp-sentinel-broker.service', 'mcp-sentinel.service']);
