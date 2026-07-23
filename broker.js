@@ -716,13 +716,35 @@ const operations = {
         .filter(project => !project.runAsUser || !projectUsers().has(project.runAsUser))
         .map(project => project.id);
       const stateStat = fs.statSync(STATE_DATABASE);
+      const protectedFiles = [
+        STATE_DATABASE,
+        process.env.AUTHELIA_CONFIG_FILE,
+        process.env.AUTHELIA_USERS_FILE,
+        process.env.AUTHELIA_MAPPINGS_FILE,
+      ].filter(Boolean);
+      const unsafeProtectedFiles = protectedFiles.filter(file => {
+        try {
+          const stat = fs.lstatSync(file);
+          return !stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0;
+        } catch {
+          return true;
+        }
+      });
       return {
-        healthy: migrations.some(item => item.version >= 3) && invalidProjectUsers.length === 0,
+        healthy:
+          migrations.some(item => item.version >= 3) &&
+          invalidProjectUsers.length === 0 &&
+          unsafeProtectedFiles.length === 0,
         migrations,
         projectCount: projects.length,
         invalidProjectUsers,
         stateMode: (stateStat.mode & 0o777).toString(8).padStart(4, '0'),
         stateWritable: fs.accessSync(path.dirname(STATE_DATABASE), fs.constants.W_OK) === undefined,
+        protectedFilePermissions: {
+          safe: unsafeProtectedFiles.length === 0,
+          checked: protectedFiles.length,
+          unsafeFiles: unsafeProtectedFiles,
+        },
         stateKeyRotation:
           database.prepare("SELECT value FROM state_meta WHERE key = 'state_key_rotation'").get()?.value || null,
       };
