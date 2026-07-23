@@ -20,6 +20,7 @@ import path from 'path';
 import { readOAuthMappings } from './lib/oauth-mappings-store.js';
 import { DatabaseSync } from 'node:sqlite';
 import { loadCredentialSecret } from './lib/credentials.js';
+import { validateOAuthTokenPolicy } from './lib/oauth-token-policy.js';
 
 const execFileAsync = promisify(execFile);
 const JWT_SECRET = loadCredentialSecret('JWT_SECRET', 'jwt-key');
@@ -492,6 +493,7 @@ export function authenticateJWT(req, res, next) {
           issuer: AUTHELIA_ISSUER,
           audience: (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, ''),
           algorithms: ['RS256'],
+          requiredClaims: ['iss', 'sub', 'aud', 'exp', 'iat'],
         });
       } catch (verifyErr) {
         // Force refresh JWKS and retry once (handles key rotation)
@@ -503,26 +505,20 @@ export function authenticateJWT(req, res, next) {
           issuer: AUTHELIA_ISSUER,
           audience: (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, ''),
           algorithms: ['RS256'],
+          requiredClaims: ['iss', 'sub', 'aud', 'exp', 'iat'],
         });
       }
 
       const payload = result.payload;
-      const protectedType = String(result.protectedHeader?.typ || '').toLowerCase();
-      if (protectedType && !['jwt', 'at+jwt'].includes(protectedType)) throw new Error('Unsupported OAuth token type');
-
       const configuredResource = (process.env.OAUTH_RESOURCE_URL || process.env.PUBLIC_URL || '').replace(/\/$/, '');
       if (!configuredResource) throw new Error('OAUTH_RESOURCE_URL must be configured for OAuth');
-      const tokenAudiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud].filter(Boolean);
-      if (!tokenAudiences.includes(configuredResource))
-        throw new Error('OAuth token audience does not match this resource');
-
-      // Explicit Token Type Validation: prevent users from passing an id_token as a bearer token
-      // Authelia access tokens usually include scopes or client_id differently than id_tokens.
-      // If Authelia adds a specific type claim (like typ: 'JWT' vs token_type: 'Bearer'), we check it.
-      // Alternatively, we can check for the nonce claim which is strictly id_token only.
-      if (payload.nonce) {
-        throw new Error('Invalid token type: id_token cannot be used as an access token');
-      }
+      const { clientId } = validateOAuthTokenPolicy({
+        payload,
+        protectedHeader: result.protectedHeader,
+        issuer: AUTHELIA_ISSUER,
+        resource: configuredResource,
+        acceptedTypes: process.env.OAUTH_ACCESS_TOKEN_TYPES,
+      });
 
       // Authelia access tokens use an opaque stable subject and do not always
       // embed profile claims. Resolve the username from the OIDC userinfo
@@ -542,11 +538,6 @@ export function authenticateJWT(req, res, next) {
 
       // Look up user mapping
       const mappings = await loadUserMappings();
-
-      // Extract client_id from token (aud could be an array or string, or client_id could be present)
-      const clientId = payload.client_id || payload.azp;
-      if (typeof clientId !== 'string' || !clientId)
-        throw new Error('OAuth access token is missing its authorized client ID');
 
       const userMapping = mappings[oauthUsername];
       if (!userMapping) {

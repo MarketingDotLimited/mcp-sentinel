@@ -7,6 +7,7 @@ ALLOWED_ORIGINS=https://mcp.example.com
 TRUST_PROXY=true
 TRUSTED_PROXIES=127.0.0.1/32,::1/128
 OAUTH_RESOURCE_URL=https://mcp.example.com
+OAUTH_ACCESS_TOKEN_TYPES=at+jwt,jwt
 AUTHELIA_ISSUER=https://auth.example.com
 AUTHELIA_JWKS_URL=https://auth.example.com/jwks.json
 MCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3
