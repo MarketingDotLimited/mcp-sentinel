@@ -38,6 +38,7 @@ import {
   getClientIP,
   updateApiKey,
   SCOPE_GROUPS,
+  jwtSecretIsConfigured,
 } from './security.js';
 
 import { getAuditChainStatus, logAccess, logError, logServerStart, logSecurityEvent } from './audit.js';
@@ -149,11 +150,10 @@ async function buildSecurityPosture() {
     USE_HTTPS ? 'pass' : 'warning',
     USE_HTTPS ? 'HTTPS is enabled.' : 'HTTPS is disabled. Do not expose this server publicly until TLS is enabled.'
   );
-  const jwtSecret = process.env.JWT_SECRET || '';
   add(
     'jwt-secret',
-    jwtSecret.length >= 64 ? 'pass' : 'fail',
-    jwtSecret.length >= 64
+    jwtSecretIsConfigured() ? 'pass' : 'fail',
+    jwtSecretIsConfigured()
       ? 'JWT signing secret meets the minimum length.'
       : 'JWT signing secret is missing or too short.'
   );
@@ -2529,14 +2529,14 @@ function createHttpsServer() {
 // ── Start Server ───────────────────────────────────────────
 
 function validateConfig() {
-  const jwtSecret = process.env.JWT_SECRET || '';
-  if (jwtSecret.length < 64 || jwtSecret.includes('CHANGE_ME')) {
-    console.error('FATAL: JWT_SECRET must be at least 64 characters and not a placeholder.');
+  if (!jwtSecretIsConfigured()) {
+    console.error('FATAL: JWT signing credential must be at least 64 characters and not a placeholder.');
     process.exit(1);
   }
   const adminKey = process.env.ADMIN_API_KEY || '';
-  if (!adminKey || adminKey.includes('CHANGE_ME')) {
-    console.error('FATAL: ADMIN_API_KEY must be set and not a placeholder.');
+  const hasStoredAdmin = listApiKeys().some(key => key.active !== false && key.role === 'admin');
+  if ((!adminKey || adminKey.includes('CHANGE_ME')) && !hasStoredAdmin) {
+    console.error('FATAL: configure an ADMIN_API_KEY bootstrap credential or retain an active stored admin key.');
     process.exit(1);
   }
   const port = parseInt(process.env.PORT || '4444', 10);

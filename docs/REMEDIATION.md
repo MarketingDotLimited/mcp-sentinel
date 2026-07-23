@@ -37,13 +37,26 @@ Require fresh clones after the rewrite. Do not reuse old worktrees, caches, imag
    install -d -o mcp-sentinel -g mcp-sentinel -m 0700 /var/lib/mcp-sentinel /var/log/mcp-sentinel
    ```
 
-2. Install a clean, signed release bundle at `/opt/mcp-sentinel`. Production must not run from a dirty Git checkout.
-3. Generate independent 32-byte state, audit, and backup keys into `/etc/mcp-sentinel/credentials/state-key`, `/etc/mcp-sentinel/credentials/audit-key`, and `/etc/mcp-sentinel/credentials/state-backup-key`; set mode `0600`. Set `CONTROL_PLANE_KEY_ID` and `MCP_STATE_BACKUP_KEY_ID` whenever rotating the corresponding key.
+2. Build and sign the release on the release host. Write the full fingerprint of the authorized release key to `/etc/mcp-sentinel/release-signing-fingerprint`, owned by root with mode `0600`, then use the deployment workflow below. It verifies both detached signatures against that exact fingerprint, the checksum, signed manifest fields, bounded archive paths/types/sizes, and package version before installing production dependencies into an immutable versioned directory. Production never runs from a Git checkout.
+
+   ```bash
+   sudo ./install.sh prepare
+   sudo ./install.sh stage /path/to/mcp-sentinel-2.0.0.tar.gz
+   sudo ./install.sh activate 2.0.0-<12-character-commit-prefix>
+   # If a later operational check fails:
+   sudo ./install.sh rollback <rollback-uuid>
+   ```
+
+   Activation records previous units, active services, release pointer, and deployment receipt before changing anything. It atomically selects the staged release, starts the broker before the API, waits for loopback health, runs the complete production preflight, and automatically restores the previous services and release if any gate fails.
+
+3. Generate independent 32-byte state, audit, JWT, and backup keys into `/etc/mcp-sentinel/credentials/state-key`, `/etc/mcp-sentinel/credentials/audit-key`, `/etc/mcp-sentinel/credentials/jwt-key`, and `/etc/mcp-sentinel/credentials/state-backup-key`; store them as 64-character hexadecimal values and set mode `0600`. Set `CONTROL_PLANE_KEY_ID` and `MCP_STATE_BACKUP_KEY_ID` whenever rotating the corresponding key.
 4. Copy `deploy/broker-environment.example` to `/etc/mcp-sentinel/broker-environment`. Register only the application services and firewall ports Sentinel may manage. Never add arbitrary executable, argument, path, or environment inputs.
 5. Install `deploy/mcp-sentinel-broker.service` and `deploy/mcp-sentinel.service`, run `systemd-analyze security` on both, then enable the broker before the public service.
 6. Bind Sentinel and Authelia to loopback. Terminate TLS at the trusted Nginx proxy, disable proxy buffering for `/mcp`, and set explicit `ALLOWED_ORIGINS`, `TRUST_PROXY=true`, and loopback-only `TRUSTED_PROXIES`.
 
-The public unit lists each database password credential explicitly because older supported systemd releases ignore `LoadCredentialGlob`. Add one `LoadCredential=<passwordCredential>:/etc/mcp-sentinel/credentials/<passwordCredential>` line for every additional registered database alias, then rerun `systemd-analyze verify` before deployment.
+Copy `deploy/environment.example` to `/etc/mcp-sentinel/environment`, replace every example hostname, and keep secrets out of that file. Before any traffic cutover, run `npm run deploy:preflight` from the reviewed release. It fails closed unless the service identity, modes, independent systemd credentials, exact installed units, signed release receipt, SQLite integrity/migrations, Rabeeb project registration, OAuth mapping, stored recovery administrator, proxy boundary, and broker allow-lists all match the production contract.
+
+Database password credentials are intentionally absent from the base public unit because missing `LoadCredential` sources prevent startup. Older supported systemd releases ignore `LoadCredentialGlob`, so add one `LoadCredential=<passwordCredential>:/etc/mcp-sentinel/credentials/<passwordCredential>` line for every configured database alias, then rerun `systemd-analyze verify` before deployment.
 
 ## 4. Migrate state and validate authorization
 

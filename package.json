@@ -20,6 +20,8 @@
     "audit:verify": "node scripts/verify-audit.js",
     "migrate:dry-run": "node scripts/migrate-state.js --dry-run",
     "migrate:apply": "node scripts/migrate-state.js --apply",
+    "deploy:preflight": "node scripts/production-preflight.js",
+    "deploy": "./install.sh",
     "legacy:export": "node scripts/export-legacy-state.js",
     "release:bundle": "./scripts/build-release.sh",
     "update:authelia": "./scripts/update-authelia.sh"

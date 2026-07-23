@@ -6,10 +6,10 @@ Before=mcp-sentinel.service
 Type=simple
 User=root
 Group=mcp-sentinel
-WorkingDirectory=/opt/mcp-sentinel
-ExecStart=/usr/bin/node /opt/mcp-sentinel/broker.js
+WorkingDirectory=/opt/mcp-sentinel/current
+ExecStart=/usr/bin/node /opt/mcp-sentinel/current/broker.js
 EnvironmentFile=/etc/mcp-sentinel/broker-environment
-UMask=0007
+UMask=0077
 RuntimeDirectory=mcp-sentinel
 RuntimeDirectoryMode=0750
 NoNewPrivileges=true
@@ -23,7 +23,7 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx
+ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx /etc/passwd /etc/shadow /etc/group /etc/gshadow /var/www/vhosts/rabeeb.com/httpdocs
 Restart=on-failure
 
 [Install]

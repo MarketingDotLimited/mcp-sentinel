@@ -39,6 +39,7 @@ jobs:
           MCP_ALLOW_UNSIGNED_RELEASE=true npm run release:bundle
           second_hash="$(cut -d' ' -f1 dist/mcp-sentinel-*.sha256)"
           test "$first_hash" = "$second_hash"
+          node -e "const fs=require('fs'); const file=fs.readdirSync('dist').find(name=>name.endsWith('.manifest.json')); const value=JSON.parse(fs.readFileSync('dist/'+file)); if(value.sha256!==process.argv[1] || !/^[a-f0-9]{40}$/.test(value.commit)) process.exit(1)" "$second_hash"
           tar -tzf dist/mcp-sentinel-*.tar.gz | grep -q 'mcp-sentinel-.*\/authelia\/configuration.template.yml'
           if tar -tzf dist/mcp-sentinel-*.tar.gz | grep -Eq 'authelia\/(configuration|users|user-mappings)\.(yml|json)|oidc_.*\.pem|\.sqlite3?$'; then
             echo 'Release archive contains runtime state or credentials.' >&2

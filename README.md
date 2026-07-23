@@ -96,7 +96,7 @@ AI Client → HTTPS proxy → unprivileged Sentinel → scope/policy/approval �
 | **Privilege Separation** | Public service is unprivileged; registered root operations use a typed Unix-socket broker |
 | **IP Whitelist**         | Per-key or global CIDR restrictions (IPv4 & IPv6)                                         |
 | **API Key**              | Persistently stored, SHA-256 hashed                                                       |
-| **JWT Tokens**           | HS256-signed, IP-bound, short-lived bearer                                                |
+| **JWT Tokens**           | HS256-signed, revocable, short-lived bearer with issuing-IP anomaly detection             |
 | **Rate & Session Limit** | Global, auth limits, and concurrent session capping                                       |
 | **Scope Enforcement**    | Per-key tool access control                                                               |
 | **Path Sandbox**         | Symlink-safe, users restricted to `/home/{username}` and private temp dirs                |
