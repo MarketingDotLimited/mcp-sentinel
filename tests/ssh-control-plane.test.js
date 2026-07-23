@@ -144,4 +144,73 @@ describe('SSH access controls', () => {
     const result = await controlPlane.setMySshAccess({ scope: 'current-client', enabled: false }, developer);
     assert.equal(result.sshEnabled, false);
   });
+
+  it('registers independent hosts and owner-controlled connections without enabling them', async () => {
+    const registeredHost = await controlPlane.createSshHost(
+      {
+        name: 'Second server',
+        address: 'node-2.example.test',
+        port: 2222,
+        hostKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAISecondPinnedHostKey',
+        confirm: true,
+      },
+      admin
+    );
+    assert.equal(registeredHost.host.sshAllowed, false);
+    const registeredConnection = await controlPlane.createSshConnection(
+      {
+        name: 'Second server gateway',
+        hostId: registeredHost.host.id,
+        username: 'mcp_node',
+        credentialId: 'node-2',
+        owners: [
+          {
+            authType: 'oauth',
+            issuer: developer.oauthIssuer,
+            subject: developer.oauthSubject,
+          },
+        ],
+        confirm: true,
+      },
+      admin
+    );
+    assert.equal(registeredConnection.connection.sshEnabled, false);
+    const ownerUpdate = await controlPlane.setMySshAccess(
+      { scope: 'connection', connectionId: registeredConnection.connection.id, enabled: true, confirm: true },
+      developer
+    );
+    assert.equal(ownerUpdate.sshEnabled, true);
+    await assert.rejects(
+      controlPlane.setMySshAccess(
+        { scope: 'connection', connectionId: registeredConnection.connection.id, enabled: false },
+        { ...developer, oauthSubject: 'different-subject' }
+      ),
+      /not owned/
+    );
+    const transport = await controlPlane.setProjectTransport(
+      {
+        projectId,
+        transportKind: 'ssh-gateway',
+        hostId: registeredHost.host.id,
+        connectionId: registeredConnection.connection.id,
+        confirm: true,
+      },
+      admin
+    );
+    assert.equal(transport.project.hostId, registeredHost.host.id);
+    assert.equal(transport.project.sshAllowed, false);
+    for (const target of [
+      { targetType: 'host', targetId: registeredHost.host.id },
+      { targetType: 'connection', targetId: registeredConnection.connection.id },
+      { targetType: 'project', targetId: projectId },
+      { targetType: 'oauth-client', issuer: developer.oauthIssuer, clientId: developer.oauthClient },
+    ])
+      await controlPlane.adminSetSshAccess({ ...target, sshAllowed: true, sshEnabled: true, confirm: true }, admin);
+    await controlPlane.setMySshAccess({ scope: 'current-client', enabled: true, confirm: true }, developer);
+    const resolved = await controlPlane.resolveProjectTransport(projectId, developer);
+    assert.equal(resolved.kind, 'ssh-gateway');
+    assert.equal(resolved.connection.host, 'node-2.example.test');
+    assert.equal(resolved.connection.port, 2222);
+    assert.equal(resolved.connection.credentialId, 'node-2');
+  });
 });

@@ -391,7 +391,9 @@ window.OAuthPage = (function () {
       try {
         if (isEdit) {
           if (!data.password) delete data.password;
-          await API.put('/admin/oauth-users/' + data.username, data);
+          const username = data.username;
+          delete data.username;
+          await API.put('/admin/oauth-users/' + username, data);
           Toast.success('User updated');
         } else {
           if (!data.username || !data.password) throw new Error('Username and password are required');

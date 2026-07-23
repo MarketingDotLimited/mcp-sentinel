@@ -10,6 +10,7 @@ import {
   getProjectTestRun,
   cancelProjectTestRun,
   pruneProjectTestRuns,
+  validateRemoteTestInput,
 } from '../tools/system.js';
 
 describe('constrained project test runner', () => {
@@ -47,6 +48,22 @@ describe('constrained project test runner', () => {
       '--filter',
       'small module',
     ]);
+  });
+
+  it('validates remote test requests without reading remote paths locally', () => {
+    const project = { allowFullSuite: false };
+    assert.doesNotThrow(() =>
+      validateRemoteTestInput(project, { runner: 'phpunit', target: 'tests/Unit/SmallTest.php', filter: 'small' })
+    );
+    assert.throws(() => validateRemoteTestInput(project, { runner: 'phpunit' }), /relative target/);
+    assert.throws(
+      () => validateRemoteTestInput(project, { runner: 'phpunit', target: '../outside.php' }),
+      /registered relative/
+    );
+    assert.throws(
+      () => validateRemoteTestInput(project, { runner: 'frontend', target: 'tests/unit', filter: 'small' }),
+      /filter is not supported/
+    );
   });
 
   it('rejects projects and targets outside the allow-listed root', async () => {
