@@ -4,7 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import { DatabaseSync } from 'node:sqlite';
 import {
   getOAuthUsers,
@@ -1420,4 +1420,8 @@ export function startBroker() {
   return server;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) startBroker();
+if (
+  process.argv[1] &&
+  fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1])
+)
+  startBroker();
