@@ -6,6 +6,7 @@ import {
   validateArchiveEntries,
   validateArchiveListing,
   validateReleaseManifest,
+  validateProjectWritePaths,
   validateSigningFingerprint,
 } from '../lib/deployment.js';
 
@@ -25,6 +26,15 @@ describe('production deployment preflight', () => {
     assert.throws(() => parseEnvironment('not-valid\n'), /Invalid environment entry/);
     assert.throws(() => parseEnvironment('lowercase=value\n'), /Invalid environment key/);
     assert.throws(() => parseEnvironment('HOST=one\nHOST=two\n'), /Duplicate environment key/);
+  });
+
+  it('renders only exact, normalized project write paths for the broker sandbox', () => {
+    assert.deepEqual(validateProjectWritePaths('/srv/apps/one,/var/www/vhosts/example.test/httpdocs'), [
+      '/srv/apps/one',
+      '/var/www/vhosts/example.test/httpdocs',
+    ]);
+    for (const unsafe of ['/', '/var/www', '/srv', 'relative/path', '/srv/path with space', '/srv/apps/../escape'])
+      assert.throws(() => validateProjectWritePaths(unsafe), /too broad|normalized absolute/);
   });
 
   it('validates signed release metadata and archive boundaries', () => {

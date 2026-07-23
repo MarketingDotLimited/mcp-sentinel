@@ -10,6 +10,7 @@ import {
   validateArchiveEntries,
   validateArchiveListing,
   validateReleaseManifest,
+  validateProjectWritePaths,
   validateSigningFingerprint,
 } from '../lib/deployment.js';
 
@@ -21,6 +22,8 @@ const stateRoot = '/var/lib/mcp-sentinel';
 const logRoot = '/var/log/mcp-sentinel';
 const unitRoot = '/etc/systemd/system';
 const trustedSigningFingerprintFile = path.join(configurationRoot, 'release-signing-fingerprint');
+const brokerDropInDirectory = path.join(unitRoot, 'mcp-sentinel-broker.service.d');
+const brokerProjectDropIn = path.join(brokerDropInDirectory, '20-project-write-paths.conf');
 const MAX_RELEASE_ARTIFACT_BYTES = 256 * 1024 * 1024;
 const MAX_RELEASE_COMPANION_BYTES = 1024 * 1024;
 const managedUnits = [
@@ -222,6 +225,20 @@ function atomicSymlink(target) {
   fs.renameSync(temporary, currentLink);
 }
 
+function installBrokerProjectDropIn(environment) {
+  const paths = validateProjectWritePaths(environment.BROKER_GIT_ALLOWED_REPOS);
+  for (const projectPath of paths) {
+    const stat = fs.lstatSync(projectPath);
+    if (!stat.isDirectory() || stat.isSymbolicLink())
+      throw new Error(`Registered project write path is not a real directory: ${projectPath}`);
+  }
+  fs.mkdirSync(brokerDropInDirectory, { recursive: true, mode: 0o755 });
+  const temporary = `${brokerProjectDropIn}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `[Service]\nReadWritePaths=${paths.join(' ')}\n`, { mode: 0o644, flag: 'wx' });
+  fs.chownSync(temporary, 0, 0);
+  fs.renameSync(temporary, brokerProjectDropIn);
+}
+
 function serviceActive(name) {
   try {
     command('systemctl', ['is-active', '--quiet', name], { capture: true });
@@ -278,6 +295,11 @@ function restoreRollback(metadata, rollbackDirectory) {
     if (metadata.units[unit]) fs.copyFileSync(backup, installed);
     else if (fs.existsSync(installed)) fs.unlinkSync(installed);
   }
+  const dropInBackup = path.join(rollbackDirectory, 'broker-project-write-paths.conf');
+  if (metadata.brokerProjectDropIn) {
+    fs.mkdirSync(brokerDropInDirectory, { recursive: true, mode: 0o755 });
+    fs.copyFileSync(dropInBackup, brokerProjectDropIn);
+  } else if (fs.existsSync(brokerProjectDropIn)) fs.unlinkSync(brokerProjectDropIn);
   if (metadata.previousCurrent) atomicSymlink(metadata.previousCurrent);
   else if (fs.existsSync(currentLink)) fs.unlinkSync(currentLink);
   if (metadata.previousReceipt)
@@ -327,6 +349,7 @@ function activateRelease(releaseId) {
     previousSentinelActive: serviceActive('mcp-sentinel.service'),
     previousReceipt: fs.existsSync(path.join(stateRoot, 'deployment.json')),
     units: {},
+    brokerProjectDropIn: fs.existsSync(brokerProjectDropIn),
     serviceStates: Object.fromEntries([...managedUnits, 'mcp-server.service'].map(unit => [unit, serviceState(unit)])),
   };
   for (const unit of managedUnits) {
@@ -334,6 +357,8 @@ function activateRelease(releaseId) {
     metadata.units[unit] = fs.existsSync(installed);
     if (metadata.units[unit]) fs.copyFileSync(installed, path.join(rollbackDirectory, 'units', unit));
   }
+  if (metadata.brokerProjectDropIn)
+    fs.copyFileSync(brokerProjectDropIn, path.join(rollbackDirectory, 'broker-project-write-paths.conf'));
   if (metadata.previousReceipt)
     fs.copyFileSync(path.join(stateRoot, 'deployment.json'), path.join(rollbackDirectory, 'deployment.json'));
   fs.writeFileSync(path.join(rollbackDirectory, 'rollback.json'), `${JSON.stringify(metadata, null, 2)}\n`, {
@@ -354,6 +379,10 @@ function activateRelease(releaseId) {
       fs.chmodSync(installed, 0o644);
       fs.chownSync(installed, 0, 0);
     }
+    const brokerEnvironment = parseEnvironment(
+      fs.readFileSync(path.join(configurationRoot, 'broker-environment'), 'utf8')
+    );
+    installBrokerProjectDropIn(brokerEnvironment);
     atomicSymlink(release);
     fs.copyFileSync(path.join(release, '.release-receipt.json'), path.join(stateRoot, 'deployment.json'));
     // Do not recursively chown the durable-state root: it may also contain
