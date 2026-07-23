@@ -147,7 +147,9 @@ function stageRelease(artifactArgument) {
     const extracted = path.join(temporary, prefix.slice(0, -1));
     const packageJson = JSON.parse(fs.readFileSync(path.join(extracted, 'package.json'), 'utf8'));
     if (packageJson.version !== manifest.version) throw new Error('Package version does not match the signed manifest');
-    command('npm', ['ci', '--omit=dev', '--ignore-scripts'], { cwd: extracted });
+    // Runtime entry points invoke Node files directly. Avoid npm's .bin
+    // symlinks so the immutable production tree can remain symlink-free.
+    command('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-bin-links'], { cwd: extracted });
     const receipt = {
       ...manifest,
       signatureFingerprint: artifactSigner,
