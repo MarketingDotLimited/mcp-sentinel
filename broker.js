@@ -600,6 +600,15 @@ function projectTestCommand(parameters) {
   )
     throw new Error('Invalid test filter');
   const argv = [...recipe.argv];
+  if (argv[0].includes('/')) {
+    const executable = fs.realpathSync(path.resolve(root, argv[0]));
+    if (!(executable === root || executable.startsWith(`${root}${path.sep}`)))
+      throw new Error('Project recipe executable escapes the registered root');
+    const executableStat = fs.statSync(executable);
+    if (!executableStat.isFile() || (executableStat.mode & 0o111) === 0)
+      throw new Error('Project recipe executable is not an executable regular file');
+    argv[0] = executable;
+  }
   if (target) argv.push(target);
   if (parameters.filter) {
     if (recipe.filter) argv.push(recipe.filter, parameters.filter);

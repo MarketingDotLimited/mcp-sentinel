@@ -27,6 +27,8 @@ const fallback = passwd.find(parts => parts[0] === 'nobody') || passwd.find(part
 const runAsUser = current?.[0] === 'root' ? fallback[0] : current[0];
 
 await fs.mkdir(projectRoot, { recursive: true, mode: 0o755 });
+await fs.mkdir(path.join(projectRoot, 'vendor', 'bin'), { recursive: true, mode: 0o755 });
+await fs.writeFile(path.join(projectRoot, 'vendor', 'bin', 'phpunit'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
 await fs.mkdir(fakeBin, { mode: 0o755 });
 await fs.writeFile(path.join(projectRoot, 'source.txt'), 'hello', { mode: 0o644 });
 await fs.writeFile(path.join(projectRoot, 'target.test'), 'test', { mode: 0o644 });
@@ -183,10 +185,11 @@ describe('broker operational integration', () => {
     const test = await call('project.test', {
       runId: '22222222-2222-4222-8222-222222222222',
       projectId,
-      runner: 'artisan',
+      runner: 'phpunit',
       target: 'target.test',
     });
     assert.match(test.stdout, /managed command/);
+    assert.match(test.stdout, new RegExp(path.join(projectRoot, 'vendor/bin/phpunit').replaceAll('/', '\\/')));
     for (const property of [
       '--property=PrivateNetwork=yes',
       '--property=PrivateDevices=yes',
