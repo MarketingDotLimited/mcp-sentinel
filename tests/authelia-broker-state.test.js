@@ -70,6 +70,7 @@ describe('typed Authelia administration state', () => {
     assert.equal(created.requireApproval, true);
     assert.equal(created.clients.chatgpt.role, 'developer');
     assert.deepEqual(created.clients.chatgpt.scopes, ['files.*', 'projects.*']);
+    assert.equal((await authelia.getOAuthUsers()).find(user => user.username === 'developer').clients.chatgpt.requireApproval, true);
     assert.equal((await authelia.getOAuthUsers())[0].projectIds.length, 1);
     await authelia.updateOAuthUser('developer', { email: 'new@example.test', scopes: ['files.*'] });
     const updated = (await authelia.getOAuthUsers())[0];

@@ -97,7 +97,26 @@ function inspectCredentials() {
     if (values.has(value)) throw new Error(`${name} must be independent from every other credential`);
     values.add(value);
   }
-  return 'Four independent protected credentials are present';
+  const autheliaCredentials = [
+    'authelia-jwt-secret',
+    'authelia-session-secret',
+    'authelia-storage-key',
+    'authelia-oidc-hmac',
+    'authelia-oidc-private-key',
+    'authelia-client-chatgpt-hash',
+    'authelia-client-rabeebserver-hash',
+  ];
+  for (const name of autheliaCredentials) {
+    const file = assertModeOwner(`/etc/mcp-sentinel/credentials/${name}`, 0o600, 0, 0);
+    const value = fs.readFileSync(file, 'utf8').trim();
+    if (value.length < 32) throw new Error(`${name} is empty or too short`);
+  }
+  const autheliaConfig = fs.readFileSync(hostPath('/etc/mcp-sentinel/authelia.yml'), 'utf8');
+  for (const forbidden of ['jwt_secret:', 'session:\n  secret:', 'encryption_key:', 'hmac_secret:'])
+    if (autheliaConfig.includes(forbidden)) throw new Error(`Authelia configuration still contains ${forbidden}`);
+  if (!autheliaConfig.includes('{{ secret "/run/credentials/authelia.service/'))
+    throw new Error('Authelia OIDC list secrets are not loaded through the systemd credential directory');
+  return 'Four Sentinel and seven Authelia protected credentials are present; live Authelia secrets are absent from YAML';
 }
 
 function inspectPublicEnvironment() {
