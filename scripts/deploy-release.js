@@ -322,6 +322,12 @@ function activateRelease(releaseId) {
   });
 
   try {
+    // An existing compatibility or previous-release process may already own
+    // the public port or broker socket. Stop it before replacing units and the
+    // current symlink so --now always launches the reviewed release.
+    for (const unit of ['mcp-sentinel.service', 'mcp-sentinel-broker.service']) {
+      if (serviceActive(unit)) command('systemctl', ['stop', unit]);
+    }
     for (const unit of managedUnits) {
       const installed = path.join(unitRoot, unit);
       fs.copyFileSync(path.join(release, 'deploy', unit), installed);
