@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url';
+import fs from 'node:fs';
 import { brokerCall } from './lib/broker-client.js';
 import { assertRemoteBrokerOperation } from './lib/remote-operation-policy.js';
 
@@ -55,4 +56,4 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) await main();
