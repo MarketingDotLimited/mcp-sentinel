@@ -9,6 +9,18 @@ User=root
 Group=root
 WorkingDirectory=/var/lib/mcp-sentinel/authelia
 ExecStart=/usr/local/bin/authelia --config /etc/mcp-sentinel/authelia.yml
+LoadCredential=authelia-jwt-secret:/etc/mcp-sentinel/credentials/authelia-jwt-secret
+LoadCredential=authelia-session-secret:/etc/mcp-sentinel/credentials/authelia-session-secret
+LoadCredential=authelia-storage-key:/etc/mcp-sentinel/credentials/authelia-storage-key
+LoadCredential=authelia-oidc-hmac:/etc/mcp-sentinel/credentials/authelia-oidc-hmac
+LoadCredential=authelia-oidc-private-key:/etc/mcp-sentinel/credentials/authelia-oidc-private-key
+LoadCredential=authelia-client-chatgpt-hash:/etc/mcp-sentinel/credentials/authelia-client-chatgpt-hash
+LoadCredential=authelia-client-rabeebserver-hash:/etc/mcp-sentinel/credentials/authelia-client-rabeebserver-hash
+Environment=AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=%d/authelia-jwt-secret
+Environment=AUTHELIA_SESSION_SECRET_FILE=%d/authelia-session-secret
+Environment=AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=%d/authelia-storage-key
+Environment=AUTHELIA_IDENTITY_PROVIDERS_OIDC_HMAC_SECRET_FILE=%d/authelia-oidc-hmac
+Environment=X_AUTHELIA_CONFIG_FILTERS=template
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true

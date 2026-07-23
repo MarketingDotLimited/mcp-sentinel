@@ -307,6 +307,11 @@ window.OAuthPage = (function () {
                 <label>MCP Scopes</label>
                 <div id="modal-scopes-container"></div>
             </div>
+            <div class="input-group">
+                <label class="checkbox-label"><input type="checkbox" id="modal-require-approval" checked> Require administrator approval for risky actions</label>
+                <p class="form-hint">Disable this only for trusted identities. Confirmation, project assignment, SSH ceilings, and typed recipes still apply.</p>
+                <div id="modal-client-approvals"></div>
+            </div>
         `;
 
     const selLinux = modal.body.querySelector('#modal-linux-user');
@@ -342,6 +347,20 @@ window.OAuthPage = (function () {
       if (user.linuxUser) selLinux.value = user.linuxUser;
       modal.body.querySelector('#modal-group-admins').checked = (user.groups || []).includes('admins');
       modal.body.querySelector('#modal-group-users').checked = (user.groups || []).includes('users');
+      modal.body.querySelector('#modal-require-approval').checked = user.requireApproval !== false;
+      const clientApprovals = modal.body.querySelector('#modal-client-approvals');
+      for (const [clientId, override] of Object.entries(user.clients || {})) {
+        const label = document.createElement('label');
+        label.className = 'checkbox-label';
+        label.style.display = 'block';
+        label.style.marginTop = '8px';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.clientId = clientId;
+        checkbox.checked = override.requireApproval ?? user.requireApproval ?? true;
+        label.append(checkbox, ` Require approval for OAuth client: ${clientId}`);
+        clientApprovals.appendChild(label);
+      }
     }
 
     const cancelBtn = document.createElement('button');
@@ -381,12 +400,21 @@ window.OAuthPage = (function () {
         linuxUser: selLinux.value,
         groups: [],
         scopes: [],
+        requireApproval: modal.body.querySelector('#modal-require-approval').checked,
       };
 
       if (modal.body.querySelector('#modal-group-admins').checked) data.groups.push('admins');
       if (modal.body.querySelector('#modal-group-users').checked) data.groups.push('users');
 
       data.scopes = getSelectedScopes(modal.body.querySelector('#modal-scopes-container'));
+      if (isEdit && user.clients) {
+        data.clients = Object.fromEntries(
+          Object.entries(user.clients).map(([clientId, override]) => {
+            const checkbox = modal.body.querySelector(`[data-client-id="${CSS.escape(clientId)}"]`);
+            return [clientId, { ...override, requireApproval: checkbox?.checked ?? data.requireApproval }];
+          })
+        );
+      }
 
       try {
         if (isEdit) {
