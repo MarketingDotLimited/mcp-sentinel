@@ -1,0 +1,32 @@
+[Unit]
+Description=Authelia authentication server for MCP Sentinel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/lib/mcp-sentinel/authelia
+ExecStart=/usr/local/bin/authelia --config /etc/mcp-sentinel/authelia.yml
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadOnlyPaths=/etc/mcp-sentinel
+ReadWritePaths=/var/lib/mcp-sentinel/authelia
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

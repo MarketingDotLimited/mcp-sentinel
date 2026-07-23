@@ -73,6 +73,7 @@ function requireUrl(value, name, expectedProtocol = 'https:') {
 
 function inspectUnits() {
   const units = [
+    'authelia.service',
     'mcp-sentinel.service',
     'mcp-sentinel-broker.service',
     'mcp-sentinel-state-backup.service',

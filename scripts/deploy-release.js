@@ -24,6 +24,7 @@ const trustedSigningFingerprintFile = path.join(configurationRoot, 'release-sign
 const MAX_RELEASE_ARTIFACT_BYTES = 256 * 1024 * 1024;
 const MAX_RELEASE_COMPANION_BYTES = 1024 * 1024;
 const managedUnits = [
+  'authelia.service',
   'mcp-sentinel.service',
   'mcp-sentinel-broker.service',
   'mcp-sentinel-state-backup.service',
@@ -273,6 +274,7 @@ function restoreRollback(metadata, rollbackDirectory) {
     } catch {}
   }
   for (const unit of [
+    'authelia.service',
     'mcp-sentinel-broker.service',
     'mcp-sentinel.service',
     'mcp-sentinel-audit-verify.timer',
