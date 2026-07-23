@@ -373,8 +373,11 @@ function activateRelease(releaseId) {
     }
     command('systemctl', ['daemon-reload']);
     if (metadata.previousLegacyActive) command('systemctl', ['stop', 'mcp-server.service']);
-    command('systemctl', ['enable', '--now', 'mcp-sentinel-broker.service', 'mcp-sentinel.service']);
     const environment = parseEnvironment(fs.readFileSync(path.join(configurationRoot, 'environment'), 'utf8'));
+    command('/usr/bin/node', [path.join(release, 'scripts', 'upgrade-state.js')], {
+      env: { ...process.env, ...environment },
+    });
+    command('systemctl', ['enable', '--now', 'mcp-sentinel-broker.service', 'mcp-sentinel.service']);
     const healthUrl = `${environment.USE_HTTPS === 'true' ? 'https' : 'http'}://${environment.HOST}:${environment.PORT || '4444'}/health`;
     let healthy = false;
     for (let attempt = 0; attempt < 30; attempt++) {
