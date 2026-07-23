@@ -375,10 +375,14 @@ export async function startProjectTestRun(
   if (!project.runAsUser) throw new Error('The registered project must declare runAsUser');
   if (!(project.permittedTasks || []).includes(input.runner))
     throw new Error('This test recipe is not permitted for the project');
+  const brokerExecution = execute === secureExec;
   let invocation = null;
   let testingValues = {};
   if (transport.kind === 'ssh-gateway') validateRemoteTestInput(project, input);
-  else {
+  else if (!brokerExecution) {
+    // Test-only/custom executors need a locally constructed invocation. In
+    // production the unprivileged API must not traverse project roots; the
+    // typed broker performs the descriptor/path and environment validation.
     const realRoot = await fs.realpath(project.rootPath || project.repoPath);
     invocation = await buildProjectTestInvocation({
       projectPath: realRoot,
@@ -409,7 +413,6 @@ export async function startProjectTestRun(
   testRuns.set(run.runId, run);
   await persistTaskRun(durableRun(run));
   const executionIdentity = { ...identity, userId: project.runAsUser, role: 'user' };
-  const brokerExecution = execute === secureExec;
   if (brokerExecution) {
     run.cancel = () =>
       dispatchProjectOperation(project.id, identity, 'project.cancel', { runId: run.runId }, { timeoutMs: 12_000 });
