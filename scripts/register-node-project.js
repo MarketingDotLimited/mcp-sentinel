@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { isIP } from 'node:net';
 import { openSqliteState } from '../lib/sqlite-state.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,6 +46,11 @@ export async function validateNodeProject(input, { verifyUser = true } = {}) {
     !permittedGitActions.every(item => gitActions.has(item))
   )
     throw new Error('Project contains an invalid Git recipe');
+  const testNetworkHosts = Array.isArray(input.testNetworkHosts)
+    ? [...new Set(input.testNetworkHosts.map(value => String(value).trim()))]
+    : [];
+  if (testNetworkHosts.length > 20 || testNetworkHosts.some(value => isIP(value) === 0))
+    throw new Error('Project test network dependencies must be explicit IP addresses');
   return {
     id: input.id,
     name: input.name,
@@ -63,7 +69,7 @@ export async function validateNodeProject(input, { verifyUser = true } = {}) {
     allowRecursiveDelete: input.allowRecursiveDelete === true,
     allowWholeRepoStage: input.allowWholeRepoStage === true,
     allowFullSuite: input.allowFullSuite === true,
-    testNetworkHosts: Array.isArray(input.testNetworkHosts) ? input.testNetworkHosts : [],
+    testNetworkHosts,
     transportKind: 'local',
     hostId: 'local',
     sshAllowed: false,

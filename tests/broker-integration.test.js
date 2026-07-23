@@ -276,6 +276,51 @@ describe('broker operational integration', () => {
     );
   });
 
+  it('permits only project-declared test dependency IPs', async () => {
+    const database = new DatabaseSync(stateDatabase);
+    const row = database.prepare('SELECT payload FROM projects WHERE id = ?').get(projectId);
+    const project = { ...JSON.parse(row.payload), testNetworkHosts: ['127.0.0.1'] };
+    database
+      .prepare('UPDATE projects SET payload = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify(project), new Date().toISOString(), projectId);
+    database.close();
+
+    const result = await call('project.test', {
+      runId: '77777777-7777-4777-8777-777777777777',
+      projectId,
+      runner: 'artisan',
+      target: 'target.test',
+    });
+    assert.match(result.stdout, /--property=PrivateNetwork=no/);
+    assert.match(result.stdout, /--property=IPAddressDeny=any/);
+    assert.match(result.stdout, /--property=IPAddressAllow=127\.0\.0\.1\/32/);
+
+    const invalid = new DatabaseSync(stateDatabase);
+    invalid
+      .prepare('UPDATE projects SET payload = ?, updated_at = ? WHERE id = ?')
+      .run(
+        JSON.stringify({ ...project, testNetworkHosts: ['database.internal'] }),
+        new Date().toISOString(),
+        projectId
+      );
+    invalid.close();
+    await assert.rejects(
+      call('project.test', {
+        runId: '88888888-8888-4888-8888-888888888888',
+        projectId,
+        runner: 'artisan',
+        target: 'target.test',
+      }),
+      /explicit IP/
+    );
+
+    const restore = new DatabaseSync(stateDatabase);
+    restore
+      .prepare('UPDATE projects SET payload = ?, updated_at = ? WHERE id = ?')
+      .run(JSON.stringify({ ...project, testNetworkHosts: [] }), new Date().toISOString(), projectId);
+    restore.close();
+  });
+
   it('handles safe user reads, process ownership, firewall status, and confirmation', async () => {
     assert.ok((await call('user.list', { includeSystem: true })).count >= 1);
     assert.equal((await call('user.info', { username: runAsUser })).username, runAsUser);

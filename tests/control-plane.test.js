@@ -207,6 +207,10 @@ describe('approval control plane', () => {
       [{ name: 'Bad Environment', repoPath: '/srv/example-app', environment: 'space' }, /environment/],
       [{ name: 'Bad Tasks', repoPath: '/srv/example-app', permittedTasks: ['shell'] }, /permittedTasks/],
       [{ name: 'Bad Database', repoPath: '/srv/example-app', testDatabase: 'bad name' }, /testDatabase/],
+      [
+        { name: 'Bad Test Network', repoPath: '/srv/example-app', testNetworkHosts: ['database.internal'] },
+        /explicit IP/,
+      ],
       [{ name: 'Bad Git', repoPath: '/srv/example-app', permittedGitActions: ['force'] }, /permittedGitActions/],
     ])
       await assert.rejects(controlPlane.createProject(input, admin), message);

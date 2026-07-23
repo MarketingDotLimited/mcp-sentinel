@@ -357,7 +357,7 @@ function registeredProject(projectId) {
   }
 }
 
-function projectSandboxProperties(project, root, { allowNetwork = false } = {}) {
+function projectSandboxProperties(project, root, { allowNetwork = false, allowedNetworkHosts = [] } = {}) {
   const vhostRoot = '/var/www/vhosts';
   const isolationRoot = root.startsWith(`${vhostRoot}${path.sep}`) ? vhostRoot : path.dirname(root);
   if (isolationRoot === path.parse(isolationRoot).root)
@@ -374,6 +374,13 @@ function projectSandboxProperties(project, root, { allowNetwork = false } = {}) 
     inaccessible.add(path.join(root, normalized));
   }
 
+  if (
+    !Array.isArray(allowedNetworkHosts) ||
+    allowedNetworkHosts.length > 20 ||
+    allowedNetworkHosts.some(host => net.isIP(host) === 0)
+  )
+    throw new Error('Project test network dependencies must be explicit IP addresses');
+  const networkEnabled = allowNetwork || allowedNetworkHosts.length > 0;
   const networkCredentialPaths = [];
   if (allowNetwork) {
     const user = passwdRecord(project.runAsUser);
@@ -398,7 +405,15 @@ function projectSandboxProperties(project, root, { allowNetwork = false } = {}) 
     '--property=PrivateTmp=yes',
     '--property=PrivateDevices=yes',
     '--property=PrivateMounts=yes',
-    `--property=PrivateNetwork=${allowNetwork ? 'no' : 'yes'}`,
+    `--property=PrivateNetwork=${networkEnabled ? 'no' : 'yes'}`,
+    ...(allowedNetworkHosts.length
+      ? [
+          '--property=IPAddressDeny=any',
+          ...allowedNetworkHosts.map(
+            host => `--property=IPAddressAllow=${host}${net.isIP(host) === 4 ? '/32' : '/128'}`
+          ),
+        ]
+      : []),
     '--property=ProtectSystem=strict',
     '--property=ProtectHome=tmpfs',
     '--property=ProtectKernelTunables=yes',
@@ -1178,7 +1193,7 @@ const operations = {
       '--property=CPUQuota=100%',
       '--property=TasksMax=256',
       '--property=RuntimeMaxSec=900',
-      ...projectSandboxProperties(project, root),
+      ...projectSandboxProperties(project, root, { allowedNetworkHosts: project.testNetworkHosts || [] }),
       ...Object.entries(environment).map(([key, value]) => `--setenv=${key}=${value}`),
       '--',
       ...argv,
