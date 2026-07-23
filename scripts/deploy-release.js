@@ -244,6 +244,21 @@ function serviceState(name) {
   return { active: serviceActive(name), enabled: serviceEnabled(name) };
 }
 
+function unloadTransientUnit(name) {
+  let fragment = '';
+  try {
+    fragment = command('systemctl', ['show', '--property=FragmentPath', '--value', name], { capture: true }).trim();
+  } catch {}
+  if (!fragment.startsWith('/run/systemd/transient/')) return;
+  try {
+    command('systemctl', ['stop', name], { stdio: 'ignore' });
+  } catch {}
+  try {
+    command('systemctl', ['reset-failed', name], { stdio: 'ignore' });
+  } catch {}
+  command('systemctl', ['daemon-reload']);
+}
+
 function restoreRollback(metadata, rollbackDirectory) {
   const state =
     metadata.serviceStates ||
@@ -331,6 +346,7 @@ function activateRelease(releaseId) {
     // current symlink so --now always launches the reviewed release.
     for (const unit of ['mcp-sentinel.service', 'mcp-sentinel-broker.service']) {
       if (serviceActive(unit)) command('systemctl', ['stop', unit]);
+      unloadTransientUnit(unit);
     }
     for (const unit of managedUnits) {
       const installed = path.join(unitRoot, unit);
