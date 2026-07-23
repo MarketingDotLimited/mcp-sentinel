@@ -83,6 +83,7 @@ import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } fr
 import { toolResultSchema } from './lib/tool-result-schemas.js';
 import {
   assertProjectHealthUrlAllowed,
+  adminSetSshAccess,
   assertRepositoryPermitted,
   consumeApproval,
   createOrganization,
@@ -90,12 +91,15 @@ import {
   createTeam,
   decideApproval,
   getDeploymentPlan,
+  getMySshAccess,
   getProject,
   getWorkflowCatalog,
   listApprovals,
   listOrganizations,
   listProjects,
+  listSshAccessPolicies,
   requestApproval,
+  setMySshAccess,
   validateKeyAssignment,
 } from './lib/control-plane.js';
 import {
@@ -821,6 +825,50 @@ app.post('/admin/projects', authenticateJWT, async (req, res) => {
   }
 });
 
+app.get('/me/ssh-access', authenticateJWT, async (req, res) => {
+  try {
+    return res.json(await getMySshAccess(req.identity, { projectId: req.query.projectId }));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/me/ssh-access', authenticateJWT, async (req, res) => {
+  try {
+    const result = await setMySshAccess(req.body || {}, req.identity);
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SSH_SELF_PREFERENCE_UPDATED',
+      detail: { scope: result.scope, enabled: result.sshEnabled, by: req.identity.userId },
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/admin/ssh-access', authenticateJWT, async (req, res) => {
+  try {
+    return res.json(await listSshAccessPolicies(req.identity));
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.put('/admin/ssh-access', authenticateJWT, async (req, res) => {
+  try {
+    const result = await adminSetSshAccess(req.body || {}, req.identity);
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SSH_POLICY_UPDATED',
+      detail: { targetType: result.targetType, targetId: result.targetId, by: req.identity.userId },
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
 app.get('/admin/organizations', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listOrganizations(req.identity));
@@ -1526,6 +1574,8 @@ async function createMcpServer(identity, ip) {
       'plan_project_deployment',
       'list_active_alerts',
       'get_project_test_run',
+      'get_my_ssh_access',
+      'list_ssh_access_policies',
     ]);
     const stateChangingTools = new Set([
       'write_file',
@@ -1551,6 +1601,8 @@ async function createMcpServer(identity, ip) {
       'unsubscribe_from_alert',
       'run_project_tests',
       'cancel_project_test_run',
+      'set_my_ssh_access',
+      'admin_set_ssh_access',
     ]);
     const openWorldTools = new Set([
       'deploy_project',
@@ -1679,6 +1731,8 @@ async function createMcpServer(identity, ip) {
           name === 'deploy_project' ||
           (name === 'execute_query' &&
             /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || '')) ||
+          (name === 'set_my_ssh_access' && args.enabled === true) ||
+          (name === 'admin_set_ssh_access' && (args.sshAllowed === true || args.sshEnabled === true)) ||
           policyDecision.requireApproval;
         if (requiresConfirmation && !args.confirm) {
           return {
@@ -2372,6 +2426,68 @@ async function createMcpServer(identity, ip) {
     async (_, toolIdentity) => {
       return { projects: await listProjects(toolIdentity) };
     }
+  );
+
+  tool(
+    'get_my_ssh_access',
+    'Show this exact authenticated identity and OAuth client connection SSH preference, plus the effective policy for an optional assigned project.',
+    {
+      projectId: z.string().uuid().optional().describe('Optional assigned project to evaluate'),
+    },
+    async (args, toolIdentity) => getMySshAccess(toolIdentity, args)
+  );
+
+  tool(
+    'set_my_ssh_access',
+    'Enable or disable SSH for this identity or the current OAuth client connection. Administrator ceilings remain authoritative.',
+    {
+      scope: z.enum(['identity', 'current-client']).optional().describe('Preference layer; defaults to identity'),
+      enabled: z.boolean().describe('Desired SSH preference'),
+      confirm: z.boolean().optional().describe('Must be true when enabling; disabling is immediate'),
+    },
+    async (args, toolIdentity) => setMySshAccess(args, toolIdentity)
+  );
+
+  tool(
+    'list_ssh_access_policies',
+    'List SSH policy ceilings, preferences, registered hosts and connections, and recent policy history. Administrator only.',
+    {},
+    async (_, toolIdentity) => listSshAccessPolicies(toolIdentity)
+  );
+
+  tool(
+    'admin_set_ssh_access',
+    'Set an SSH administrator ceiling or preference at the global, organization, team, host, connection, project, identity, OAuth client, or subject-client layer.',
+    {
+      targetType: z
+        .enum([
+          'global',
+          'organization',
+          'team',
+          'host',
+          'connection',
+          'project',
+          'identity',
+          'oauth-client',
+          'subject-client',
+        ])
+        .describe('Policy layer to update'),
+      targetId: z
+        .string()
+        .max(128)
+        .optional()
+        .describe('Registered organization, team, host, connection, or project ID'),
+      authType: z.enum(['oauth', 'apiKey', 'local']).optional().describe('Identity type for an identity target'),
+      keyId: z.string().max(128).optional().describe('API key ID for an identity target'),
+      userId: z.string().max(128).optional().describe('Local mapped user for an identity target'),
+      issuer: z.string().url().max(2048).optional().describe('Exact OAuth issuer'),
+      subject: z.string().max(512).optional().describe('Exact OAuth subject'),
+      clientId: z.string().max(255).optional().describe('Exact OAuth client ID'),
+      sshAllowed: z.boolean().optional().describe('Administrator ceiling'),
+      sshEnabled: z.boolean().optional().describe('Layer preference'),
+      confirm: z.boolean().optional().describe('Must be true when enabling or allowing SSH'),
+    },
+    async (args, toolIdentity) => adminSetSshAccess(args, toolIdentity)
   );
 
   tool(

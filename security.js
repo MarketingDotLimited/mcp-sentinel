@@ -576,6 +576,7 @@ export function authenticateJWT(req, res, next) {
         organizationId: clientMapping.organizationId || userMapping.organizationId,
         teamId: clientMapping.teamId || userMapping.teamId,
         authorizationVersion: clientMapping.authorizationVersion || userMapping.authorizationVersion || 1,
+        oauthIssuer: payload.iss,
         oauthSubject: payload.sub,
         oauthUser: oauthUsername,
         oauthClient: clientId,
@@ -726,7 +727,13 @@ export const SCOPE_GROUPS = {
       'run_project_tests',
       'get_project_test_run',
       'cancel_project_test_run',
+      'get_my_ssh_access',
+      'set_my_ssh_access',
     ],
+  },
+  'ssh.*': {
+    label: 'SSH Transport',
+    tools: ['get_my_ssh_access', 'set_my_ssh_access', 'list_ssh_access_policies', 'admin_set_ssh_access'],
   },
   'security.*': { label: 'Security', tools: ['get_security_posture'] },
 };
