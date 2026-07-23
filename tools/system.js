@@ -7,7 +7,8 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { secureExec } from '../lib/exec.js';
 import { brokerCall } from '../lib/broker-client.js';
-import { getProject, loadTaskRunState, persistTaskRun } from '../lib/control-plane.js';
+import { getProject, loadTaskRunState, persistTaskRun, resolveProjectTransport } from '../lib/control-plane.js';
+import { dispatchProjectOperation } from '../lib/project-operation-dispatcher.js';
 
 const MAX_OUTPUT = parseInt(process.env.MAX_OUTPUT_SIZE || '1048576');
 
@@ -347,7 +348,20 @@ function truncateResult(value) {
 
 async function resolveRegisteredProject(input, identity) {
   if (!input.projectId) throw new Error('projectId is required');
-  return { project: await getProject(input.projectId, identity) };
+  const transport = await resolveProjectTransport(input.projectId, identity);
+  return { project: transport.project, transport };
+}
+
+export function validateRemoteTestInput(project, input) {
+  const recipe = TEST_RUNNERS[input.runner];
+  if (!recipe) throw new Error(`Unsupported test runner: ${input.runner}`);
+  if (input.target && (!recipe.target || path.isAbsolute(input.target) || input.target.split(/[\\/]/).includes('..')))
+    throw new Error('Test target must be a registered relative path');
+  if (recipe.target && !input.target && project.allowFullSuite !== true)
+    throw new Error('A relative target is required because this project does not permit full-suite execution');
+  const filter = validateFilter(input.filter);
+  if (filter && !recipe.filter && !recipe.filterFlag && !recipe.filterSeparator)
+    throw new Error(`filter is not supported by the ${input.runner} runner`);
 }
 
 export async function startProjectTestRun(
@@ -357,20 +371,25 @@ export async function startProjectTestRun(
   projectResolver = resolveRegisteredProject
 ) {
   if (input.confirm !== true) throw new Error('confirm: true is required to run project tests');
-  const { project } = await projectResolver(input, identity);
+  const { project, transport = { kind: 'local' } } = await projectResolver(input, identity);
   if (!project.runAsUser) throw new Error('The registered project must declare runAsUser');
   if (!(project.permittedTasks || []).includes(input.runner))
     throw new Error('This test recipe is not permitted for the project');
-  const realRoot = await fs.realpath(project.rootPath || project.repoPath);
-  const invocation = await buildProjectTestInvocation({
-    projectPath: realRoot,
-    runner: input.runner,
-    target: input.target,
-    filter: input.filter,
-    allowFullSuite: project.allowFullSuite === true,
-    allowedRoots: [realRoot],
-  });
-  const testingValues = await verifyTestingEnvironment({ ...project, rootPath: realRoot }, input.runner);
+  let invocation = null;
+  let testingValues = {};
+  if (transport.kind === 'ssh-gateway') validateRemoteTestInput(project, input);
+  else {
+    const realRoot = await fs.realpath(project.rootPath || project.repoPath);
+    invocation = await buildProjectTestInvocation({
+      projectPath: realRoot,
+      runner: input.runner,
+      target: input.target,
+      filter: input.filter,
+      allowFullSuite: project.allowFullSuite === true,
+      allowedRoots: [realRoot],
+    });
+    testingValues = await verifyTestingEnvironment({ ...project, rootPath: realRoot }, input.runner);
+  }
   const controller = new AbortController();
   const run = {
     runId: randomUUID(),
@@ -392,12 +411,15 @@ export async function startProjectTestRun(
   const executionIdentity = { ...identity, userId: project.runAsUser, role: 'user' };
   const brokerExecution = execute === secureExec;
   if (brokerExecution) {
-    run.cancel = () => brokerCall('project.cancel', { runId: run.runId }, { timeoutMs: 12_000 });
+    run.cancel = () =>
+      dispatchProjectOperation(project.id, identity, 'project.cancel', { runId: run.runId }, { timeoutMs: 12_000 });
   }
   run.completion = (async () => {
     try {
       const result = brokerExecution
-        ? await brokerCall(
+        ? await dispatchProjectOperation(
+            project.id,
+            identity,
             'project.test',
             {
               runId: run.runId,

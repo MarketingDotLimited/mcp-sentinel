@@ -60,6 +60,7 @@ describe('systemd credential loading', () => {
       CONTROL_PLANE_STATE_FILE: path.join(directory, 'state.json'),
       JWT_REVOCATION_FILE: path.join(directory, 'revocations.json'),
       AUDIT_LOG_DIR: path.join(directory, 'logs'),
+      AUDIT_CHECKPOINT_FILE: path.join(directory, 'audit-checkpoint.json'),
       OAUTH_RESOURCE_URL: 'https://mcp.example.test',
     };
     delete environment.JWT_SECRET;

@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removes the 1.x automation, fleet, backup-target, and webhook APIs, MCP tools, dashboard pages, code, and tables. Non-empty legacy tables require a matching verified offline export before migration.
 - Adds scope-filtered manifests, Streamable HTTP and SSE list-change notifications, pinned CI actions, secret scanning, release coverage gates, and production deployment/rollback instructions.
 - Adds signed artifact/manifest verification, versioned atomic deployment with automatic health rollback, production preflight evidence, and systemd-credential-backed JWT signing.
+- Adds optional multi-host project execution through pinned SSH host keys, forced-command typed node gateways, any-deny policy layers, owner-controlled connections, and local/remote dispatch without a shell tool.
+- Fixes OAuth administration compatibility by accepting the existing edit form's redundant matching username while retaining strict broker schemas.
 
 ## [1.1.0] — 2026-07-22
 

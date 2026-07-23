@@ -88,6 +88,8 @@ import {
   consumeApproval,
   createOrganization,
   createProject,
+  createSshConnection,
+  createSshHost,
   createTeam,
   decideApproval,
   getDeploymentPlan,
@@ -99,6 +101,7 @@ import {
   listProjects,
   listSshAccessPolicies,
   requestApproval,
+  setProjectTransport,
   setMySshAccess,
   validateKeyAssignment,
 } from './lib/control-plane.js';
@@ -869,6 +872,48 @@ app.put('/admin/ssh-access', authenticateJWT, async (req, res) => {
   }
 });
 
+app.post('/admin/ssh-hosts', authenticateJWT, async (req, res) => {
+  try {
+    const result = await createSshHost(req.body || {}, req.identity);
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SSH_HOST_REGISTERED',
+      detail: { hostId: result.host.id, by: req.identity.userId },
+    });
+    return res.status(201).json(result);
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.post('/admin/ssh-connections', authenticateJWT, async (req, res) => {
+  try {
+    const result = await createSshConnection(req.body || {}, req.identity);
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SSH_CONNECTION_REGISTERED',
+      detail: { connectionId: result.connection.id, hostId: result.connection.hostId, by: req.identity.userId },
+    });
+    return res.status(201).json(result);
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
+app.put('/admin/projects/:id/transport', authenticateJWT, async (req, res) => {
+  try {
+    const result = await setProjectTransport({ ...req.body, projectId: req.params.id }, req.identity);
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'PROJECT_TRANSPORT_UPDATED',
+      detail: { projectId: result.project.id, transportKind: result.project.transportKind, by: req.identity.userId },
+    });
+    return res.json(result);
+  } catch (err) {
+    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+  }
+});
+
 app.get('/admin/organizations', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listOrganizations(req.identity));
@@ -1093,7 +1138,10 @@ app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
 app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
-    await updateOAuthUser(req.params.username, req.body);
+    const { username: bodyUsername, ...updates } = req.body || {};
+    if (bodyUsername && bodyUsername !== req.params.username)
+      return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
+    await updateOAuthUser(req.params.username, updates);
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
@@ -2441,7 +2489,11 @@ async function createMcpServer(identity, ip) {
     'set_my_ssh_access',
     'Enable or disable SSH for this identity or the current OAuth client connection. Administrator ceilings remain authoritative.',
     {
-      scope: z.enum(['identity', 'current-client']).optional().describe('Preference layer; defaults to identity'),
+      scope: z
+        .enum(['identity', 'current-client', 'connection'])
+        .optional()
+        .describe('Preference layer; defaults to identity'),
+      connectionId: z.string().uuid().optional().describe('Owned registered connection when scope is connection'),
       enabled: z.boolean().describe('Desired SSH preference'),
       confirm: z.boolean().optional().describe('Must be true when enabling; disabling is immediate'),
     },

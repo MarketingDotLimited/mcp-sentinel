@@ -18,6 +18,7 @@ A **security-hardened MCP (Model Context Protocol) server** that lets AI cloud s
 - **Approval Control Plane** — optionally require a human administrator to approve exact high-risk AI actions before they run
 - **Guided Workflows** — plain-language diagnostics, security review, and development prompts for any MCP-compatible AI
 - **Project Registry** — register approved repositories and generate safe deployment plans for developers and AI coding agents
+- **Managed SSH Nodes** — optional multi-host project operations through pinned, forced-command, typed gateways; disabled by default
 - **systemd Ready** — auto-start on boot
 
 ## 🚀 Quick Start
@@ -87,7 +88,7 @@ The web dashboard now includes **Connect AI**, which provides the current endpoi
 ## 🔐 Security Architecture
 
 ```
-AI Client → HTTPS proxy → unprivileged Sentinel → scope/policy/approval → typed broker or project sandbox
+AI Client → HTTPS proxy → unprivileged Sentinel → scope/policy/approval → local broker or pinned SSH node gateway
 ```
 
 | Layer                    | Details                                                                                   |
@@ -101,6 +102,7 @@ AI Client → HTTPS proxy → unprivileged Sentinel → scope/policy/approval �
 | **Scope Enforcement**    | Per-key tool access control                                                               |
 | **Path Sandbox**         | Symlink-safe, users restricted to `/home/{username}` and private temp dirs                |
 | **Audit Logs**           | Tamper-evident structured JSON with secret redaction                                      |
+| **SSH Nodes**            | Any-deny policy layers, pinned host keys, forced commands, no shell/TTY/forwarding/SFTP   |
 
 ## 📁 Project Structure
 
@@ -151,6 +153,8 @@ PROJECT_HEALTH_ALLOWED_HOSTS=app.example.com
 ```
 
 For enterprise policy-as-code, copy [policy.example.json](policy.example.json) outside the repository or to a protected configuration path, set `MCP_POLICY_FILE`, and review changes through your normal configuration-management process. A policy can deny tools for a role or require an approval even when the key would otherwise allow the action.
+
+Multi-host project execution is documented in [docs/SSH_NODES.md](docs/SSH_NODES.md). SSH remains disabled until a host, connection, project, identity, and applicable OAuth/organization/team policies are explicitly registered and enabled.
 
 ## Capability packs
 
