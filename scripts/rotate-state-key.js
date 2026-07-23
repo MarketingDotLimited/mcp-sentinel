@@ -43,17 +43,35 @@ function rotate(value) {
 }
 
 const database = new DatabaseSync(databaseFile);
-const tables = ['approvals', 'projects', 'organizations', 'teams'];
+const tables = [
+  { table: 'approvals', key: 'id' },
+  { table: 'projects', key: 'id' },
+  { table: 'organizations', key: 'id' },
+  { table: 'teams', key: 'id' },
+  { table: 'hosts', key: 'id' },
+  { table: 'ssh_connections', key: 'id' },
+  { table: 'ssh_policies', key: 'id' },
+  { table: 'identity_ssh_preferences', key: 'id' },
+  { table: 'oauth_client_ssh_policies', key: 'id' },
+  { table: 'subject_client_ssh_preferences', key: 'id' },
+  { table: 'ssh_policy_history', key: 'id' },
+  { table: 'task_runs', key: 'id' },
+  { table: 'alert_subscriptions', key: 'id' },
+  { table: 'oauth_mappings', key: 'username' },
+  { table: 'api_keys', key: 'key_hash' },
+];
 database.exec('BEGIN IMMEDIATE');
 try {
   let records = 0;
-  for (const table of tables) {
-    const rows = database.prepare(`SELECT id, payload FROM ${table}`).all();
-    const update = database.prepare(`UPDATE ${table} SET payload = ?, updated_at = ? WHERE id = ?`);
+  for (const { table, key } of tables) {
+    const exists = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+    if (!exists) continue;
+    const rows = database.prepare(`SELECT ${key} AS record_key, payload FROM ${table}`).all();
+    const update = database.prepare(`UPDATE ${table} SET payload = ?, updated_at = ? WHERE ${key} = ?`);
     for (const row of rows) {
       const before = JSON.parse(row.payload);
       const after = rotate(before);
-      update.run(JSON.stringify(after), new Date().toISOString(), row.id);
+      update.run(JSON.stringify(after), new Date().toISOString(), row.record_key);
       records++;
     }
   }

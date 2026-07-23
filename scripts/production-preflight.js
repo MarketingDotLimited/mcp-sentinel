@@ -148,7 +148,7 @@ function inspectDatabase(sentinel) {
     if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok')
       throw new Error('SQLite integrity check failed');
     const migrations = database.prepare('SELECT version FROM schema_migrations ORDER BY version').all();
-    if (!migrations.some(row => row.version === 5)) throw new Error('Schema migration 5 is not applied');
+    if (!migrations.some(row => row.version === 6)) throw new Error('Schema migration 6 is not applied');
     const projectRow = database.prepare('SELECT payload FROM projects WHERE id = ?').get(expectedProjectId);
     if (!projectRow) throw new Error('Rabeeb UUID project is missing');
     const project = JSON.parse(projectRow.payload);
@@ -179,7 +179,7 @@ function inspectDatabase(sentinel) {
       .map(row => JSON.parse(row.payload))
       .filter(key => key.active !== false && key.role === 'admin');
     if (!adminKeys.length) throw new Error('No active stored administrator key remains for recovery');
-    return `SQLite integrity, migration 5, Rabeeb project, OAuth mapping, and recovery admin verified`;
+    return `SQLite integrity, migration 6, Rabeeb project, OAuth mapping, and recovery admin verified`;
   } finally {
     database.close();
   }
