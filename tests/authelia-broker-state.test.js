@@ -70,7 +70,10 @@ describe('typed Authelia administration state', () => {
     assert.equal(created.requireApproval, true);
     assert.equal(created.clients.chatgpt.role, 'developer');
     assert.deepEqual(created.clients.chatgpt.scopes, ['files.*', 'projects.*']);
-    assert.equal((await authelia.getOAuthUsers()).find(user => user.username === 'developer').clients.chatgpt.requireApproval, true);
+    assert.equal(
+      (await authelia.getOAuthUsers()).find(user => user.username === 'developer').clients.chatgpt.requireApproval,
+      true
+    );
     assert.equal((await authelia.getOAuthUsers())[0].projectIds.length, 1);
     await authelia.updateOAuthUser('developer', { email: 'new@example.test', scopes: ['files.*'] });
     const updated = (await authelia.getOAuthUsers())[0];
@@ -100,6 +103,28 @@ describe('typed Authelia administration state', () => {
     assert.equal(health.totalClients, 1);
     await authelia.deleteOAuthClient('chatgpt-test');
     assert.equal((await authelia.getOAuthClients()).length, 0);
+  });
+
+  it('preserves the credential-backed OIDC signing-key template during client mutations', async () => {
+    const signingTemplate =
+      '{{ secret "/run/credentials/authelia.service/oidc-private-key" | mindent 10 "|" | msquote }}';
+    await fs.writeFile(
+      configFile,
+      `identity_providers:\n  oidc:\n    jwks:\n      - key: ${signingTemplate}\n    clients: []\n`,
+      { mode: 0o600 }
+    );
+
+    assert.deepEqual(await authelia.getOAuthClients(), []);
+    await authelia.addOAuthClient({
+      clientId: 'templated-client',
+      redirectUris: ['https://example.test/callback'],
+    });
+    assert.match(
+      await fs.readFile(configFile, 'utf8'),
+      new RegExp(`key: ${signingTemplate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+    );
+    await authelia.deleteOAuthClient('templated-client');
+    assert.match(await fs.readFile(configFile, 'utf8'), /key: \{\{ secret .* \| msquote \}\}/);
   });
 
   it('rejects unsafe redirects and deletion of protected identities', async () => {
