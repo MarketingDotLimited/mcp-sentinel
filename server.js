@@ -690,7 +690,10 @@ app.get('/admin/scope-registry', authenticateJWT, (req, res) => {
   });
 });
 
-app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
+app.get(
+  ['/admin/capabilities', '/admin/api/capabilities', '/admin/api/capabilities/', '/api/admin/capabilities'],
+  authenticateJWT,
+  async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     return res.json({ capabilities: await getCapabilities() });
@@ -1375,14 +1378,13 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
+app.get(['/admin/oauth-users', '/admin/api/oauth-users', '/api/admin/oauth-users'], authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const users = await listOAuthUsersFromState();
     res.json(users);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return res.json([]);
-    if (e?.code === 'ENOENT') return res.json([]);
+    if (isBrokerUnavailable(e) || isStateStoreUnavailable(e) || e?.code === 'ENOENT') return res.json([]);
     respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
@@ -1451,14 +1453,16 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBroke
 
 // ── OAuth Client Management ────────────────────────────────
 
-app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+app.get(
+  ['/admin/oauth-clients', '/admin/api/oauth-clients', '/api/admin/oauth-clients'],
+  authenticateJWT,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const clients = await listOAuthClientsFromState();
     res.json(clients);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return res.json([]);
-    if (e?.code === 'ENOENT') return res.json([]);
+    if (isBrokerUnavailable(e) || isStateStoreUnavailable(e) || e?.code === 'ENOENT') return res.json([]);
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_CLIENT_LIST_FAILED',

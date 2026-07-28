@@ -12,6 +12,7 @@ import { Toast } from '../toast.js';
       '/admin/action-manifest/',
       '/action-manifest/',
       '/api/admin/action-manifest',
+      '/api/action-manifest',
     ];
     let lastError;
     for (const endpoint of endpoints) {

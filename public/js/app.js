@@ -7,7 +7,7 @@ import './pages/action-manifest.js';
 import './pages/approvals.js';
 import './pages/connect.js';
 import { DashboardPage } from './pages/dashboard.js';
-import './pages/keys.js?v=20260722-1';
+import './pages/keys.js?v=20260728-1';
 import './pages/logs.js';
 import './pages/oauth.js';
 import './pages/ssh-access.js';
