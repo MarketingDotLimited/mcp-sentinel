@@ -166,6 +166,14 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       const sessionsBody = await sessionsRes.json();
       assert.equal(sessionsRes.status, 200);
       assert.equal(sessionsBody?.count >= 0 || Array.isArray(sessionsBody?.sessions), true);
+      const disconnectRes = await fetch(`${baseUrl}/admin/sessions`, {
+        method: 'DELETE',
+        headers: authHeader,
+      });
+      const disconnectBody = await disconnectRes.json();
+      assert.equal(disconnectRes.status, 200);
+      assert.equal(disconnectBody?.success, true);
+      assert.equal(disconnectBody?.disconnected, 0);
 
       const manifestRes = await fetch(`${baseUrl}/action-manifest`, {
         headers: authHeader,

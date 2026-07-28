@@ -1394,6 +1394,42 @@ app.delete('/admin/sessions/:id', authenticateJWT, (req, res) => {
   }
 });
 
+app.delete(
+  [
+    '/admin/sessions',
+    '/admin/sessions/',
+    '/admin/api/sessions',
+    '/admin/api/sessions/',
+    '/api/admin/sessions',
+    '/api/admin/sessions/',
+  ],
+  authenticateJWT,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin role required' });
+    }
+    const count = activeTransports.size;
+    const entries = [...activeTransports.entries()];
+    await Promise.all(
+      entries.map(async ([sessionId, session]) => {
+        try {
+          if (session.mcpServer) await session.mcpServer.close().catch(() => {});
+          monitor.unsubscribeAll(sessionId);
+        } catch {
+          // best-effort teardown
+        }
+      })
+    );
+    activeTransports.clear();
+    logSecurityEvent({
+      ip: req.clientIP,
+      event: 'SESSION_FORCE_CLOSED',
+      detail: { sessionId: 'all', by: req.identity.userId, count },
+    });
+    return res.json({ success: true, disconnected: count });
+  }
+);
+
 app.get('/admin/backups', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
