@@ -1374,6 +1374,7 @@ app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
     const users = await listOAuthUsersFromState();
     res.json(users);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return res.json([]);
     if (e?.code === 'ENOENT') return res.json([]);
     respondDependencyAwareError(res, e, {
       status: 500,
@@ -1449,6 +1450,7 @@ app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     const clients = await listOAuthClientsFromState();
     res.json(clients);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return res.json([]);
     if (e?.code === 'ENOENT') return res.json([]);
     return respondDependencyAwareError(res, e, {
       status: 500,
