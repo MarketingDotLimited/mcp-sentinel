@@ -1587,6 +1587,48 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
+function safeJsonDependencyFallback(res, reader, operationName) {
+  try {
+    const data = reader();
+    if (data && typeof data.then === 'function') {
+      return data.then(result => res.json(result)).catch(error => {
+        safeLogError(error, operationName);
+        if (
+          isOAuthDependencyError(error) ||
+          isDependencyError(error) ||
+          /connect\s+ENOENT|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
+            String(error?.message || error || '')
+          )
+        ) {
+          return res.json([]);
+        }
+        return respondDependencyAwareError(res, error, {
+          status: 500,
+          code: 'OAUTH_LIST_FAILED',
+          label: `${operationName} failed`,
+        });
+      });
+    }
+    return res.json(data);
+  } catch (error) {
+    safeLogError(error, operationName);
+    if (
+      isOAuthDependencyError(error) ||
+      isDependencyError(error) ||
+      /connect\s+ENOENT|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
+        String(error?.message || error || '')
+      )
+    ) {
+      return res.json([]);
+    }
+    return respondDependencyAwareError(res, error, {
+      status: 500,
+      code: 'OAUTH_LIST_FAILED',
+      label: `${operationName} failed`,
+    });
+  }
+}
+
 app.get(
   [
     '/admin/oauth-users',
@@ -1599,20 +1641,7 @@ app.get(
   authenticateJWT,
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    const users = await listOAuthUsersFromState();
-    return res.json(users);
-  } catch (e) {
-    if (isOAuthDependencyError(e)) {
-      safeLogError(e, 'oauth-users-list');
-      return res.json([]);
-    }
-    return respondDependencyAwareError(res, e, {
-      status: 500,
-      code: 'OAUTH_USER_LIST_FAILED',
-      label: 'Failed to load OAuth users',
-    });
-  }
+    return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'oauth-users-list');
 });
 
 app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
@@ -1683,24 +1712,11 @@ app.get(
     '/admin/api/oauth-clients/',
     '/api/admin/oauth-clients',
   '/api/admin/oauth-clients/',
-],
+  ],
   authenticateJWT,
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    const clients = await listOAuthClientsFromState();
-    return res.json(clients);
-  } catch (e) {
-    if (isOAuthDependencyError(e)) {
-      safeLogError(e, 'oauth-clients-list');
-      return res.json([]);
-    }
-    return respondDependencyAwareError(res, e, {
-      status: 500,
-      code: 'OAUTH_CLIENT_LIST_FAILED',
-      label: 'Failed to load OAuth clients',
-    });
-  }
+    return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'oauth-clients-list');
 });
 
 app.post('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
