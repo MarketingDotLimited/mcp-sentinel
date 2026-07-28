@@ -86,6 +86,21 @@ describe('typed Authelia administration state', () => {
     assert.equal((await authelia.getOAuthUsers()).length, 0);
   });
 
+  it('defaults administrative mappings to no approval unless explicitly enabled', async () => {
+    await authelia.addOAuthUser({
+      username: 'admin-oauth-no-approval',
+      password: 'correct horse battery staple',
+      email: 'admin-oauth@example.test',
+      role: 'admin',
+      scopes: ['*'],
+    });
+    const users = await authelia.getOAuthUsers();
+    const adminUser = users.find(user => user.username === 'admin-oauth-no-approval');
+    assert.equal(adminUser?.role, 'admin');
+    assert.equal(adminUser?.requireApproval, false);
+    await authelia.deleteOAuthUser('admin-oauth-no-approval');
+  });
+
   it('creates PKCE S256 clients, returns the secret once, and removes them', async () => {
     const client = await authelia.addOAuthClient({
       clientId: 'chatgpt-test',
