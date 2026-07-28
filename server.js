@@ -888,11 +888,14 @@ app.get(
   [
     '/admin/action-manifest',
     '/admin/action-manifest/',
+    '/admin/api/action-manifest',
+    '/admin/api/action-manifest/',
     '/action-manifest',
     '/action-manifest/',
     '/api/admin/action-manifest',
-    '/admin/api/action-manifest',
     '/api/action-manifest',
+    '/api/admin/action-manifest/',
+    '/api/action-manifest/',
   ],
   authenticateJWT,
   handleActionManifest
@@ -2903,17 +2906,18 @@ async function createMcpServer(identity, ip) {
     'Set an SSH administrator ceiling or preference at the global, organization, team, host, connection, project, identity, OAuth client, or subject-client layer.',
     {
       targetType: z
-        .enum([
-          'global',
-          'organization',
-          'team',
-          'host',
-          'connection',
-          'project',
-          'identity',
-          'oauth-client',
-          'subject-client',
-        ])
+      .enum([
+        'global',
+        'organization',
+        'team',
+        'host',
+        'connection',
+        'project',
+        'identity',
+        'identity-key',
+        'oauth-client',
+        'subject-client',
+      ])
         .describe('Policy layer to update'),
       targetId: z
         .string()

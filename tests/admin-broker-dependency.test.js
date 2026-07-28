@@ -151,6 +151,7 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
         { label: 'admin capabilities', url: '/api/admin/capabilities', expectedStatus: 200 },
         { label: 'legacy admin capabilities', url: '/admin/api/capabilities', expectedStatus: 200 },
         { label: 'legacy action manifest', url: '/admin/api/action-manifest', expectedStatus: 200 },
+        { label: 'legacy action manifest (slash)', url: '/admin/api/action-manifest/', expectedStatus: 200 },
         { label: 'slash-normalized action manifest', url: '/admin/action-manifest/', expectedStatus: 200 },
       ];
 
@@ -173,6 +174,15 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.equal(manifestRes.status, 200);
       assert.ok(typeof manifestBody?.manifest?.version === 'string' || typeof manifestBody?.manifest?.version === 'number');
       assert.ok(Array.isArray(manifestBody?.refreshChecklist));
+
+      const sshTool = manifestBody?.manifest?.tools?.find(tool => tool.name === 'admin_set_ssh_access');
+      if (sshTool) {
+        const enumValues = sshTool?.inputSchema?.properties?.targetType?.enum || [];
+        assert.ok(
+          Array.isArray(enumValues) && enumValues.includes('identity-key'),
+          'admin_set_ssh_access enum missing identity-key'
+        );
+      }
     } finally {
       if (child && !child.killed) child.kill('SIGTERM');
       child = null;
