@@ -340,6 +340,18 @@ process.on('unhandledRejection', reason => {
 });
 
 const app = express();
+const routeHandlers = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'all'];
+const asyncToNext = fn =>
+  typeof fn === 'function'
+    ? function asyncHandler(req, res, next) {
+        Promise.resolve(fn(req, res, next)).catch(next);
+      }
+    : fn;
+
+for (const method of routeHandlers) {
+  const original = app[method].bind(app);
+  app[method] = (path, ...handlers) => original(path, ...handlers.map(asyncToNext));
+}
 
 // Redirect legacy port 2053 to the new subdomain
 app.use((req, res, next) => {
@@ -578,7 +590,11 @@ app.get('/admin/scope-registry', authenticateJWT, (req, res) => {
 
 app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-  return res.json({ capabilities: await getCapabilities() });
+  try {
+    return res.json({ capabilities: await getCapabilities() });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
@@ -785,16 +801,20 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  const sessions = Array.from(activeTransports.entries()).map(([id, s]) => ({
-    sessionId: id,
-    userId: s.identity?.userId,
-    role: s.identity?.role,
-    authType: s.identity?.type || 'unknown',
-    scopes: s.identity?.scopes || [],
-    ip: s.ip,
-    connectedAt: s.connectedAt,
-  }));
-  return res.json({ sessions, count: sessions.length });
+  try {
+    const sessions = Array.from(activeTransports.entries()).map(([id, s]) => ({
+      sessionId: id,
+      userId: s.identity?.userId,
+      role: s.identity?.role,
+      authType: s.identity?.type || 'unknown',
+      scopes: s.identity?.scopes || [],
+      ip: s.ip,
+      connectedAt: s.connectedAt,
+    }));
+    return res.json({ sessions, count: sessions.length });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Admin Web UI API Endpoints ─────────────────────────────
