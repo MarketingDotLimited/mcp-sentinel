@@ -106,6 +106,12 @@ describe('SSH access controls', () => {
       },
       { targetType: 'identity-key', keyId: apiIdentity.keyId },
       { targetType: 'oauth-client', issuer: developer.oauthIssuer, clientId: developer.oauthClient },
+      {
+        targetType: 'subject-client',
+        issuer: developer.oauthIssuer,
+        subject: developer.oauthSubject,
+        clientId: developer.oauthClient,
+      },
     ];
     const expectedNewEntries = targets.length + 2;
     for (const target of targets) {
@@ -122,6 +128,55 @@ describe('SSH access controls', () => {
     assert.equal(policies.history.length, before + expectedNewEntries);
     assert.equal(policies.connections[0].sshAllowed, true);
     await assert.rejects(controlPlane.listSshAccessPolicies(developer), /Only administrators/);
+  });
+
+  it('validates admin SSH policy selectors before write', async () => {
+    await assert.rejects(
+      controlPlane.adminSetSshAccess({ targetType: 'identity', sshAllowed: true, confirm: true }, admin),
+      /identity target requires/
+    );
+    await assert.rejects(
+      controlPlane.adminSetSshAccess(
+        {
+          targetType: 'identity',
+          userId: 'user-1',
+          keyId: apiIdentity.keyId,
+          sshAllowed: true,
+          confirm: true,
+        },
+        admin
+      ),
+      /selectors are ambiguous/
+    );
+    await assert.rejects(
+      controlPlane.adminSetSshAccess({ targetType: 'identity-key', sshAllowed: true, confirm: true }, admin),
+      /keyId is required/
+    );
+    await assert.rejects(
+      controlPlane.adminSetSshAccess(
+        {
+          targetType: 'oauth-client',
+          clientId: developer.oauthClient,
+          sshAllowed: true,
+          confirm: true,
+        },
+        admin
+      ),
+      /issuer is required/
+    );
+    await assert.rejects(
+      controlPlane.adminSetSshAccess(
+        {
+          targetType: 'subject-client',
+          issuer: developer.oauthIssuer,
+          clientId: developer.oauthClient,
+          sshAllowed: true,
+          confirm: true,
+        },
+        admin
+      ),
+      /subject is required/
+    );
   });
 
   it('lets any administrator denial take effect immediately and invalidates an approval', async () => {

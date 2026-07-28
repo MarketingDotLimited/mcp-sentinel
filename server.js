@@ -218,7 +218,7 @@ function isRecoverableDependencyError(error) {
   const directText = typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean' ? String(error) : '';
   if (
     directText &&
-    /connect\s+ENOENT|no\s+such\s+file|broker\s+is\s+unavailable|cannot\s+connect|privilege\s+broker\s+unavailable|socket\s+unavailable|BROKER_UNAVAILABLE/i.test(
+    /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+is\s+unavailable|cannot\s+connect|privilege\s+broker\s+unavailable|socket\s+unavailable|BROKER_UNAVAILABLE/i.test(
       directText
     )
   )
@@ -235,11 +235,18 @@ function isRecoverableDependencyError(error) {
     seen.add(current);
 
     const text = typeof current === 'string' || typeof current === 'number' || typeof current === 'boolean' ? String(current) : '';
-    if (text && /connect\s+ENOENT|no\s+such\s+file|broker\s+is\s+unavailable|cannot connect/i.test(text)) return true;
+    if (
+      text &&
+      /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+is\s+unavailable|cannot\s+connect/i.test(text)
+    )
+      return true;
 
     const message = String(current?.message || current?.error || current?.reason || '');
     if (isBrokerUnavailable(current) || isStateStoreUnavailable(current)) return true;
-    if (/connect\s+ENOENT|no\s+such\s+file|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)) return true;
+    if (
+      /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)
+    )
+      return true;
     if (current?.code === 'ENOENT') return true;
 
     [
@@ -272,7 +279,11 @@ function isDependencyError(error) {
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
   if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
-  if (/connect\s+ENOENT|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot connect/i.test(message))
+  if (
+    /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
+      message
+    )
+  )
     return true;
 
   const stack = [error];
@@ -299,7 +310,11 @@ function isOAuthDependencyError(error) {
     const currentText = String(
       current?.message || current?.error || current?.reason || current?.statusText || current?.toString?.() || ''
     );
-    if (/connect\s+ENOENT|no\s+such\s+file|privilege\s+broker|broker\.?sock|state\s+store\s+unavailable|cannot\s+connect/i.test(currentText))
+    if (
+      /connect\s+ENOENT|no\s+socket\s+available|no\s+such\s+file|privilege\s+broker|broker\.?sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
+        currentText
+      )
+    )
       return true;
 
     for (const key of dependencySignals) {
@@ -1596,7 +1611,7 @@ function safeJsonDependencyFallback(res, reader, operationName) {
         if (
           isOAuthDependencyError(error) ||
           isDependencyError(error) ||
-          /connect\s+ENOENT|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
+          /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
             String(error?.message || error || '')
           )
         ) {
@@ -1615,7 +1630,7 @@ function safeJsonDependencyFallback(res, reader, operationName) {
     if (
       isOAuthDependencyError(error) ||
       isDependencyError(error) ||
-      /connect\s+ENOENT|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
+      /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
         String(error?.message || error || '')
       )
     ) {
@@ -1640,6 +1655,7 @@ app.get(
   ],
   authenticateJWT,
   async (req, res) => {
+    if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'oauth-users-list');
 });
@@ -1715,6 +1731,7 @@ app.get(
   ],
   authenticateJWT,
   async (req, res) => {
+    if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'oauth-clients-list');
 });
