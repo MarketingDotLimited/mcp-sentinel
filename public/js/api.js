@@ -47,7 +47,10 @@ const API = {
       candidateUrls.push('/action-manifest');
       candidateUrls.push('/admin/action-manifest');
       candidateUrls.push('/admin/action-manifest/');
+      candidateUrls.push('/admin/api/action-manifest');
+      candidateUrls.push('/admin/api/action-manifest/');
       candidateUrls.push('/api/admin/action-manifest');
+      candidateUrls.push('/api/admin/action-manifest/');
       candidateUrls.push('/api/action-manifest');
     } else {
       candidateUrls.push(url);
@@ -57,7 +60,7 @@ const API = {
       return (
         error?.code === 'BROKER_UNAVAILABLE' ||
         error?.code === 'E_BROKER_UNAVAILABLE' ||
-        /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable|E_BROKER_UNAVAILABLE/i.test(
+        /Privilege broker unavailable|broker unavailable|socket unavailable|connect ENOENT|no such file or directory|Broker unavailable|E_BROKER_UNAVAILABLE/i.test(
           String(error?.message || '')
         )
       );
@@ -66,13 +69,17 @@ const API = {
       return (
         error?.code === 'STATE_STORE_UNAVAILABLE' ||
         /state\\.sqlite3|capabilities\\.json/i.test(String(error?.message || '')) ||
-        /unable to open database file|database is locked|database disk image is malformed|permission denied|read-only file system/i.test(
+        /unable to open database file|database is locked|database disk image is malformed|permission denied|read-only file system|state store is unavailable/i.test(
           String(error?.message || '')
         )
       );
     };
     const isDependencyUnavailable = error =>
-      isBrokerUnavailable(error) || isStateStoreUnavailable(error) || error.status === 503 || error.status === 502;
+      isBrokerUnavailable(error) ||
+      isStateStoreUnavailable(error) ||
+      error.status === 503 ||
+      error.status === 502 ||
+      error.status === 500;
 
     const getReadDependencyFallback = requestUrl => {
       const adminUrl = requestUrl
@@ -100,15 +107,27 @@ const API = {
       return null;
     };
 
-    const normalizeBrokerUnavailable = error => {
-      if (!isBrokerUnavailable(error)) return error;
-      return Object.assign(error, {
-        status: 503,
-        code: 'BROKER_UNAVAILABLE',
-        resolution:
-          error.resolution ||
-          'Restart the privilege broker service (systemctl restart mcp-sentinel-broker.service) and verify /run/mcp-sentinel/broker.sock exists.',
-      });
+    const normalizeDependencyError = error => {
+      if (!error || typeof error !== 'object') return error;
+      if (isBrokerUnavailable(error)) {
+        return Object.assign(error, {
+          status: 503,
+          code: error.code || 'BROKER_UNAVAILABLE',
+          resolution:
+            error.resolution ||
+            'Restart the privilege broker service (systemctl restart mcp-sentinel-broker.service) and verify /run/mcp-sentinel/broker.sock exists.',
+        });
+      }
+      if (isStateStoreUnavailable(error)) {
+        return Object.assign(error, {
+          status: 503,
+          code: error.code || 'STATE_STORE_UNAVAILABLE',
+          resolution:
+            error.resolution ||
+            'Verify MCP state directory permissions and ownership, ensure the service can read/write /var/lib/mcp-sentinel, and restart the service.',
+        });
+      }
+      return error;
     };
 
     let lastError;
@@ -143,12 +162,12 @@ const API = {
           if (data?.resolution) error.resolution = data.resolution;
           if (data?.detail) error.detail = data.detail;
 
-          normalizeBrokerUnavailable(error);
+          normalizeDependencyError(error);
           throw error;
         }
         return data;
       } catch (error) {
-        normalizeBrokerUnavailable(error);
+        normalizeDependencyError(error);
         const readFallback = getReadDependencyFallback(requestUrl);
         if (readFallback !== null && isDependencyUnavailable(error)) {
           return readFallback;

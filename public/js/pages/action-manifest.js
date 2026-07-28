@@ -11,7 +11,10 @@ import { Toast } from '../toast.js';
       '/action-manifest',
       '/admin/action-manifest/',
       '/action-manifest/',
+      '/admin/api/action-manifest',
+      '/admin/api/action-manifest/',
       '/api/admin/action-manifest',
+      '/api/admin/action-manifest/',
       '/api/action-manifest',
     ];
     let lastError;
