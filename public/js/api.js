@@ -83,10 +83,12 @@ const API = {
       error.status === 500;
 
     const getReadDependencyFallback = requestUrl => {
-      const adminUrl = requestUrl
+      const normalizedUrl = String(requestUrl || '')
+        .split('?')[0]
+        .replace(/\/+$/u, '');
+      const adminUrl = normalizedUrl
         .replace(/^\/api\/admin\//, '/admin/')
         .replace(/^\/admin\/api\//, '/admin/')
-        .replace(/\/+$/, '')
         .replace(/^$/, '/');
 
       if (/^\/admin\/oauth-users$/.test(adminUrl)) return [];
