@@ -117,6 +117,7 @@ import {
   deleteOAuthClient,
   getAutheliaHealth,
 } from './lib/authelia-client.js';
+import { getOAuthUsers as listOAuthUsersFromState, getOAuthClients as listOAuthClientsFromState } from './lib/authelia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '4444');
@@ -1365,12 +1366,13 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-app.get('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
+app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
-    const users = await getOAuthUsers();
+    const users = await listOAuthUsersFromState();
     res.json(users);
   } catch (e) {
+    if (e?.code === 'ENOENT') return res.json([]);
     respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
@@ -1439,12 +1441,13 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBroke
 
 // ── OAuth Client Management ────────────────────────────────
 
-app.get('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
+app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
-    const clients = await getOAuthClients();
+    const clients = await listOAuthClientsFromState();
     res.json(clients);
   } catch (e) {
+    if (e?.code === 'ENOENT') return res.json([]);
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_CLIENT_LIST_FAILED',

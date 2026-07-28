@@ -51,7 +51,7 @@ after(() => {
 });
 
 describe('admin OAuth endpoints report broker dependency status', { signal: new AbortController().signal }, () => {
-  it('returns BROKER_UNAVAILABLE for OAuth user/client admin endpoints without a socket', async () => {
+  it('keeps OAuth read routes usable when the privilege broker socket is missing', async () => {
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
     const missingBrokerSocket = path.join(tmp, 'broker.sock');
@@ -86,17 +86,15 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
         headers: { Authorization: `Bearer ${token}` },
       });
       const usersBody = await usersRes.json();
-      assert.equal(usersRes.status, 503);
-      assert.equal(usersBody?.code, 'BROKER_UNAVAILABLE');
-      assert.match(usersBody?.error || '', /broker unavailable|connect ENOENT|Privilege broker unavailable/);
+      assert.equal(usersRes.status, 200);
+      assert.equal(Array.isArray(usersBody), true);
 
       const clientsRes = await fetch(`${baseUrl}/admin/oauth-clients`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const clientsBody = await clientsRes.json();
-      assert.equal(clientsRes.status, 503);
-      assert.equal(clientsBody?.code, 'BROKER_UNAVAILABLE');
-      assert.match(clientsBody?.error || '', /broker unavailable|connect ENOENT|Privilege broker unavailable/);
+      assert.equal(clientsRes.status, 200);
+      assert.equal(Array.isArray(clientsBody), true);
 
       const manifestRes = await fetch(`${baseUrl}/admin/action-manifest`, {
         headers: { Authorization: `Bearer ${token}` },
