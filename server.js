@@ -124,10 +124,24 @@ const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
 function isBrokerUnavailable(error) {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  const causeMessage = String(error?.cause?.message || '');
+  const errorText = `${code} ${message} ${causeMessage}`.trim();
   return (
-    error?.code === 'E_BROKER_UNAVAILABLE' ||
-    /Privilege broker unavailable|broker unavailable|connect ENOENT|no socket available/i.test(String(error?.message || ''))
+    code === 'E_BROKER_UNAVAILABLE' ||
+    code === 'ENOENT' ||
+    code === 'ECONNREFUSED' ||
+    code === 'EPIPE' ||
+    code === 'ECONNRESET' ||
+    /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|no socket available/i.test(errorText)
   );
+}
+
+function respondServiceDependencyUnavailable(res, error) {
+  if (isBrokerUnavailable(error)) return respondBrokerUnavailable(res, error);
+  if (isStateStoreUnavailable(error)) return respondStateUnavailable(res, error);
+  return res.status(500).json({ error: String(error?.message || 'Internal server error'), code: 'SERVICE_DEPENDENCY_FAILED' });
 }
 
 function isStateStoreUnavailable(error) {
@@ -620,7 +634,7 @@ app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
   try {
     return res.json({ capabilities: await getCapabilities() });
   } catch (err) {
-    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
 });
@@ -637,7 +651,7 @@ app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
     await refreshActiveToolLists();
     return res.json({ capabilities });
   } catch (err) {
-    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(400).json({ error: err.message, code: 'CAPABILITY_UPDATE_FAILED' });
   }
 });
@@ -709,7 +723,7 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
       ],
     });
   } catch (err) {
-    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CONNECTION_INFO_FAILED' });
   }
 });
@@ -728,27 +742,31 @@ app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
   try {
     return res.json(await buildSecurityPosture());
   } catch (err) {
-    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
-    if (isBrokerUnavailable(err)) return respondBrokerUnavailable(res, err);
+    if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'SECURITY_POSTURE_FAILED' });
   }
 });
 
 app.get('/admin/action-manifest', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-  await createMcpServer(req.identity, req.clientIP);
-  const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));
-  return res.json({
-    manifest,
-    refreshChecklist: [
-      'Refresh the connector action snapshot in ChatGPT.',
-      'Review and approve the reported schema and annotation changes.',
-      'Explicitly enable get_my_ssh_access and set_my_ssh_access.',
-      'Explicitly enable run_project_tests, get_project_test_run, and cancel_project_test_run.',
-      'Reauthorize OAuth after the credential rotation.',
-      'Open a new chat and run one small assigned-project test target.',
-    ],
-  });
+  try {
+    await createMcpServer(req.identity, req.clientIP);
+    const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));
+    return res.json({
+      manifest,
+      refreshChecklist: [
+        'Refresh the connector action snapshot in ChatGPT.',
+        'Review and approve the reported schema and annotation changes.',
+        'Explicitly enable get_my_ssh_access and set_my_ssh_access.',
+        'Explicitly enable run_project_tests, get_project_test_run, and cancel_project_test_run.',
+        'Reauthorize OAuth after the credential rotation.',
+        'Open a new chat and run one small assigned-project test target.',
+      ],
+    });
+  } catch (err) {
+    return respondServiceDependencyUnavailable(res, err);
+  }
 });
 
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
@@ -856,7 +874,7 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
     });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
-    return res.status(500).json({ error: err.message, code: 'SESSIONS_LOAD_FAILED' });
+    return respondServiceDependencyUnavailable(res, err);
   }
 });
 
@@ -1226,7 +1244,7 @@ app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
     const users = await getOAuthUsers();
     res.json(users);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1238,7 +1256,7 @@ app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
     res.json(user);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1254,7 +1272,7 @@ app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1267,7 +1285,7 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => 
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1280,7 +1298,7 @@ app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     const clients = await getOAuthClients();
     res.json(clients);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1292,7 +1310,7 @@ app.post('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
     res.json(client);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1304,7 +1322,7 @@ app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) =
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
     res.json({ success: true });
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1366,7 +1384,7 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_STARTED', detail: { clientId: client.client_id } });
     res.json({ authorizationUrl: authorizationUrl.toString(), expiresAt: new Date(expiresAt).toISOString() });
   } catch (error) {
-    if (isBrokerUnavailable(error)) return respondBrokerUnavailable(res, error);
+    if (isBrokerUnavailable(error)) return respondServiceDependencyUnavailable(res, error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -1480,7 +1498,7 @@ app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
     const health = await getAutheliaHealth();
     res.json(health);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
+    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1688,8 +1706,8 @@ app.use((err, req, res, next) => {
     errorId,
     error: err,
   });
-  if (isBrokerUnavailable(err)) return respondBrokerUnavailable(res, err);
-  if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+  if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
+  if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
   }
