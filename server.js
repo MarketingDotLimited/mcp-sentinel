@@ -272,7 +272,57 @@ function isDependencyError(error) {
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
   if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
-  return /connect\s+ENOENT|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable/i.test(message);
+  if (/connect\s+ENOENT|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot connect/i.test(message))
+    return true;
+
+  const stack = [error];
+  const seen = new Set();
+  const dependencySignals = [
+    'error',
+    'cause',
+    'err',
+    'response',
+    'body',
+    'details',
+    'detail',
+    'responseBody',
+    'originalError',
+    'innerError',
+    'exception',
+  ];
+
+  while (stack.length) {
+    const current = stack.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+
+    const currentText = String(
+      current?.message || current?.error || current?.reason || current?.statusText || current?.toString?.() || ''
+    );
+    if (/connect\s+ENOENT|no\s+such\s+file|privilege\s+broker|broker\.?sock|state\s+store\s+unavailable|cannot\s+connect/i.test(currentText))
+      return true;
+
+    for (const key of dependencySignals) {
+      const nested = current?.[key];
+      if (Array.isArray(nested)) {
+        nested.forEach(item => stack.push(item));
+      } else if (nested) {
+        stack.push(nested);
+      }
+    }
+    if (typeof current?.response?.message === 'string') stack.push(current.response.message);
+    if (typeof current?.response?.data === 'object') stack.push(current.response.data);
+    if (typeof current?.response?.data?.error === 'string') stack.push(current.response.data.error);
+    if (typeof current?.response?.data?.message === 'string') stack.push(current.response.data.message);
+  }
+
+  return false;
+}
+
+function safeLogError(error, context) {
+  try {
+    logError(error, context);
+  } catch {}
 }
 
 function isBrokerUnavailableError(error) {
@@ -915,6 +965,21 @@ async function handleActionManifest(req, res) {
       ],
     });
   } catch (err) {
+    if (isDependencyError(err)) {
+      return res.status(503).json({
+        manifest: {
+          version: 'missing',
+          hash: 'missing',
+          name: 'MCP Sentinel',
+          tools: [],
+          warnings: ['Privilege broker or state store dependency unavailable.'],
+        },
+        refreshChecklist: [
+          'Restore broker/state dependencies, then refresh the connector action snapshot in ChatGPT.',
+          'Review and approve the reported schema and annotation changes.',
+        ],
+      });
+    }
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'ACTION_MANIFEST_FAILED',
@@ -1539,7 +1604,7 @@ app.get(
     return res.json(users);
   } catch (e) {
     if (isOAuthDependencyError(e)) {
-      logError(e, 'oauth-users-list');
+      safeLogError(e, 'oauth-users-list');
       return res.json([]);
     }
     return respondDependencyAwareError(res, e, {
@@ -1627,7 +1692,7 @@ app.get(
     return res.json(clients);
   } catch (e) {
     if (isOAuthDependencyError(e)) {
-      logError(e, 'oauth-clients-list');
+      safeLogError(e, 'oauth-clients-list');
       return res.json([]);
     }
     return respondDependencyAwareError(res, e, {
