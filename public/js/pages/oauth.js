@@ -93,6 +93,7 @@ window.OAuthPage = (function () {
       err?.code === 'BROKER_UNAVAILABLE' ||
       err?.code === 'E_BROKER_UNAVAILABLE' ||
       err?.code === 'STATE_STORE_UNAVAILABLE' ||
+      err?.status === 500 ||
       err?.status === 502 ||
       err?.status === 503 ||
       /privilege broker unavailable|connect ENOENT|no such file|socket unavailable|state store unavailable/i.test(String(err?.message || ''))

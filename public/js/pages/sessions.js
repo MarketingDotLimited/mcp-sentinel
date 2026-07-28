@@ -8,6 +8,8 @@ import { Router } from '../router.js';
   function formatDependencyError(prefix, error) {
     if (
       error.code === 'BROKER_UNAVAILABLE' ||
+      error.code === 'STATE_STORE_UNAVAILABLE' ||
+      error.status === 500 ||
       error.status === 503 ||
       error.status === 502 ||
       error?.message?.includes('Privilege broker unavailable') ||

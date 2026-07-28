@@ -22,6 +22,8 @@ import { Router } from '../router.js';
     const fmtDependencyError = err => {
       if (
         err.code === 'BROKER_UNAVAILABLE' ||
+        err.code === 'STATE_STORE_UNAVAILABLE' ||
+        err.status === 500 ||
         err.status === 503 ||
         err.status === 502 ||
         err?.message?.includes('Privilege broker unavailable') ||

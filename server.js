@@ -603,7 +603,7 @@ app.use(
     maxAge: '1d',
     setHeaders: (res, filePath) => {
       if (/\.(?:html|js|css)$/.test(filePath)) {
-        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       }
     },
   })

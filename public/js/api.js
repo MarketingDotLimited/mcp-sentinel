@@ -77,6 +77,7 @@ const API = {
     const isDependencyUnavailable = error =>
       isBrokerUnavailable(error) ||
       isStateStoreUnavailable(error) ||
+      error.status === 404 ||
       error.status === 503 ||
       error.status === 502 ||
       error.status === 500;
@@ -113,6 +114,7 @@ const API = {
         /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|state\.sqlite3/i.test(
           String(error?.message || '')
         ) ||
+        /Internal Server Error/i.test(String(error?.message || '')) ||
         error.message === 'Failed to fetch'
       );
     };
