@@ -261,7 +261,12 @@ function isRecoverableDependencyError(error) {
 }
 
 function isDependencyError(error) {
-  return isRecoverableDependencyError(error) || isBrokerUnavailable(error) || isBrokerUnavailableError(error);
+  return (
+    isRecoverableDependencyError(error) ||
+    isBrokerUnavailable(error) ||
+    isBrokerUnavailableError(error) ||
+    isStateStoreUnavailable(error)
+  );
 }
 
 function isBrokerUnavailableError(error) {
@@ -1065,7 +1070,7 @@ app.get(
     });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
-    if (isRecoverableDependencyError(err) || isBrokerUnavailableError(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'SESSION_LIST_FAILED',
@@ -1497,17 +1502,17 @@ app.get(
     '/admin/api/oauth-users',
     '/admin/api/oauth-users/',
     '/api/admin/oauth-users',
-    '/api/admin/oauth-users/',
+  '/api/admin/oauth-users/',
   ],
   authenticateJWT,
   async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const users = await listOAuthUsersFromState();
-    res.json(users);
+    return res.json(users);
   } catch (e) {
     if (isDependencyError(e)) return res.json([]);
-    respondDependencyAwareError(res, e, {
+    return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
       label: 'Failed to load OAuth users',
@@ -1582,14 +1587,14 @@ app.get(
     '/admin/api/oauth-clients',
     '/admin/api/oauth-clients/',
     '/api/admin/oauth-clients',
-    '/api/admin/oauth-clients/',
+  '/api/admin/oauth-clients/',
   ],
   authenticateJWT,
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const clients = await listOAuthClientsFromState();
-    res.json(clients);
+    return res.json(clients);
   } catch (e) {
     if (isDependencyError(e)) return res.json([]);
     return respondDependencyAwareError(res, e, {
