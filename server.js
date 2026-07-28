@@ -1442,7 +1442,8 @@ app.get(
     const users = await listOAuthUsersFromState();
     res.json(users);
   } catch (e) {
-    if (isRecoverableDependencyError(e)) return res.json([]);
+    const message = String(e?.message || e || '');
+    if (isRecoverableDependencyError(e) || /Privilege broker unavailable|connect ENOENT/.test(message)) return res.json([]);
     respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
