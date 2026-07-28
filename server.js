@@ -810,6 +810,28 @@ app.get('/admin/action-manifest', authenticateJWT, handleActionManifest);
 app.get('/admin/action-manifest/', authenticateJWT, handleActionManifest);
 app.get('/action-manifest', authenticateJWT, handleActionManifest);
 
+app.get('/admin/broker-status', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  try {
+    const broker = await brokerCall('broker.health', {});
+    return res.json({
+      available: true,
+      socket: (process.env.MCP_BROKER_SOCKET || '/run/mcp-sentinel/broker.sock').trim(),
+      socketExists:
+        fs.existsSync(process.env.MCP_BROKER_SOCKET || '/run/mcp-sentinel/broker.sock') ||
+        fs.existsSync('/run/mcp-sentinel/broker.sock') ||
+        fs.existsSync('/var/run/mcp-sentinel/broker.sock'),
+      broker,
+    });
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 503,
+      code: 'BROKER_UNAVAILABLE',
+      label: 'Broker socket is unavailable',
+    });
+  }
+});
+
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {

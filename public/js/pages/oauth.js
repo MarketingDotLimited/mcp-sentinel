@@ -269,10 +269,17 @@ window.OAuthPage = (function () {
     const modal = createModal(isEdit ? 'Edit User' : 'Add User');
 
     let osUsers = [];
+    let oauthClients = [];
     try {
       const res = await API.get('/admin/os-users');
       const data = Array.isArray(res) ? res : res.users || res.data || [];
       osUsers = data.filter(u => u.shell && !u.shell.includes('false') && !u.shell.includes('nologin'));
+    } catch (e) {
+      console.error(e);
+    }
+    try {
+      const clients = await API.get('/admin/oauth-clients');
+      oauthClients = Array.isArray(clients) ? clients : clients.data || [];
     } catch (e) {
       console.error(e);
     }
@@ -354,19 +361,36 @@ window.OAuthPage = (function () {
       modal.body.querySelector('#modal-group-admins').checked = (user.groups || []).includes('admins');
       modal.body.querySelector('#modal-group-users').checked = (user.groups || []).includes('users');
       modal.body.querySelector('#modal-require-approval').checked = user.requireApproval !== false;
-      const clientApprovals = modal.body.querySelector('#modal-client-approvals');
-      for (const [clientId, override] of Object.entries(user.clients || {})) {
+      for (const checkbox of modal.body.querySelectorAll('#modal-client-approvals [data-client-id]')) {
+        checkbox.checked = (user.clients?.[checkbox.dataset.clientId]?.requireApproval ?? modal.body.querySelector('#modal-require-approval').checked);
+      }
+    }
+
+    const currentClientOverrides = isEdit && user?.clients ? user.clients : {};
+    const clientApprovals = modal.body.querySelector('#modal-client-approvals');
+    const orderedClientIds = [
+      ...new Set([...Object.keys(currentClientOverrides), ...oauthClients.map(c => c.client_id || c.clientId)]),
+    ];
+    if (!orderedClientIds.length) {
+      const note = document.createElement('p');
+      note.className = 'form-hint';
+      note.textContent = 'No OAuth clients are currently registered.';
+      clientApprovals.appendChild(note);
+    } else {
+      orderedClientIds.forEach(clientId => {
+        if (!clientId) return;
+        const override = currentClientOverrides[clientId] || {};
         const label = document.createElement('label');
         label.className = 'checkbox-label';
         label.style.display = 'block';
         label.style.marginTop = '8px';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.dataset.clientId = clientId;
-        checkbox.checked = override.requireApproval ?? user.requireApproval ?? true;
-        label.append(checkbox, ` Require approval for OAuth client: ${clientId}`);
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.dataset.clientId = clientId;
+        input.checked = override.requireApproval ?? modal.body.querySelector('#modal-require-approval').checked;
+        label.append(input, ` Require approval for OAuth client: ${clientId}`);
         clientApprovals.appendChild(label);
-      }
+      });
     }
 
     const cancelBtn = document.createElement('button');
@@ -413,13 +437,18 @@ window.OAuthPage = (function () {
       if (modal.body.querySelector('#modal-group-users').checked) data.groups.push('users');
 
       data.scopes = getSelectedScopes(modal.body.querySelector('#modal-scopes-container'));
-      if (isEdit && user.clients) {
-        data.clients = Object.fromEntries(
-          Object.entries(user.clients).map(([clientId, override]) => {
-            const checkbox = modal.body.querySelector(`[data-client-id="${CSS.escape(clientId)}"]`);
-            return [clientId, { ...override, requireApproval: checkbox?.checked ?? data.requireApproval }];
-          })
-        );
+      const clientCheckboxes = modal.body.querySelectorAll('#modal-client-approvals [data-client-id]');
+      if (clientCheckboxes.length) {
+        data.clients = {};
+        for (const checkbox of clientCheckboxes) {
+          const clientId = checkbox.dataset.clientId;
+          if (!clientId) continue;
+          const existing = (user?.clients || {})[clientId] || {};
+          data.clients[clientId] = {
+            ...existing,
+            requireApproval: checkbox.checked,
+          };
+        }
       }
 
       try {
