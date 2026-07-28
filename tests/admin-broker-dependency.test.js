@@ -97,6 +97,15 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.equal(clientsRes.status, 503);
       assert.equal(clientsBody?.code, 'BROKER_UNAVAILABLE');
       assert.match(clientsBody?.error || '', /broker unavailable|connect ENOENT|Privilege broker unavailable/);
+
+      const manifestRes = await fetch(`${baseUrl}/admin/action-manifest`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const manifestBody = await manifestRes.json();
+      assert.equal(manifestRes.status, 200);
+      assert.ok(typeof manifestBody?.manifest?.version === 'string' || typeof manifestBody?.manifest?.version === 'number');
+      assert.equal(Array.isArray(manifestBody?.refreshChecklist), true);
+      assert.ok(Array.isArray(manifestBody?.manifest?.tools));
     } finally {
       if (child && !child.killed) child.kill('SIGTERM');
       child = null;

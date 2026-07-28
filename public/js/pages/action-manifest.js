@@ -6,7 +6,7 @@ import { Toast } from '../toast.js';
   let currentManifest;
 
   async function requestManifest() {
-    const endpoints = ['/admin/action-manifest', '/action-manifest'];
+    const endpoints = ['/admin/action-manifest', '/action-manifest', '/admin/action-manifest/'];
     let lastError;
     for (const endpoint of endpoints) {
       try {
@@ -17,6 +17,18 @@ import { Toast } from '../toast.js';
       }
     }
     throw lastError;
+  }
+
+  async function checkBroker() {
+    try {
+      const status = await API.get('/admin/broker-status');
+      if (status?.broker?.healthy === false) {
+        return 'action manifest generation is blocked while the privilege broker is unhealthy.';
+      }
+      return null;
+    } catch {
+      return 'the privilege broker is currently unavailable.';
+    }
   }
 
   function codeBlock(value) {
@@ -60,8 +72,18 @@ import { Toast } from '../toast.js';
         checklist.append(li);
       });
     } catch (error) {
+      const brokerHint = await checkBroker();
       currentManifest = null;
       status.textContent = `Unable to load the action manifest: ${error.message}`;
+      if (brokerHint) {
+        const hint = document.createElement('p');
+        hint.className = 'connect-warning';
+        hint.textContent = `Broker check: ${brokerHint} Restart the broker service, wait a moment, then retry.`;
+        const existingWarning = root.querySelector('#manifest-broker-warning');
+        if (existingWarning) existingWarning.remove();
+        hint.id = 'manifest-broker-warning';
+        root.querySelector('#manifest-tools').replaceChildren(hint);
+      }
     }
   }
 
