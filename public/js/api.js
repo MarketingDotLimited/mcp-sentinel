@@ -46,6 +46,7 @@ const API = {
     const isBrokerUnavailable = error => {
       return (
         error?.code === 'BROKER_UNAVAILABLE' ||
+        error?.code === 'E_BROKER_UNAVAILABLE' ||
         /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable|E_BROKER_UNAVAILABLE/i.test(
           String(error?.message || '')
         )
@@ -61,7 +62,7 @@ const API = {
       );
     };
     const isDependencyUnavailable = error =>
-      isBrokerUnavailable(error) || isStateStoreUnavailable(error) || error.status === 503 || error.status === 500;
+      isBrokerUnavailable(error) || isStateStoreUnavailable(error) || error.status === 503 || error.status === 502;
 
     const normalizeBrokerUnavailable = error => {
       if (!isBrokerUnavailable(error)) return error;
@@ -112,13 +113,12 @@ const API = {
         return data;
       } catch (error) {
         normalizeBrokerUnavailable(error);
-        const retryable =
-          error.status === 404 ||
-          error.status === 500 ||
-          error.status === 502 ||
-          error.status === 503 ||
-          error.message === 'Failed to fetch' ||
-          isDependencyUnavailable(error);
+      const retryable =
+        error.status === 404 ||
+        error.status === 502 ||
+        error.status === 503 ||
+        error.message === 'Failed to fetch' ||
+        isDependencyUnavailable(error);
         lastError = error;
         if (!retryable || i === uniqUrls.length - 1) {
           throw error;

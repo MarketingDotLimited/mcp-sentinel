@@ -9,7 +9,6 @@ import { Router } from '../router.js';
     if (
       error.code === 'BROKER_UNAVAILABLE' ||
       error.status === 503 ||
-      error.status === 500 ||
       error.status === 502 ||
       error?.message?.includes('Privilege broker unavailable') ||
       error?.message?.includes('connect ENOENT')

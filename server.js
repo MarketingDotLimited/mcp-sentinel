@@ -163,13 +163,11 @@ function isBrokerUnavailable(error, visited = new Set()) {
   const errorText = `${code} ${message} ${additionalMessages.join(' ')}`.trim();
   if (
     code === 'E_BROKER_UNAVAILABLE' ||
-    code === 'ENOENT' ||
     code === 'ECONNREFUSED' ||
     code === 'EPIPE' ||
     code === 'ECONNRESET' ||
-    /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|no socket available/i.test(
-      errorText
-    )
+    /Privilege broker unavailable|broker unavailable|connect ENOENT|no socket available/i.test(errorText) ||
+    /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(errorText)
   )
     return true;
 
@@ -839,7 +837,15 @@ async function handleActionManifest(req, res) {
 }
 
 app.get(
-  ['/admin/action-manifest', '/admin/action-manifest/', '/action-manifest', '/action-manifest/', '/api/admin/action-manifest'],
+  [
+    '/admin/action-manifest',
+    '/admin/action-manifest/',
+    '/action-manifest',
+    '/action-manifest/',
+    '/api/admin/action-manifest',
+    '/admin/api/action-manifest',
+    '/api/action-manifest',
+  ],
   authenticateJWT,
   handleActionManifest
 );
@@ -980,6 +986,7 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
     });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
+    if (isBrokerUnavailable(err) || isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'SESSION_LIST_FAILED',
