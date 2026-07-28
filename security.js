@@ -151,13 +151,13 @@ export const ROLE_TEMPLATES = {
   developer: {
     label: 'Developer',
     description: 'Build, test, inspect repositories, and propose deployments. Risky actions require approval.',
-    scopes: ['system.*', 'files.*', 'docker.*', 'git.*', 'db.*', 'projects.*', 'workflows.*', 'monitor.*'],
+    scopes: ['system.*', 'files.*', 'docker.*', 'git.*', 'db.*', 'projects.*', 'workflows.*', 'monitor.*', 'ssh.*'],
     requireApproval: true,
   },
   operator: {
     label: 'Operator',
     description: 'Operate approved services and configurations with human approval for changes.',
-    scopes: ['system.*', 'services.*', 'files.*', 'config.*', 'monitor.*', 'workflows.*', 'projects.*'],
+    scopes: ['system.*', 'services.*', 'files.*', 'config.*', 'monitor.*', 'workflows.*', 'projects.*', 'ssh.*'],
     requireApproval: true,
   },
   user: {
