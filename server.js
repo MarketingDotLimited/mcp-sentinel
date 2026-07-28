@@ -215,14 +215,38 @@ function isStateStoreUnavailable(error) {
 }
 
 function isRecoverableDependencyError(error) {
-  if (!error) return false;
-  const message = String(error?.message || error?.error || error?.reason || '');
-  return (
-    isBrokerUnavailable(error) ||
-    isStateStoreUnavailable(error) ||
-    error?.code === 'ENOENT' ||
-    /connect\s+ENOENT|no\s+such\s+file|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)
-  );
+  if (!error || typeof error !== 'object') return false;
+
+  const queue = [error];
+  const seen = new Set();
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+
+    if (isBrokerUnavailable(current) || isStateStoreUnavailable(current)) return true;
+
+    const message = String(current?.message || current?.error || current?.reason || '');
+    if (/connect\s+ENOENT|no\s+such\s+file|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)) return true;
+    if (current?.code === 'ENOENT') return true;
+
+    [
+      current?.cause,
+      current?.error,
+      current?.err,
+      current?.response,
+      current?.body,
+      current?.details,
+      current?.detail,
+      current?.originalError,
+      current?.innerError,
+    ].forEach(child => {
+      if (child) queue.push(child);
+    });
+  }
+
+  return false;
 }
 
 function respondBrokerUnavailable(res, error) {
