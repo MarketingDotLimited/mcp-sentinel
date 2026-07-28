@@ -211,6 +211,17 @@ function isStateStoreUnavailable(error) {
   );
 }
 
+function isRecoverableDependencyError(error) {
+  if (!error) return false;
+  const message = String(error?.message || error?.error || error?.reason || '');
+  return (
+    isBrokerUnavailable(error) ||
+    isStateStoreUnavailable(error) ||
+    error?.code === 'ENOENT' ||
+    /connect\s+ENOENT|no\s+such\s+file|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)
+  );
+}
+
 function respondBrokerUnavailable(res, error) {
   return res.status(503).json({
     error: String(error?.message || 'Privilege broker unavailable'),
@@ -704,8 +715,7 @@ app.get(
   try {
     return res.json({ capabilities: await getCapabilities() });
   } catch (err) {
-    if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
-    if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isRecoverableDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
 });
@@ -995,7 +1005,7 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
     });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
-    if (isBrokerUnavailable(err) || isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isRecoverableDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'SESSION_LIST_FAILED',
@@ -1400,7 +1410,7 @@ app.get(
     const users = await listOAuthUsersFromState();
     res.json(users);
   } catch (e) {
-    if (isBrokerUnavailable(e) || isStateStoreUnavailable(e) || e?.code === 'ENOENT') return res.json([]);
+    if (isRecoverableDependencyError(e)) return res.json([]);
     respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
@@ -1485,7 +1495,7 @@ app.get(
     const clients = await listOAuthClientsFromState();
     res.json(clients);
   } catch (e) {
-    if (isBrokerUnavailable(e) || isStateStoreUnavailable(e) || e?.code === 'ENOENT') return res.json([]);
+    if (isRecoverableDependencyError(e)) return res.json([]);
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_CLIENT_LIST_FAILED',
