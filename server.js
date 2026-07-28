@@ -222,12 +222,14 @@ function isRecoverableDependencyError(error) {
 
   while (queue.length) {
     const current = queue.shift();
-    if (!current || seen.has(current)) continue;
+    if (current == null || seen.has(current)) continue;
     seen.add(current);
 
-    if (isBrokerUnavailable(current) || isStateStoreUnavailable(current)) return true;
+    const text = typeof current === 'string' || typeof current === 'number' || typeof current === 'boolean' ? String(current) : '';
+    if (text && /connect\s+ENOENT|no\s+such\s+file|broker\s+is\s+unavailable|cannot connect/i.test(text)) return true;
 
     const message = String(current?.message || current?.error || current?.reason || '');
+    if (isBrokerUnavailable(current) || isStateStoreUnavailable(current)) return true;
     if (/connect\s+ENOENT|no\s+such\s+file|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)) return true;
     if (current?.code === 'ENOENT') return true;
 
