@@ -52,6 +52,8 @@ const API = {
         const error = new Error(`${data.error || `Request failed (${res.status})`}${data?.code ? ` (${data.code})` : ''}`);
         error.status = res.status;
         error.code = data?.code || null;
+        if (data?.resolution) error.resolution = data.resolution;
+        if (data?.detail) error.detail = data.detail;
         throw error;
       }
       return data;

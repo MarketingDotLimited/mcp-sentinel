@@ -19,6 +19,18 @@ import { Router } from '../router.js';
   ];
   async function loadCapabilities() {
     const host = root.querySelector('#capability-list');
+    const fmtDependencyError = err => {
+      if (
+        err.code === 'BROKER_UNAVAILABLE' ||
+        err.status === 503 ||
+        err?.message?.includes('Privilege broker unavailable') ||
+        err?.message?.includes('connect ENOENT')
+      ) {
+        const resolution = err?.resolution || 'Restart the broker service and verify its socket.';
+        return `Unable to load capability packs: Privilege broker unavailable. ${resolution}`;
+      }
+      return `Unable to load capability packs: ${err.message}`;
+    };
     try {
       const { capabilities } = await API.get('/admin/capabilities');
       host.replaceChildren();
@@ -48,7 +60,7 @@ import { Router } from '../router.js';
         host.append(card);
       });
     } catch (error) {
-      host.textContent = `Unable to load capability packs: ${error.message}`;
+      host.textContent = fmtDependencyError(error);
     }
   }
   function render(container) {

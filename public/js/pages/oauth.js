@@ -74,6 +74,19 @@ window.OAuthPage = (function () {
     }, 15000);
   }
 
+  function dependencyMessage(prefix, err) {
+    if (
+      err.code === 'BROKER_UNAVAILABLE' ||
+      err.status === 503 ||
+      err?.message?.includes('Privilege broker unavailable') ||
+      err?.message?.includes('connect ENOENT')
+    ) {
+      const resolution = err?.resolution || 'Restart the broker service and verify the socket path.';
+      return `${prefix}: Privilege broker unavailable. ${resolution}`;
+    }
+    return `${prefix}: ${err.message}`;
+  }
+
   function switchTab(tabId) {
     currentTab = tabId;
     const tabs = container.querySelectorAll('.oauth-tab');
@@ -254,13 +267,7 @@ window.OAuthPage = (function () {
         tbody.appendChild(tr);
       });
     } catch (err) {
-      if (err.code === 'BROKER_UNAVAILABLE' || err?.message?.includes('Privilege broker unavailable')) {
-        Toast.error(
-          `Failed to load users: Privilege broker unavailable. Restart the broker service and confirm /run/mcp-sentinel/broker.sock exists.`
-        );
-      } else {
-        Toast.error('Failed to load users: ' + err.message);
-      }
+      Toast.error(dependencyMessage('Failed to load users', err));
     }
   }
 
@@ -622,7 +629,7 @@ window.OAuthPage = (function () {
         tbody.appendChild(tr);
       });
     } catch (err) {
-      Toast.error('Failed to load clients: ' + err.message);
+      Toast.error(dependencyMessage('Failed to load clients', err));
     }
   }
 
@@ -737,7 +744,7 @@ window.OAuthPage = (function () {
       done.onclick = modal.close;
       modal.actions.appendChild(done);
     } catch (error) {
-      Toast.error(`Unable to load ChatGPT setup values: ${error.message}`);
+      Toast.error(dependencyMessage('Unable to load ChatGPT setup values', error));
     }
   }
 

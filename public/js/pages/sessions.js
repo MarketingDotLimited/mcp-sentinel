@@ -5,13 +5,29 @@ import { Router } from '../router.js';
   let refreshInterval = null;
   let rootContainer = null;
 
+  function formatDependencyError(prefix, error) {
+    if (
+      error.code === 'BROKER_UNAVAILABLE' ||
+      error.status === 503 ||
+      error?.message?.includes('Privilege broker unavailable') ||
+      error?.message?.includes('connect ENOENT')
+    ) {
+      const resolution = error?.resolution || 'Restart the broker service and verify the socket path.';
+      return `${prefix}: Privilege broker unavailable. ${resolution}`;
+    }
+    if (error?.status === 500 || error?.status === 502) {
+      return `${prefix}: ${error.message}`;
+    }
+    return `${prefix}: ${error.message}`;
+  }
+
   async function loadSessions() {
     try {
       const response = await API.get('/admin/sessions');
       const sessions = Array.isArray(response) ? response : response.sessions || response.data || [];
       renderTable(sessions);
     } catch (err) {
-      Toast.error('Failed to load sessions: ' + err.message);
+      Toast.error(formatDependencyError('Failed to load sessions', err));
     }
   }
 
