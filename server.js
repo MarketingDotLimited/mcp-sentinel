@@ -123,6 +123,22 @@ const PORT = parseInt(process.env.PORT || '4444');
 const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
+function isBrokerUnavailable(error) {
+  return (
+    error?.code === 'E_BROKER_UNAVAILABLE' ||
+    /Privilege broker unavailable|broker unavailable/i.test(String(error?.message || ''))
+  );
+}
+
+function respondBrokerUnavailable(res, error) {
+  return res.status(503).json({
+    error: String(error?.message || 'Privilege broker unavailable'),
+    code: 'BROKER_UNAVAILABLE',
+    resolution:
+      'Restart the privilege broker service (systemctl restart mcp-sentinel-broker.service) and confirm /run/mcp-sentinel/broker.sock exists.',
+  });
+}
+
 function summarizeHealth(stats) {
   const checks = [
     ['CPU', stats.cpu],
@@ -1147,6 +1163,7 @@ app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
     const users = await getOAuthUsers();
     res.json(users);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1158,6 +1175,7 @@ app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
     res.json(user);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1173,6 +1191,7 @@ app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1185,6 +1204,7 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => 
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1197,6 +1217,7 @@ app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     const clients = await getOAuthClients();
     res.json(clients);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1208,6 +1229,7 @@ app.post('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
     res.json(client);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1219,6 +1241,7 @@ app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) =
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
     res.json({ success: true });
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(400).json({ error: e.message });
   }
 });
@@ -1280,6 +1303,7 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_DIAGNOSTIC_STARTED', detail: { clientId: client.client_id } });
     res.json({ authorizationUrl: authorizationUrl.toString(), expiresAt: new Date(expiresAt).toISOString() });
   } catch (error) {
+    if (isBrokerUnavailable(error)) return respondBrokerUnavailable(res, error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -1393,6 +1417,7 @@ app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
     const health = await getAutheliaHealth();
     res.json(health);
   } catch (e) {
+    if (isBrokerUnavailable(e)) return respondBrokerUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
 });
