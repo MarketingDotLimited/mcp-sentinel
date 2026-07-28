@@ -147,7 +147,9 @@ function isBrokerUnavailable(error, visited = new Set()) {
     code === 'ECONNREFUSED' ||
     code === 'EPIPE' ||
     code === 'ECONNRESET' ||
-    /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|no socket available/i.test(errorText)
+    /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|no socket available/i.test(
+      errorText
+    )
   )
     return true;
 
@@ -158,7 +160,19 @@ function isBrokerUnavailable(error, visited = new Set()) {
 function respondServiceDependencyUnavailable(res, error) {
   if (isBrokerUnavailable(error)) return respondBrokerUnavailable(res, error);
   if (isStateStoreUnavailable(error)) return respondStateUnavailable(res, error);
-  return res.status(500).json({ error: String(error?.message || 'Internal server error'), code: 'SERVICE_DEPENDENCY_FAILED' });
+  return res
+    .status(500)
+    .json({ error: String(error?.message || 'Internal server error'), code: 'SERVICE_DEPENDENCY_FAILED' });
+}
+
+function respondDependencyAwareError(
+  res,
+  error,
+  fallback = { status: 500, code: 'INTERNAL_ERROR', label: 'Internal server error' }
+) {
+  if (isBrokerUnavailable(error) || isStateStoreUnavailable(error))
+    return respondServiceDependencyUnavailable(res, error);
+  return res.status(fallback.status).json({ error: String(error?.message || fallback.label), code: fallback.code });
 }
 
 function isStateStoreUnavailable(error) {
@@ -767,7 +781,7 @@ app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
   }
 });
 
-app.get('/admin/action-manifest', authenticateJWT, async (req, res) => {
+async function handleActionManifest(req, res) {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     await createMcpServer(req.identity, req.clientIP);
@@ -784,9 +798,17 @@ app.get('/admin/action-manifest', authenticateJWT, async (req, res) => {
       ],
     });
   } catch (err) {
-    return respondServiceDependencyUnavailable(res, err);
+    return respondDependencyAwareError(res, err, {
+      status: 500,
+      code: 'ACTION_MANIFEST_FAILED',
+      label: 'Failed to build action manifest',
+    });
   }
-});
+}
+
+app.get('/admin/action-manifest', authenticateJWT, handleActionManifest);
+app.get('/admin/action-manifest/', authenticateJWT, handleActionManifest);
+app.get('/action-manifest', authenticateJWT, handleActionManifest);
 
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
@@ -893,7 +915,11 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
     });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
-    return respondServiceDependencyUnavailable(res, err);
+    return respondDependencyAwareError(res, err, {
+      status: 500,
+      code: 'SESSION_LIST_FAILED',
+      label: 'Failed to load sessions',
+    });
   }
 });
 
@@ -926,7 +952,11 @@ app.get('/admin/approvals', authenticateJWT, async (req, res) => {
     const approvals = await listApprovals(req.identity, { includeResolved: req.query.includeResolved === 'true' });
     return res.json({ approvals, count: approvals.length });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return respondDependencyAwareError(res, err, {
+      status: 500,
+      code: 'APPROVALS_LOAD_FAILED',
+      label: 'Failed to load approvals',
+    });
   }
 });
 
@@ -945,7 +975,13 @@ app.post('/admin/approvals/:id', authenticateJWT, async (req, res) => {
     });
     return res.json({ approval });
   } catch (err) {
-    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+    return respondDependencyAwareError(
+      res,
+      err,
+      err.message.includes('Only administrators')
+        ? { status: 403, code: 'APPROVAL_UPDATE_FORBIDDEN', label: 'Insufficient permission' }
+        : { status: 400, code: 'APPROVAL_UPDATE_FAILED', label: 'Failed to update approval' }
+    );
   }
 });
 
@@ -953,7 +989,11 @@ app.get('/admin/projects', authenticateJWT, async (req, res) => {
   try {
     return res.json({ projects: await listProjects(req.identity) });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return respondDependencyAwareError(res, err, {
+      status: 500,
+      code: 'PROJECT_LIST_FAILED',
+      label: 'Failed to load projects',
+    });
   }
 });
 
@@ -967,7 +1007,13 @@ app.post('/admin/projects', authenticateJWT, async (req, res) => {
     });
     return res.status(201).json({ project });
   } catch (err) {
-    return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
+    return respondDependencyAwareError(
+      res,
+      err,
+      err.message.includes('Only administrators')
+        ? { status: 403, code: 'PROJECT_CREATE_FORBIDDEN', label: 'Insufficient permission' }
+        : { status: 400, code: 'PROJECT_CREATE_FAILED', label: 'Failed to create project' }
+    );
   }
 });
 
@@ -1263,8 +1309,11 @@ app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
     const users = await getOAuthUsers();
     res.json(users);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(500).json({ error: e.message });
+    respondDependencyAwareError(res, e, {
+      status: 500,
+      code: 'OAUTH_USER_LIST_FAILED',
+      label: 'Failed to load OAuth users',
+    });
   }
 });
 
@@ -1275,8 +1324,13 @@ app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
     res.json(user);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(400).json({ error: e.message });
+    respondDependencyAwareError(
+      res,
+      e,
+      e.message.includes('Only administrators')
+        ? { status: 403, code: 'OAUTH_USER_CREATE_FORBIDDEN', label: 'Insufficient permission' }
+        : { status: 400, code: 'OAUTH_USER_CREATE_FAILED', label: 'Failed to create OAuth user' }
+    );
   }
 });
 
@@ -1291,8 +1345,15 @@ app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(400).json({ error: e.message });
+    respondDependencyAwareError(
+      res,
+      e,
+      e.message.includes('No mapping found') || e.message.includes('cannot update')
+        ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
+        : e.message.includes('Only administrators')
+          ? { status: 403, code: 'OAUTH_USER_UPDATE_FORBIDDEN', label: 'Insufficient permission' }
+          : { status: 400, code: 'OAUTH_USER_UPDATE_FAILED', label: 'Failed to update OAuth user' }
+    );
   }
 });
 
@@ -1304,8 +1365,13 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => 
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
     res.json({ success: true });
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(400).json({ error: e.message });
+    return respondDependencyAwareError(
+      res,
+      e,
+      e.message.includes('not found')
+        ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
+        : { status: 400, code: 'OAUTH_USER_DELETE_FAILED', label: 'Failed to delete OAuth user' }
+    );
   }
 });
 
