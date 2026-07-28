@@ -130,12 +130,39 @@ function isBrokerUnavailable(error) {
   );
 }
 
+function isStateStoreUnavailable(error) {
+  const message = String(error?.message || '');
+  const combined = `${String(error?.code || '')} ${message}`;
+  return (
+    /state\.sqlite3|sqlite|capabilities\.json|/i.test(combined) ||
+    error?.code === 'SQLITE_CANTOPEN' ||
+    error?.code === 'SQLITE_BUSY' ||
+    error?.code === 'SQLITE_LOCKED' ||
+    error?.code === 'SQLITE_IOERR' ||
+    error?.code === 'EACCES' ||
+    error?.code === 'EISDIR' ||
+    error?.code === 'EROFS' ||
+    /unable to open database file|database is locked|database disk image is malformed|permission denied|read-only file system/i.test(
+      message
+    )
+  );
+}
+
 function respondBrokerUnavailable(res, error) {
   return res.status(503).json({
     error: String(error?.message || 'Privilege broker unavailable'),
     code: 'BROKER_UNAVAILABLE',
     resolution:
       'Restart the privilege broker service (systemctl restart mcp-sentinel-broker.service) and confirm /run/mcp-sentinel/broker.sock exists.',
+  });
+}
+
+function respondStateUnavailable(res, error) {
+  return res.status(503).json({
+    error: String(error?.message || 'State store unavailable'),
+    code: 'STATE_STORE_UNAVAILABLE',
+    resolution:
+      'Verify MCP state directory permissions and ownership, ensure the service can read/write /var/lib/mcp-sentinel, and restart the service.',
   });
 }
 
@@ -593,7 +620,8 @@ app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
   try {
     return res.json({ capabilities: await getCapabilities() });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
 });
 
@@ -609,7 +637,8 @@ app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
     await refreshActiveToolLists();
     return res.json({ capabilities });
   } catch (err) {
-    return res.status(400).json({ error: err.message });
+    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    return res.status(400).json({ error: err.message, code: 'CAPABILITY_UPDATE_FAILED' });
   }
 });
 
@@ -618,66 +647,71 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
   const publicUrl = baseUrl.replace(/\/$/, '');
   const publicHttps = publicUrl.startsWith('https://');
   const oidcEnabled = Boolean(process.env.AUTHELIA_ISSUER && process.env.AUTHELIA_JWKS_URL);
-  return res.json({
-    transport: 'streamable-http',
-    mcpUrl: `${publicUrl}/mcp`,
-    authorization:
-      'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
-    capabilities: await getCapabilities(),
-    readiness: {
-      publicHttps,
-      oidcEnabled,
-      cloudConnectorReady: publicHttps && oidcEnabled,
-      cloudConnectorMessage:
-        publicHttps && oidcEnabled
-          ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
-          : 'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
-    },
-    platforms: [
-      {
-        id: 'chatgpt',
-        name: 'ChatGPT (web)',
-        auth: 'OAuth/OIDC',
-        hint: 'A public HTTPS URL and OAuth/OIDC are required for cloud connectors.',
+  try {
+    return res.json({
+      transport: 'streamable-http',
+      mcpUrl: `${publicUrl}/mcp`,
+      authorization:
+        'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
+      capabilities: await getCapabilities(),
+      readiness: {
+        publicHttps,
+        oidcEnabled,
+        cloudConnectorReady: publicHttps && oidcEnabled,
+        cloudConnectorMessage:
+          publicHttps && oidcEnabled
+            ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
+            : 'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
       },
-      {
-        id: 'claude-web',
-        name: 'Claude (web)',
-        auth: 'OAuth/OIDC',
-        hint: 'Add a remote custom connector from Claude settings.',
-      },
-      {
-        id: 'claude-desktop',
-        name: 'Claude Desktop',
-        auth: 'OAuth/OIDC',
-        hint: 'Use Settings → Connectors for remote MCP; do not edit the legacy desktop JSON for remote servers.',
-      },
-      {
-        id: 'claude-code',
-        name: 'Claude Code CLI',
-        auth: 'X-API-Key header',
-        hint: 'Add the remote HTTP server with a scoped key header.',
-      },
-      {
-        id: 'codex',
-        name: 'Codex CLI',
-        auth: 'Bearer API key',
-        hint: 'Store a scoped key in an environment variable and register the remote endpoint.',
-      },
-      {
-        id: 'antigravity',
-        name: 'Antigravity CLI / IDE',
-        auth: 'X-API-Key header',
-        hint: 'Use serverUrl and headers in its MCP JSON configuration.',
-      },
-      {
-        id: 'custom',
-        name: 'Other MCP clients',
-        auth: 'Header or bearer key',
-        hint: 'Use the standard Streamable HTTP endpoint and the client’s secure credential store.',
-      },
-    ],
-  });
+      platforms: [
+        {
+          id: 'chatgpt',
+          name: 'ChatGPT (web)',
+          auth: 'OAuth/OIDC',
+          hint: 'A public HTTPS URL and OAuth/OIDC are required for cloud connectors.',
+        },
+        {
+          id: 'claude-web',
+          name: 'Claude (web)',
+          auth: 'OAuth/OIDC',
+          hint: 'Add a remote custom connector from Claude settings.',
+        },
+        {
+          id: 'claude-desktop',
+          name: 'Claude Desktop',
+          auth: 'OAuth/OIDC',
+          hint: 'Use Settings → Connectors for remote MCP; do not edit the legacy desktop JSON for remote servers.',
+        },
+        {
+          id: 'claude-code',
+          name: 'Claude Code CLI',
+          auth: 'X-API-Key header',
+          hint: 'Add the remote HTTP server with a scoped key header.',
+        },
+        {
+          id: 'codex',
+          name: 'Codex CLI',
+          auth: 'Bearer API key',
+          hint: 'Store a scoped key in an environment variable and register the remote endpoint.',
+        },
+        {
+          id: 'antigravity',
+          name: 'Antigravity CLI / IDE',
+          auth: 'X-API-Key header',
+          hint: 'Use serverUrl and headers in its MCP JSON configuration.',
+        },
+        {
+          id: 'custom',
+          name: 'Other MCP clients',
+          auth: 'Header or bearer key',
+          hint: 'Use the standard Streamable HTTP endpoint and the client’s secure credential store.',
+        },
+      ],
+    });
+  } catch (err) {
+    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    return res.status(500).json({ error: err.message, code: 'CONNECTION_INFO_FAILED' });
+  }
 });
 
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
@@ -691,7 +725,13 @@ app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
 
 app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-  return res.json(await buildSecurityPosture());
+  try {
+    return res.json(await buildSecurityPosture());
+  } catch (err) {
+    if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
+    if (isBrokerUnavailable(err)) return respondBrokerUnavailable(res, err);
+    return res.status(500).json({ error: err.message, code: 'SECURITY_POSTURE_FAILED' });
+  }
 });
 
 app.get('/admin/action-manifest', authenticateJWT, async (req, res) => {
@@ -802,18 +842,21 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin role required' });
   }
   try {
-    const sessions = Array.from(activeTransports.entries()).map(([id, s]) => ({
-      sessionId: id,
-      userId: s.identity?.userId,
-      role: s.identity?.role,
-      authType: s.identity?.type || 'unknown',
-      scopes: s.identity?.scopes || [],
-      ip: s.ip,
-      connectedAt: s.connectedAt,
-    }));
+    const sessions = Array.from(activeTransports.entries()).map(([id, s]) => {
+      const identity = s?.identity || {};
+      return {
+        sessionId: id,
+        userId: identity.userId,
+        role: identity.role,
+        authType: identity.type || 'unknown',
+        scopes: identity.scopes || [],
+        ip: s.ip,
+        connectedAt: s.connectedAt,
+      };
+    });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message, code: 'SESSIONS_LOAD_FAILED' });
   }
 });
 
@@ -1645,6 +1688,8 @@ app.use((err, req, res, next) => {
     errorId,
     error: err,
   });
+  if (isBrokerUnavailable(err)) return respondBrokerUnavailable(res, err);
+  if (isStateStoreUnavailable(err)) return respondStateUnavailable(res, err);
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
   }
