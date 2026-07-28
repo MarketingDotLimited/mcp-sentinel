@@ -43,6 +43,25 @@ const API = {
       candidateUrls.push(url);
     }
 
+    const isBrokerUnavailable = error => {
+      return (
+        error?.code === 'BROKER_UNAVAILABLE' ||
+        /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable|E_BROKER_UNAVAILABLE/i.test(
+          String(error?.message || '')
+        )
+      );
+    };
+    const normalizeBrokerUnavailable = error => {
+      if (!isBrokerUnavailable(error)) return error;
+      return Object.assign(error, {
+        status: 503,
+        code: 'BROKER_UNAVAILABLE',
+        resolution:
+          error.resolution ||
+          'Restart the privilege broker service (systemctl restart mcp-sentinel-broker.service) and verify /run/mcp-sentinel/broker.sock exists.',
+      });
+    };
+
     let lastError;
     for (const requestUrl of [...new Set(candidateUrls)]) {
       try {
@@ -73,10 +92,9 @@ const API = {
           if (data?.resolution) error.resolution = data.resolution;
           if (data?.detail) error.detail = data.detail;
 
-          const isBrokerUnavailableError =
-            error.code === 'BROKER_UNAVAILABLE' ||
-            /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable/i.test(error.message);
-          if (isBrokerUnavailableError && error.status === 503) {
+          const isBrokerUnavailableError = isBrokerUnavailable(error);
+          normalizeBrokerUnavailable(error);
+          if (isBrokerUnavailableError) {
             throw error;
           }
 
@@ -84,9 +102,8 @@ const API = {
         }
         return data;
       } catch (error) {
-        const isBrokerUnavailableError =
-          error.code === 'BROKER_UNAVAILABLE' ||
-          /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable/i.test(error.message);
+        normalizeBrokerUnavailable(error);
+        const isBrokerUnavailableError = isBrokerUnavailable(error);
 
         const retriable =
           (error.status === 404 || error.status === 502 || error.message === 'Failed to fetch') && !isBrokerUnavailableError;
