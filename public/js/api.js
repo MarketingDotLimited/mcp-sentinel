@@ -74,6 +74,32 @@ const API = {
     const isDependencyUnavailable = error =>
       isBrokerUnavailable(error) || isStateStoreUnavailable(error) || error.status === 503 || error.status === 502;
 
+    const getReadDependencyFallback = requestUrl => {
+      const adminUrl = requestUrl
+        .replace(/^\/api\/admin\//, '/admin/')
+        .replace(/^\/admin\/api\//, '/admin/')
+        .replace(/\/+$/, '')
+        .replace(/^$/, '/');
+
+      if (/^\/admin\/oauth-users$/.test(adminUrl)) return [];
+      if (/^\/admin\/oauth-clients$/.test(adminUrl)) return [];
+      if (/^\/admin\/capabilities$/.test(adminUrl)) return { capabilities: [] };
+      if (/^\/admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0 };
+      if (/^\/admin\/action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
+        return {
+          manifest: {
+            version: 'missing',
+            hash: 'missing',
+            name: 'MCP Sentinel',
+            tools: [],
+          },
+          refreshChecklist: [],
+          warnings: ['Privilege broker unavailable: continuing with a read-only local fallback.'],
+        };
+      }
+      return null;
+    };
+
     const normalizeBrokerUnavailable = error => {
       if (!isBrokerUnavailable(error)) return error;
       return Object.assign(error, {
@@ -123,12 +149,17 @@ const API = {
         return data;
       } catch (error) {
         normalizeBrokerUnavailable(error);
-      const retryable =
-        error.status === 404 ||
-        error.status === 502 ||
-        error.status === 503 ||
-        error.message === 'Failed to fetch' ||
-        isDependencyUnavailable(error);
+        const readFallback = getReadDependencyFallback(requestUrl);
+        if (readFallback !== null && isDependencyUnavailable(error)) {
+          return readFallback;
+        }
+
+        const retryable =
+          error.status === 404 ||
+          error.status === 502 ||
+          error.status === 503 ||
+          error.message === 'Failed to fetch' ||
+          isDependencyUnavailable(error);
         lastError = error;
         if (!retryable || i === uniqUrls.length - 1) {
           throw error;
