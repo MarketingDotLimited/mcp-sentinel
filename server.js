@@ -750,12 +750,10 @@ app.post('/admin/action-refresh-status', authenticateJWT, async (req, res) => {
     !Array.isArray(req.body.enabledTools) ||
     !requiredActions.every(tool => req.body.enabledTools.includes(tool))
   )
-    return res
-      .status(400)
-      .json({
-        error:
-          'Manifest hash, OAuth reauthorization, enabled SSH and project-test actions, and new-chat test must be confirmed',
-      });
+    return res.status(400).json({
+      error:
+        'Manifest hash, OAuth reauthorization, enabled SSH and project-test actions, and new-chat test must be confirmed',
+    });
   const status = setAdminState('action_refresh_status', {
     manifestHash: manifest.hash,
     enabledTools: requiredActions,

@@ -1,0 +1,6 @@
+[allowlist]
+description = "Allow known non-secret workflow SHA references"
+paths = [".github/workflows/ci.yml"]
+regexes = [
+  "trufflesecurity/trufflehog@[a-fA-F0-9]{40}"
+]

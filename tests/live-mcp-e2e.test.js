@@ -10,8 +10,8 @@ import net from 'node:net';
 
 const enabled = process.env.RUN_LIVE_E2E === 'true';
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-sentinel-live-'));
-const adminKey = 'mcp_abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234';
-const limitedKey = 'mcp_zyxwvutsrqponmlkjihgfedcba1234567890zyxwvutsrqponmlkjihgfedcba12';
+const adminKey = 'admin-key-placeholder-for-tests';
+const limitedKey = 'limited-key-placeholder-for-tests';
 const username = `mcpqa${process.pid}`.slice(0, 31);
 let child;
 let broker;

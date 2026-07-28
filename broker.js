@@ -1420,8 +1420,5 @@ export function startBroker() {
   return server;
 }
 
-if (
-  process.argv[1] &&
-  fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1])
-)
+if (process.argv[1] && fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1]))
   startBroker();
