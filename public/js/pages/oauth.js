@@ -254,7 +254,13 @@ window.OAuthPage = (function () {
         tbody.appendChild(tr);
       });
     } catch (err) {
-      Toast.error('Failed to load users: ' + err.message);
+      if (err.code === 'BROKER_UNAVAILABLE' || err?.message?.includes('Privilege broker unavailable')) {
+        Toast.error(
+          `Failed to load users: Privilege broker unavailable. Restart the broker service and confirm /run/mcp-sentinel/broker.sock exists.`
+        );
+      } else {
+        Toast.error('Failed to load users: ' + err.message);
+      }
     }
   }
 

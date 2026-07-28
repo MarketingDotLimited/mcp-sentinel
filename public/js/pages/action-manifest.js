@@ -5,6 +5,20 @@ import { Toast } from '../toast.js';
   let root;
   let currentManifest;
 
+  async function requestManifest() {
+    const endpoints = ['/admin/action-manifest', '/action-manifest'];
+    let lastError;
+    for (const endpoint of endpoints) {
+      try {
+        return await API.get(endpoint);
+      } catch (error) {
+        lastError = error;
+        if (error?.status !== 404) throw error;
+      }
+    }
+    throw lastError;
+  }
+
   function codeBlock(value) {
     const pre = document.createElement('pre');
     pre.className = 'code-block';
@@ -34,7 +48,7 @@ import { Toast } from '../toast.js';
   async function load() {
     const status = root.querySelector('#manifest-status');
     try {
-      const { manifest, refreshChecklist } = await API.get('/admin/action-manifest');
+      const { manifest, refreshChecklist } = await requestManifest();
       currentManifest = manifest;
       status.textContent = `Manifest v${manifest.version} · ${manifest.hash}`;
       root.querySelector('#manifest-tools').replaceChildren(...manifest.tools.map(renderTool));

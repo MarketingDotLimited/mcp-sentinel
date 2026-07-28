@@ -32,16 +32,27 @@ const API = {
     try {
       const res = await fetch(url, { ...options, headers });
 
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: await res.text().catch(() => 'Unable to parse API response') };
+      }
+
       if (res.status === 401 || res.status === 403) {
         this.clearToken();
         window.location.hash = '#/login';
-        throw new Error('Session expired. Please log in again.');
+        throw Object.assign(new Error('Session expired. Please log in again.'), {
+          status: res.status,
+          code: data?.code || null,
+        });
       }
 
-      const data = await res.json();
       if (!res.ok) {
-        const suffix = data?.code ? ` (${data.code})` : '';
-        throw new Error(`${data.error || `Request failed (${res.status})`}${suffix}`);
+        const error = new Error(`${data.error || `Request failed (${res.status})`}${data?.code ? ` (${data.code})` : ''}`);
+        error.status = res.status;
+        error.code = data?.code || null;
+        throw error;
       }
       return data;
     } catch (e) {
