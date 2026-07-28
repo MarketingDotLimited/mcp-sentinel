@@ -123,19 +123,36 @@ const PORT = parseInt(process.env.PORT || '4444');
 const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
-function isBrokerUnavailable(error) {
-  const code = String(error?.code || '');
-  const message = String(error?.message || '');
-  const causeMessage = String(error?.cause?.message || '');
-  const errorText = `${code} ${message} ${causeMessage}`.trim();
-  return (
+function isBrokerUnavailable(error, visited = new Set()) {
+  if (!error || visited.has(error)) return false;
+  if (typeof error === 'string') return /broker unavailable|connect ENOENT|no socket available/i.test(error);
+  if (typeof error !== 'object') return false;
+  visited.add(error);
+
+  const code = String(error.code || '');
+  const message = String(error.message || '');
+  const additionalMessages = [
+    String(error.error || ''),
+    String(error.cause?.message || ''),
+    String(error.error?.message || ''),
+    String(error.details || ''),
+    String(error.detail || ''),
+    String(error.response?.message || ''),
+    String(error.data || ''),
+  ];
+  const errorText = `${code} ${message} ${additionalMessages.join(' ')}`.trim();
+  if (
     code === 'E_BROKER_UNAVAILABLE' ||
     code === 'ENOENT' ||
     code === 'ECONNREFUSED' ||
     code === 'EPIPE' ||
     code === 'ECONNRESET' ||
     /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|no socket available/i.test(errorText)
-  );
+  )
+    return true;
+
+  const nested = [error.cause, error.error, error.err, error.response, error.body, error.details, error.data];
+  return nested.some(item => isBrokerUnavailable(item, visited));
 }
 
 function respondServiceDependencyUnavailable(res, error) {
@@ -634,6 +651,7 @@ app.get('/admin/capabilities', authenticateJWT, async (req, res) => {
   try {
     return res.json({ capabilities: await getCapabilities() });
   } catch (err) {
+    if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
@@ -723,6 +741,7 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
       ],
     });
   } catch (err) {
+    if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CONNECTION_INFO_FAILED' });
   }
