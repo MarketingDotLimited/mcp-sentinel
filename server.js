@@ -124,7 +124,12 @@ const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
 async function ensurePrivilegeBrokerAvailable(req, res, next) {
-  if (!req?.identity || req.identity.role !== 'admin') return next();
+  if (!req?.identity) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (req.identity.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
   try {
     await brokerCall('broker.health', {});
     return next();

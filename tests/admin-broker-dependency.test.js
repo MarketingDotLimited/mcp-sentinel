@@ -106,6 +106,11 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.ok(typeof manifestBody?.manifest?.version === 'string' || typeof manifestBody?.manifest?.version === 'number');
       assert.equal(Array.isArray(manifestBody?.refreshChecklist), true);
       assert.ok(Array.isArray(manifestBody?.manifest?.tools));
+
+      const unauthRes = await fetch(`${baseUrl}/admin/oauth-users`);
+      const unauthBody = await unauthRes.json();
+      assert.equal(unauthRes.status, 401);
+      assert.ok(unauthBody?.error === 'Authentication required' || unauthBody?.error === 'Missing API key');
     } finally {
       if (child && !child.killed) child.kill('SIGTERM');
       child = null;
