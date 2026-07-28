@@ -691,7 +691,13 @@ app.get('/admin/scope-registry', authenticateJWT, (req, res) => {
 });
 
 app.get(
-  ['/admin/capabilities', '/admin/api/capabilities', '/admin/api/capabilities/', '/api/admin/capabilities'],
+  [
+    '/admin/capabilities',
+    '/admin/api/capabilities',
+    '/admin/api/capabilities/',
+    '/api/admin/capabilities',
+    '/api/admin/capabilities/',
+  ],
   authenticateJWT,
   async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
@@ -1378,7 +1384,17 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-app.get(['/admin/oauth-users', '/admin/api/oauth-users', '/api/admin/oauth-users'], authenticateJWT, async (req, res) => {
+app.get(
+  [
+    '/admin/oauth-users',
+    '/admin/oauth-users/',
+    '/admin/api/oauth-users',
+    '/admin/api/oauth-users/',
+    '/api/admin/oauth-users',
+    '/api/admin/oauth-users/',
+  ],
+  authenticateJWT,
+  async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const users = await listOAuthUsersFromState();
@@ -1454,7 +1470,14 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBroke
 // ── OAuth Client Management ────────────────────────────────
 
 app.get(
-  ['/admin/oauth-clients', '/admin/api/oauth-clients', '/api/admin/oauth-clients'],
+  [
+    '/admin/oauth-clients',
+    '/admin/oauth-clients/',
+    '/admin/api/oauth-clients',
+    '/admin/api/oauth-clients/',
+    '/api/admin/oauth-clients',
+    '/api/admin/oauth-clients/',
+  ],
   authenticateJWT,
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
