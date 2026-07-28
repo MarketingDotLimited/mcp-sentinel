@@ -134,7 +134,7 @@ function isStateStoreUnavailable(error) {
   const message = String(error?.message || '');
   const combined = `${String(error?.code || '')} ${message}`;
   return (
-    /state\.sqlite3|sqlite|capabilities\.json|/i.test(combined) ||
+    /state\.sqlite3|capabilities\.json/i.test(combined) ||
     error?.code === 'SQLITE_CANTOPEN' ||
     error?.code === 'SQLITE_BUSY' ||
     error?.code === 'SQLITE_LOCKED' ||
