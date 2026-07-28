@@ -526,9 +526,9 @@ app.use(ipWhitelist);
 // under /api/admin (or /admin/api). This keeps legacy clients and proxies
 // working without changing existing tool callers.
 app.use((req, _res, next) => {
-  if (req.path.startsWith('/api/admin/')) {
+  if (req.path === '/api/admin' || req.path.startsWith('/api/admin/')) {
     req.url = req.url.replace(/^\/api\/admin/, '/admin');
-  } else if (req.path.startsWith('/admin/api/')) {
+  } else if (req.path === '/admin/api' || req.path.startsWith('/admin/api/')) {
     req.url = req.url.replace(/^\/admin\/api/, '/admin');
   }
   next();

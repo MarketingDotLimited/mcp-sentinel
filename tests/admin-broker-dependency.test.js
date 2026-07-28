@@ -111,4 +111,67 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       child = null;
     }
   });
+
+  it('supports admin endpoint aliases and keeps unrelated endpoints usable without the broker', async () => {
+    const port = await freePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const missingBrokerSocket = path.join(tmp, 'broker.sock');
+
+    child = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
+        ADMIN_API_KEY: adminKey,
+        JWT_SECRET: jwtSecret,
+        KEYS_FILE: path.join(tmp, 'keys.json'),
+        KEYSTORE_FILE: path.join(tmp, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'),
+        MCP_STATE_DB: path.join(tmp, 'state.sqlite3'),
+        MCP_BROKER_SOCKET: missingBrokerSocket,
+        AUDIT_LOG_DIR: path.join(tmp, 'logs'),
+      },
+      stdio: 'ignore',
+    });
+
+    try {
+      await waitFor(`${baseUrl}/health`);
+      const token = await fetchToken(baseUrl);
+      const authHeader = { Authorization: `Bearer ${token}` };
+
+      const compatibilityChecks = [
+        { label: 'admin capabilities', url: '/api/admin/capabilities', expectedStatus: 200 },
+        { label: 'legacy admin capabilities', url: '/admin/api/capabilities', expectedStatus: 200 },
+        { label: 'legacy action manifest', url: '/admin/api/action-manifest', expectedStatus: 200 },
+      ];
+
+      for (const { label, url, expectedStatus } of compatibilityChecks) {
+        const response = await fetch(`${baseUrl}${url}`, {
+          headers: authHeader,
+        });
+        assert.equal(response.status, expectedStatus, `unexpected ${label} status`);
+      }
+
+      const sessionsRes = await fetch(`${baseUrl}/admin/sessions`, { headers: authHeader });
+      const sessionsBody = await sessionsRes.json();
+      assert.equal(sessionsRes.status, 200);
+      assert.equal(sessionsBody?.count >= 0 || Array.isArray(sessionsBody?.sessions), true);
+
+      const manifestRes = await fetch(`${baseUrl}/action-manifest`, {
+        headers: authHeader,
+      });
+      const manifestBody = await manifestRes.json();
+      assert.equal(manifestRes.status, 200);
+      assert.ok(typeof manifestBody?.manifest?.version === 'string' || typeof manifestBody?.manifest?.version === 'number');
+      assert.ok(Array.isArray(manifestBody?.refreshChecklist));
+    } finally {
+      if (child && !child.killed) child.kill('SIGTERM');
+      child = null;
+    }
+  });
 });
