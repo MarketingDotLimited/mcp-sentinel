@@ -3,6 +3,7 @@ Description=MCP Sentinel public API
 After=network-online.target mcp-sentinel-broker.service
 Wants=network-online.target
 Requires=mcp-sentinel-broker.service
+BindsTo=mcp-sentinel-broker.service
 
 [Service]
 Type=simple

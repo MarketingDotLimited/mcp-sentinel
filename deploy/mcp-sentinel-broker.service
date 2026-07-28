@@ -1,6 +1,7 @@
 [Unit]
 Description=MCP Sentinel typed privilege broker
 Before=mcp-sentinel.service
+PartOf=mcp-sentinel.service
 
 [Service]
 Type=simple
@@ -26,7 +27,8 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx /etc/passwd /etc/shadow /etc/group /etc/gshadow
 # Exact registered project write paths are installed as a root-owned generated
 # drop-in by the signed release activator.
-Restart=on-failure
+Restart=always
+RestartSec=3s
 
 [Install]
 WantedBy=multi-user.target

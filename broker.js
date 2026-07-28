@@ -1381,10 +1381,16 @@ export function startBroker() {
   fs.mkdirSync(path.dirname(SOCKET_PATH), { recursive: true, mode: 0o750 });
   try {
     const stat = fs.lstatSync(SOCKET_PATH);
-    if (!stat.isSocket()) throw new Error('Broker socket path exists and is not a socket');
-    fs.unlinkSync(SOCKET_PATH);
+    if (!stat.isSocket()) fs.unlinkSync(SOCKET_PATH);
+    else fs.unlinkSync(SOCKET_PATH);
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code === 'ENOENT') {
+      // expected when starting fresh
+    } else if (error.code === 'EISDIR') {
+      throw new Error(`Broker socket path '${SOCKET_PATH}' is a directory`);
+    } else {
+      throw error;
+    }
   }
 
   const server = net.createServer(socket => {
@@ -1416,7 +1422,10 @@ export function startBroker() {
     socket.on('end', respond);
   });
 
-  server.listen(SOCKET_PATH, () => fs.chmodSync(SOCKET_PATH, 0o660));
+  server.listen(SOCKET_PATH, () => {
+    fs.chownSync(SOCKET_PATH, process.getuid(), process.getgid());
+    fs.chmodSync(SOCKET_PATH, 0o660);
+  });
   return server;
 }
 
