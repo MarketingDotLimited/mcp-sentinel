@@ -126,7 +126,7 @@ const USE_HTTPS = process.env.USE_HTTPS === 'true';
 function isBrokerUnavailable(error) {
   return (
     error?.code === 'E_BROKER_UNAVAILABLE' ||
-    /Privilege broker unavailable|broker unavailable/i.test(String(error?.message || ''))
+    /Privilege broker unavailable|broker unavailable|connect ENOENT|no socket available/i.test(String(error?.message || ''))
   );
 }
 

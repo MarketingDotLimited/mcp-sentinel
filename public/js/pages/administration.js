@@ -15,6 +15,7 @@ import { Router } from '../router.js';
     ['Sessions', '#/sessions', 'Review and close active MCP sessions.'],
     ['Configuration rollback', '#/rollbacks', 'Review configuration snapshots and restore when needed.'],
     ['OAuth & Access', '#/oauth', 'Advanced identity-provider administration.'],
+    ['SSH Access', '#/ssh-access', 'Enable/disable SSH access for identities, clients, hosts, projects, and connections.'],
   ];
   async function loadCapabilities() {
     const host = root.querySelector('#capability-list');

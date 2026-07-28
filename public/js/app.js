@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/dashboard.js';
 import './pages/keys.js?v=20260722-1';
 import './pages/logs.js';
 import './pages/oauth.js';
+import './pages/ssh-access.js';
 import './pages/projects.js';
 import './pages/rollbacks.js';
 import './pages/security.js';
@@ -146,6 +147,7 @@ const LoginPage = {
   Router.register('/sessions', window.SessionsPage);
   Router.register('/keys', window.KeysPage);
   Router.register('/oauth', window.OAuthPage);
+  Router.register('/ssh-access', window.SshAccessPage);
   Router.register('/rollbacks', window.RollbacksPage);
   Router.register('/administration', window.AdministrationPage);
 

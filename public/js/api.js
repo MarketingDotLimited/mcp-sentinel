@@ -40,7 +40,8 @@ const API = {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || `Request failed (${res.status})`);
+        const suffix = data?.code ? ` (${data.code})` : '';
+        throw new Error(`${data.error || `Request failed (${res.status})`}${suffix}`);
       }
       return data;
     } catch (e) {
