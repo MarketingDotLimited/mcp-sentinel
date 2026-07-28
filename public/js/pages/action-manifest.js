@@ -6,7 +6,13 @@ import { Toast } from '../toast.js';
   let currentManifest;
 
   async function requestManifest() {
-    const endpoints = ['/admin/action-manifest', '/action-manifest', '/admin/action-manifest/'];
+    const endpoints = [
+      '/admin/action-manifest',
+      '/action-manifest',
+      '/admin/action-manifest/',
+      '/action-manifest/',
+      '/api/admin/action-manifest',
+    ];
     let lastError;
     for (const endpoint of endpoints) {
       try {

@@ -151,6 +151,7 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
         { label: 'admin capabilities', url: '/api/admin/capabilities', expectedStatus: 200 },
         { label: 'legacy admin capabilities', url: '/admin/api/capabilities', expectedStatus: 200 },
         { label: 'legacy action manifest', url: '/admin/api/action-manifest', expectedStatus: 200 },
+        { label: 'slash-normalized action manifest', url: '/admin/action-manifest/', expectedStatus: 200 },
       ];
 
       for (const { label, url, expectedStatus } of compatibilityChecks) {

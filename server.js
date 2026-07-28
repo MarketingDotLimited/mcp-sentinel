@@ -838,9 +838,11 @@ async function handleActionManifest(req, res) {
   }
 }
 
-app.get('/admin/action-manifest', authenticateJWT, handleActionManifest);
-app.get('/admin/action-manifest/', authenticateJWT, handleActionManifest);
-app.get('/action-manifest', authenticateJWT, handleActionManifest);
+app.get(
+  ['/admin/action-manifest', '/admin/action-manifest/', '/action-manifest', '/action-manifest/', '/api/admin/action-manifest'],
+  authenticateJWT,
+  handleActionManifest
+);
 
 app.get('/admin/broker-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
