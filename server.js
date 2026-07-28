@@ -269,6 +269,12 @@ function isDependencyError(error) {
   );
 }
 
+function isOAuthDependencyError(error) {
+  const message = String(error?.message || error || '');
+  if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
+  return /connect\s+ENOENT|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable/i.test(message);
+}
+
 function isBrokerUnavailableError(error) {
   const message = String(error?.message || error || '');
   return /privilege\s+broker\s+unavailable|connect\s+enoent|no\s+such\s+file|socket\s+unavailable|broker\s+is\s+unavailable/i.test(message);
@@ -1532,7 +1538,10 @@ app.get(
     const users = await listOAuthUsersFromState();
     return res.json(users);
   } catch (e) {
-    if (isDependencyError(e)) return res.json([]);
+    if (isOAuthDependencyError(e)) {
+      logError(e, 'oauth-users-list');
+      return res.json([]);
+    }
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
@@ -1609,7 +1618,7 @@ app.get(
     '/admin/api/oauth-clients/',
     '/api/admin/oauth-clients',
   '/api/admin/oauth-clients/',
-  ],
+],
   authenticateJWT,
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -1617,7 +1626,10 @@ app.get(
     const clients = await listOAuthClientsFromState();
     return res.json(clients);
   } catch (e) {
-    if (isDependencyError(e)) return res.json([]);
+    if (isOAuthDependencyError(e)) {
+      logError(e, 'oauth-clients-list');
+      return res.json([]);
+    }
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_CLIENT_LIST_FAILED',
