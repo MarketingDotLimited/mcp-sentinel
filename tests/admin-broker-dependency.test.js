@@ -256,4 +256,63 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       await fs.rm(emptyDir, { recursive: true, force: true });
     }
   });
+
+  it('returns empty OAuth collections when Authelia files are malformed instead of 500', async () => {
+    const port = await freePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const missingBrokerSocket = path.join(tmp, 'broker.sock');
+    const malformedDir = await fs.mkdtemp(path.join(tmp, 'mcp-malformed-authelia-'));
+
+    await fs.writeFile(path.join(malformedDir, 'users.yml'), 'users: [::oops', 'utf8');
+    await fs.writeFile(path.join(malformedDir, 'authelia.yml'), 'identity_providers: [::oops', 'utf8');
+
+    child = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
+        ADMIN_API_KEY: adminKey,
+        JWT_SECRET: jwtSecret,
+        KEYS_FILE: path.join(malformedDir, 'keys.json'),
+        KEYSTORE_FILE: path.join(malformedDir, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(malformedDir, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(malformedDir, 'capabilities.json'),
+        MCP_STATE_DB: path.join(malformedDir, 'state.sqlite3'),
+        MCP_BROKER_SOCKET: missingBrokerSocket,
+        AUTHELIA_USERS_FILE: path.join(malformedDir, 'users.yml'),
+        AUTHELIA_CONFIG_FILE: path.join(malformedDir, 'authelia.yml'),
+        AUDIT_LOG_DIR: path.join(malformedDir, 'logs'),
+      },
+      stdio: 'ignore',
+    });
+
+    try {
+      await waitFor(`${baseUrl}/health`);
+      const token = await fetchToken(baseUrl);
+
+      const usersRes = await fetch(`${baseUrl}/admin/oauth-users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const usersBody = await usersRes.json();
+      assert.equal(usersRes.status, 200);
+      assert.equal(Array.isArray(usersBody), true);
+      assert.equal(usersBody.length, 0);
+
+      const clientsRes = await fetch(`${baseUrl}/admin/oauth-clients`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const clientsBody = await clientsRes.json();
+      assert.equal(clientsRes.status, 200);
+      assert.equal(Array.isArray(clientsBody), true);
+      assert.equal(clientsBody.length, 0);
+    } finally {
+      if (child && !child.killed) child.kill('SIGTERM');
+      child = null;
+      await fs.rm(malformedDir, { recursive: true, force: true });
+    }
+  });
 });
