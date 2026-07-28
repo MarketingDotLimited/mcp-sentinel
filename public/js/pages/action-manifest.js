@@ -6,27 +6,7 @@ import { Toast } from '../toast.js';
   let currentManifest;
 
   async function requestManifest() {
-    const endpoints = [
-      '/admin/action-manifest',
-      '/action-manifest',
-      '/admin/action-manifest/',
-      '/action-manifest/',
-      '/admin/api/action-manifest',
-      '/admin/api/action-manifest/',
-      '/api/admin/action-manifest',
-      '/api/admin/action-manifest/',
-      '/api/action-manifest',
-    ];
-    let lastError;
-    for (const endpoint of endpoints) {
-      try {
-        return await API.get(endpoint);
-      } catch (error) {
-        lastError = error;
-        if (error?.status !== 404) throw error;
-      }
-    }
-    throw lastError;
+    return API.get('/admin/action-manifest');
   }
 
   async function checkBroker() {

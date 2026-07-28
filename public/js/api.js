@@ -169,7 +169,7 @@ const API = {
       } catch (error) {
         normalizeDependencyError(error);
         const readFallback = getReadDependencyFallback(requestUrl);
-        if (readFallback !== null && isDependencyUnavailable(error)) {
+        if (readFallback !== null && (isDependencyUnavailable(error) || error.status === 404)) {
           return readFallback;
         }
 
