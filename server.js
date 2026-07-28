@@ -812,25 +812,33 @@ app.get('/action-manifest', authenticateJWT, handleActionManifest);
 
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-  const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
-  let auditVerification = null;
   try {
-    auditVerification = JSON.parse(
-      fs.readFileSync(
-        process.env.AUDIT_VERIFICATION_STATUS_FILE || '/var/lib/mcp-sentinel/audit-verification.json',
-        'utf8'
-      )
-    );
-  } catch {}
-  return res.json({
-    broker,
-    migrations: broker.migrations || [],
-    audit: { ...getAuditChainStatus(), lastVerification: auditVerification },
-    credentialRotation: getAdminState('credential_rotation_status'),
-    stateKeyRotation: broker.stateKeyRotation ? JSON.parse(broker.stateKeyRotation) : null,
-    actionRefresh: getAdminState('action_refresh_status'),
-    manifest: manifestSnapshots.get(manifestIdentityKey(req.identity)) || null,
-  });
+    const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
+    let auditVerification = null;
+    try {
+      auditVerification = JSON.parse(
+        fs.readFileSync(
+          process.env.AUDIT_VERIFICATION_STATUS_FILE || '/var/lib/mcp-sentinel/audit-verification.json',
+          'utf8'
+        )
+      );
+    } catch {}
+    return res.json({
+      broker,
+      migrations: broker.migrations || [],
+      audit: { ...getAuditChainStatus(), lastVerification: auditVerification },
+      credentialRotation: getAdminState('credential_rotation_status'),
+      stateKeyRotation: broker.stateKeyRotation ? JSON.parse(broker.stateKeyRotation) : null,
+      actionRefresh: getAdminState('action_refresh_status'),
+      manifest: manifestSnapshots.get(manifestIdentityKey(req.identity)) || null,
+    });
+  } catch (e) {
+    return respondDependencyAwareError(res, e, {
+      status: 500,
+      code: 'REMEDIATION_STATUS_FAILED',
+      label: 'Failed to load remediation status',
+    });
+  }
 });
 
 app.post('/admin/credential-rotation-status', authenticateJWT, (req, res) => {
@@ -1383,8 +1391,11 @@ app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     const clients = await getOAuthClients();
     res.json(clients);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(500).json({ error: e.message });
+    return respondDependencyAwareError(res, e, {
+      status: 500,
+      code: 'OAUTH_CLIENT_LIST_FAILED',
+      label: 'Failed to load OAuth clients',
+    });
   }
 });
 
@@ -1395,8 +1406,11 @@ app.post('/admin/oauth-clients', authenticateJWT, async (req, res) => {
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
     res.json(client);
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(400).json({ error: e.message });
+    return respondDependencyAwareError(res, e, {
+      status: 400,
+      code: 'OAUTH_CLIENT_CREATE_FAILED',
+      label: 'Failed to create OAuth client',
+    });
   }
 });
 
@@ -1407,8 +1421,11 @@ app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) =
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
     res.json({ success: true });
   } catch (e) {
-    if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
-    res.status(400).json({ error: e.message });
+    return respondDependencyAwareError(res, e, {
+      status: 400,
+      code: 'OAUTH_CLIENT_DELETE_FAILED',
+      label: 'Failed to delete OAuth client',
+    });
   }
 });
 
