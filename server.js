@@ -123,6 +123,20 @@ const PORT = parseInt(process.env.PORT || '4444');
 const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
+async function ensurePrivilegeBrokerAvailable(req, res, next) {
+  if (!req?.identity || req.identity.role !== 'admin') return next();
+  try {
+    await brokerCall('broker.health', {});
+    return next();
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 503,
+      code: 'BROKER_UNAVAILABLE',
+      label: 'Privilege broker is not available',
+    });
+  }
+}
+
 function isBrokerUnavailable(error, visited = new Set()) {
   if (!error || visited.has(error)) return false;
   if (typeof error === 'string') return /broker unavailable|connect ENOENT|no socket available/i.test(error);
@@ -947,6 +961,7 @@ app.get('/admin/sessions', authenticateJWT, (req, res) => {
       const identity = s?.identity || {};
       return {
         sessionId: id,
+        id,
         userId: identity.userId,
         role: identity.role,
         authType: identity.type || 'unknown',
@@ -1345,7 +1360,7 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
+app.get('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const users = await getOAuthUsers();
@@ -1359,7 +1374,7 @@ app.get('/admin/oauth-users', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
+app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const user = await addOAuthUser(req.body);
@@ -1376,7 +1391,7 @@ app.post('/admin/oauth-users', authenticateJWT, async (req, res) => {
   }
 });
 
-app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
+app.put('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const { username: bodyUsername, ...updates } = req.body || {};
@@ -1399,7 +1414,7 @@ app.put('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
   }
 });
 
-app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => {
+app.delete('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     await deleteOAuthUser(req.params.username);
@@ -1419,7 +1434,7 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, async (req, res) => 
 
 // ── OAuth Client Management ────────────────────────────────
 
-app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
+app.get('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const clients = await getOAuthClients();
@@ -1433,7 +1448,7 @@ app.get('/admin/oauth-clients', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/oauth-clients', authenticateJWT, async (req, res) => {
+app.post('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const client = await addOAuthClient(req.body);
@@ -1448,7 +1463,7 @@ app.post('/admin/oauth-clients', authenticateJWT, async (req, res) => {
   }
 });
 
-app.delete('/admin/oauth-clients/:clientId', authenticateJWT, async (req, res) => {
+app.delete('/admin/oauth-clients/:clientId', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     await deleteOAuthClient(req.params.clientId);
