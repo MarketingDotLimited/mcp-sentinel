@@ -29,40 +29,77 @@ const API = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    try {
-      const res = await fetch(url, { ...options, headers });
-
-      let data = {};
-      try {
-        data = await res.json();
-      } catch {
-        data = { error: await res.text().catch(() => 'Unable to parse API response') };
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        this.clearToken();
-        window.location.hash = '#/login';
-        throw Object.assign(new Error('Session expired. Please log in again.'), {
-          status: res.status,
-          code: data?.code || null,
-        });
-      }
-
-      if (!res.ok) {
-        const error = new Error(`${data.error || `Request failed (${res.status})`}${data?.code ? ` (${data.code})` : ''}`);
-        error.status = res.status;
-        error.code = data?.code || null;
-        if (data?.resolution) error.resolution = data.resolution;
-        if (data?.detail) error.detail = data.detail;
-        throw error;
-      }
-      return data;
-    } catch (e) {
-      if (e.message === 'Failed to fetch') {
-        throw new Error('Server unreachable. Check your connection.');
-      }
-      throw e;
+    const candidateUrls = [];
+    if (typeof url === 'string' && url.startsWith('/admin/')) {
+      candidateUrls.push(url);
+      candidateUrls.push(`/api${url}`);
+      candidateUrls.push(url.replace(/^\/admin\//, '/api/admin/'));
+      candidateUrls.push(url.replace(/^\/admin\//, '/admin/api/'));
+    } else if (typeof url === 'string' && url.startsWith('/action-manifest')) {
+      candidateUrls.push(url);
+      candidateUrls.push('/admin/action-manifest');
+      candidateUrls.push('/api/admin/action-manifest');
+    } else {
+      candidateUrls.push(url);
     }
+
+    let lastError;
+    for (const requestUrl of [...new Set(candidateUrls)]) {
+      try {
+        const res = await fetch(requestUrl, { ...options, headers });
+
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          data = { error: await res.text().catch(() => 'Unable to parse API response') };
+        }
+
+        if (res.status === 401 || res.status === 403) {
+          this.clearToken();
+          window.location.hash = '#/login';
+          throw Object.assign(new Error('Session expired. Please log in again.'), {
+            status: res.status,
+            code: data?.code || null,
+          });
+        }
+
+        if (!res.ok) {
+          const error = new Error(
+            `${data.error || `Request failed (${res.status})`}${data?.code ? ` (${data.code})` : ''}`
+          );
+          error.status = res.status;
+          error.code = data?.code || null;
+          if (data?.resolution) error.resolution = data.resolution;
+          if (data?.detail) error.detail = data.detail;
+
+          const isBrokerUnavailableError =
+            error.code === 'BROKER_UNAVAILABLE' ||
+            /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable/i.test(error.message);
+          if (isBrokerUnavailableError && error.status === 503) {
+            throw error;
+          }
+
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        const isBrokerUnavailableError =
+          error.code === 'BROKER_UNAVAILABLE' ||
+          /Privilege broker unavailable|connect ENOENT|no such file or directory|Broker unavailable/i.test(error.message);
+
+        const retriable =
+          (error.status === 404 || error.status === 502 || error.message === 'Failed to fetch') && !isBrokerUnavailableError;
+        lastError = error;
+        if (!retriable || requestUrl === candidateUrls.at(-1)) {
+          throw error;
+        }
+      }
+    }
+    if (lastError?.message === 'Failed to fetch') {
+      throw new Error('Server unreachable. Check your connection.');
+    }
+    throw lastError;
   },
 
   async get(url) {

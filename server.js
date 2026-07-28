@@ -508,6 +508,18 @@ app.use(
 // IP extraction middleware
 app.use(ipWhitelist);
 
+// Compatibility alias for deployments where the dashboard API is mounted
+// under /api/admin (or /admin/api). This keeps legacy clients and proxies
+// working without changing existing tool callers.
+app.use((req, _res, next) => {
+  if (req.path.startsWith('/api/admin/')) {
+    req.url = req.url.replace(/^\/api\/admin/, '/admin');
+  } else if (req.path.startsWith('/admin/api/')) {
+    req.url = req.url.replace(/^\/admin\/api/, '/admin');
+  }
+  next();
+});
+
 // ── Rate Limiting ──────────────────────────────────────────
 
 const globalLimiter = rateLimit({
