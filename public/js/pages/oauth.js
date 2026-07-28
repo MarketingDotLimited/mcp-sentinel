@@ -88,6 +88,28 @@ window.OAuthPage = (function () {
     return `${prefix}: ${err.message}`;
   }
 
+  function isDependencyUnavailable(err) {
+    return (
+      err?.code === 'BROKER_UNAVAILABLE' ||
+      err?.code === 'E_BROKER_UNAVAILABLE' ||
+      err?.code === 'STATE_STORE_UNAVAILABLE' ||
+      err?.status === 502 ||
+      err?.status === 503 ||
+      /privilege broker unavailable|connect ENOENT|no such file|socket unavailable|state store unavailable/i.test(String(err?.message || ''))
+    );
+  }
+
+  function renderDependencyPlaceholder(tbody, label, err, columns = 6) {
+    const message = dependencyMessage(label, err);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="${columns}" style="padding: 12px 10px; color: #92400e; background: #fffbeb;">
+          ${message}
+        </td>
+      </tr>
+    `;
+  }
+
   function switchTab(tabId) {
     currentTab = tabId;
     const tabs = container.querySelectorAll('.oauth-tab');
@@ -268,7 +290,10 @@ window.OAuthPage = (function () {
         tbody.appendChild(tr);
       });
     } catch (err) {
-      Toast.error(dependencyMessage('Failed to load users', err));
+      renderDependencyPlaceholder(tbody, 'Failed to load users', err, 6);
+      if (!isDependencyUnavailable(err)) {
+        Toast.error(dependencyMessage('Failed to load users', err));
+      }
     }
   }
 
@@ -630,7 +655,10 @@ window.OAuthPage = (function () {
         tbody.appendChild(tr);
       });
     } catch (err) {
-      Toast.error(dependencyMessage('Failed to load clients', err));
+      renderDependencyPlaceholder(tbody, 'Failed to load clients', err, 5);
+      if (!isDependencyUnavailable(err)) {
+        Toast.error(dependencyMessage('Failed to load clients', err));
+      }
     }
   }
 

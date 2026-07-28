@@ -163,6 +163,7 @@ function isBrokerUnavailable(error, visited = new Set()) {
   const errorText = `${code} ${message} ${additionalMessages.join(' ')}`.trim();
   if (
     code === 'E_BROKER_UNAVAILABLE' ||
+    code === 'BROKER_UNAVAILABLE' ||
     code === 'ECONNREFUSED' ||
     code === 'EPIPE' ||
     code === 'ECONNRESET' ||
@@ -196,7 +197,9 @@ function respondDependencyAwareError(
 function isStateStoreUnavailable(error) {
   const message = String(error?.message || '');
   const combined = `${String(error?.code || '')} ${message}`;
+  const code = String(error?.code || '');
   return (
+    code === 'STATE_STORE_UNAVAILABLE' ||
     /state\.sqlite3|capabilities\.json/i.test(combined) ||
     error?.code === 'SQLITE_CANTOPEN' ||
     error?.code === 'SQLITE_BUSY' ||
