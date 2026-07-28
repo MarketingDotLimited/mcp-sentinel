@@ -178,4 +178,58 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       child = null;
     }
   });
+
+  it('returns empty OAuth collections when files are absent instead of 500', async () => {
+    const port = await freePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const missingBrokerSocket = path.join(tmp, 'broker.sock');
+    const emptyDir = await fs.mkdtemp(path.join(tmp, 'mcp-missing-authelia-'));
+
+    child = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
+        ADMIN_API_KEY: adminKey,
+        JWT_SECRET: jwtSecret,
+        KEYS_FILE: path.join(emptyDir, 'keys.json'),
+        KEYSTORE_FILE: path.join(emptyDir, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(emptyDir, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(emptyDir, 'capabilities.json'),
+        MCP_STATE_DB: path.join(emptyDir, 'state.sqlite3'),
+        MCP_BROKER_SOCKET: missingBrokerSocket,
+        AUTHELIA_USERS_FILE: path.join(emptyDir, 'users.yml'),
+        AUTHELIA_CONFIG_FILE: path.join(emptyDir, 'authelia.yml'),
+        AUDIT_LOG_DIR: path.join(emptyDir, 'logs'),
+      },
+      stdio: 'ignore',
+    });
+
+    try {
+      await waitFor(`${baseUrl}/health`);
+      const token = await fetchToken(baseUrl);
+
+      const usersRes = await fetch(`${baseUrl}/admin/oauth-users`, { headers: { Authorization: `Bearer ${token}` } });
+      const usersBody = await usersRes.json();
+      assert.equal(usersRes.status, 200);
+      assert.equal(Array.isArray(usersBody), true);
+      assert.equal(usersBody.length, 0);
+
+      const clientsRes = await fetch(`${baseUrl}/admin/oauth-clients`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const clientsBody = await clientsRes.json();
+      assert.equal(clientsRes.status, 200);
+      assert.equal(Array.isArray(clientsBody), true);
+      assert.equal(clientsBody.length, 0);
+    } finally {
+      if (child && !child.killed) child.kill('SIGTERM');
+      child = null;
+      await fs.rm(emptyDir, { recursive: true, force: true });
+    }
+  });
 });
