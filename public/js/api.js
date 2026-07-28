@@ -51,6 +51,18 @@ const API = {
         )
       );
     };
+    const isStateStoreUnavailable = error => {
+      return (
+        error?.code === 'STATE_STORE_UNAVAILABLE' ||
+        /state\\.sqlite3|capabilities\\.json/i.test(String(error?.message || '')) ||
+        /unable to open database file|database is locked|database disk image is malformed|permission denied|read-only file system/i.test(
+          String(error?.message || '')
+        )
+      );
+    };
+    const isDependencyUnavailable = error =>
+      isBrokerUnavailable(error) || isStateStoreUnavailable(error) || error.status === 503 || error.status === 500;
+
     const normalizeBrokerUnavailable = error => {
       if (!isBrokerUnavailable(error)) return error;
       return Object.assign(error, {
@@ -63,7 +75,9 @@ const API = {
     };
 
     let lastError;
-    for (const requestUrl of [...new Set(candidateUrls)]) {
+    const uniqUrls = [...new Set(candidateUrls)];
+    for (let i = 0; i < uniqUrls.length; i += 1) {
+      const requestUrl = uniqUrls[i];
       try {
         const res = await fetch(requestUrl, { ...options, headers });
 
@@ -92,23 +106,21 @@ const API = {
           if (data?.resolution) error.resolution = data.resolution;
           if (data?.detail) error.detail = data.detail;
 
-          const isBrokerUnavailableError = isBrokerUnavailable(error);
           normalizeBrokerUnavailable(error);
-          if (isBrokerUnavailableError) {
-            throw error;
-          }
-
           throw error;
         }
         return data;
       } catch (error) {
         normalizeBrokerUnavailable(error);
-        const isBrokerUnavailableError = isBrokerUnavailable(error);
-
-        const retriable =
-          (error.status === 404 || error.status === 502 || error.message === 'Failed to fetch') && !isBrokerUnavailableError;
+        const retryable =
+          error.status === 404 ||
+          error.status === 500 ||
+          error.status === 502 ||
+          error.status === 503 ||
+          error.message === 'Failed to fetch' ||
+          isDependencyUnavailable(error);
         lastError = error;
-        if (!retriable || requestUrl === candidateUrls.at(-1)) {
+        if (!retryable || i === uniqUrls.length - 1) {
           throw error;
         }
       }
