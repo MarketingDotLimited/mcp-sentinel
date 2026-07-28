@@ -90,8 +90,8 @@ const API = {
 
       if (/^\/admin\/oauth-users$/.test(adminUrl)) return [];
       if (/^\/admin\/oauth-clients$/.test(adminUrl)) return [];
-      if (/^\/admin\/capabilities$/.test(adminUrl)) return { capabilities: [] };
-      if (/^\/admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0 };
+      if (/^\/admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
+      if (/^\/admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
       if (/^\/admin\/action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
         return {
           manifest: {
@@ -105,6 +105,16 @@ const API = {
         };
       }
       return null;
+    };
+
+    const appearsDependencyLayerFailure = error => {
+      return (
+        isDependencyUnavailable(error) ||
+        /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|state\.sqlite3/i.test(
+          String(error?.message || '')
+        ) ||
+        error.message === 'Failed to fetch'
+      );
     };
 
     const normalizeDependencyError = error => {
@@ -169,7 +179,7 @@ const API = {
       } catch (error) {
         normalizeDependencyError(error);
         const readFallback = getReadDependencyFallback(requestUrl);
-        if (readFallback !== null && (isDependencyUnavailable(error) || error.status === 404)) {
+        if (readFallback !== null && (appearsDependencyLayerFailure(error) || error.status === 404)) {
           return readFallback;
         }
 
