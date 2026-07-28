@@ -31,14 +31,24 @@ const API = {
 
     const candidateUrls = [];
     if (typeof url === 'string' && url.startsWith('/admin/')) {
+      const adminRelative = url.replace(/^\/admin\//, '/');
+      const adminWithoutTrailingSlash = adminRelative.endsWith('/') ? adminRelative.slice(0, -1) : adminRelative;
+
       candidateUrls.push(url);
+      candidateUrls.push(`/admin/api${adminWithoutTrailingSlash}`);
+      candidateUrls.push(`/admin/api${adminRelative}`);
+      candidateUrls.push(`/api/admin${adminWithoutTrailingSlash}`);
+      candidateUrls.push(`/api/admin${adminRelative}`);
       candidateUrls.push(`/api${url}`);
-      candidateUrls.push(url.replace(/^\/admin\//, '/api/admin/'));
-      candidateUrls.push(url.replace(/^\/admin\//, '/admin/api/'));
+      candidateUrls.push(adminRelative);
+      candidateUrls.push(`/api${adminRelative}`);
     } else if (typeof url === 'string' && url.startsWith('/action-manifest')) {
       candidateUrls.push(url);
+      candidateUrls.push('/action-manifest');
       candidateUrls.push('/admin/action-manifest');
+      candidateUrls.push('/admin/action-manifest/');
       candidateUrls.push('/api/admin/action-manifest');
+      candidateUrls.push('/api/action-manifest');
     } else {
       candidateUrls.push(url);
     }
