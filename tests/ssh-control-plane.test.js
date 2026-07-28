@@ -69,6 +69,12 @@ const developer = {
   teamId: 'team-1',
   projectIds: [projectId],
 };
+const apiIdentity = {
+  userId: 'api-user',
+  role: 'developer',
+  authType: 'apiKey',
+  keyId: 'identity-key-001',
+};
 
 after(async () => {
   await fs.rm(directory, { recursive: true, force: true });
@@ -84,6 +90,7 @@ describe('SSH access controls', () => {
   });
 
   it('supports every global, organization, team, host, connection, project, identity, and client gate', async () => {
+    const before = (await controlPlane.listSshAccessPolicies(admin)).history.length;
     const targets = [
       { targetType: 'global' },
       { targetType: 'organization', targetId: 'organization-1' },
@@ -97,18 +104,22 @@ describe('SSH access controls', () => {
         issuer: developer.oauthIssuer,
         subject: developer.oauthSubject,
       },
+      { targetType: 'identity-key', keyId: apiIdentity.keyId },
       { targetType: 'oauth-client', issuer: developer.oauthIssuer, clientId: developer.oauthClient },
     ];
+    const expectedNewEntries = targets.length + 2;
     for (const target of targets) {
       await controlPlane.adminSetSshAccess({ ...target, sshAllowed: true, sshEnabled: true, confirm: true }, admin);
     }
+    const apiPreference = await controlPlane.setMySshAccess({ enabled: true, confirm: true }, apiIdentity);
+    assert.equal(apiPreference.sshEnabled, true);
     await controlPlane.setMySshAccess({ scope: 'current-client', enabled: true, confirm: true }, developer);
     const access = await controlPlane.getMySshAccess(developer, { projectId });
     assert.equal(access.project.allowed, true);
     assert.ok(access.sshPolicyVersion > 1);
 
     const policies = await controlPlane.listSshAccessPolicies(admin);
-    assert.equal(policies.history.length, targets.length + 2);
+    assert.equal(policies.history.length, before + expectedNewEntries);
     assert.equal(policies.connections[0].sshAllowed, true);
     await assert.rejects(controlPlane.listSshAccessPolicies(developer), /Only administrators/);
   });
