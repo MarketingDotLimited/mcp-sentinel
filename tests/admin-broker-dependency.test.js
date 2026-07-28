@@ -182,6 +182,11 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.equal(manifestRes.status, 200);
       assert.ok(typeof manifestBody?.manifest?.version === 'string' || typeof manifestBody?.manifest?.version === 'number');
       assert.ok(Array.isArray(manifestBody?.refreshChecklist));
+      const toolNames = new Set((manifestBody?.manifest?.tools || []).map(item => item.name));
+      const missingTool = ['run_project_tests', 'get_project_test_run', 'cancel_project_test_run', 'get_my_ssh_access', 'set_my_ssh_access'].find(
+        name => !toolNames.has(name)
+      );
+      assert.equal(missingTool, undefined);
 
       const sshTool = manifestBody?.manifest?.tools?.find(tool => tool.name === 'admin_set_ssh_access');
       if (sshTool) {

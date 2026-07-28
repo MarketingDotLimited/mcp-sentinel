@@ -215,6 +215,15 @@ function isStateStoreUnavailable(error) {
 }
 
 function isRecoverableDependencyError(error) {
+  const directText = typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean' ? String(error) : '';
+  if (
+    directText &&
+    /connect\s+ENOENT|no\s+such\s+file|broker\s+is\s+unavailable|cannot\s+connect|privilege\s+broker\s+unavailable|socket\s+unavailable|BROKER_UNAVAILABLE/i.test(
+      directText
+    )
+  )
+    return true;
+
   if (!error || typeof error !== 'object') return false;
 
   const queue = [error];
@@ -249,6 +258,10 @@ function isRecoverableDependencyError(error) {
   }
 
   return false;
+}
+
+function isDependencyError(error) {
+  return isRecoverableDependencyError(error) || isBrokerUnavailable(error) || isBrokerUnavailableError(error);
 }
 
 function isBrokerUnavailableError(error) {
@@ -749,7 +762,7 @@ app.get(
   try {
     return res.json({ capabilities: await getCapabilities() });
   } catch (err) {
-    if (isRecoverableDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
 });
@@ -1493,7 +1506,7 @@ app.get(
     const users = await listOAuthUsersFromState();
     res.json(users);
   } catch (e) {
-    if (isRecoverableDependencyError(e) || isBrokerUnavailableError(e)) return res.json([]);
+    if (isDependencyError(e)) return res.json([]);
     respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_USER_LIST_FAILED',
@@ -1578,7 +1591,7 @@ app.get(
     const clients = await listOAuthClientsFromState();
     res.json(clients);
   } catch (e) {
-    if (isRecoverableDependencyError(e) || isBrokerUnavailableError(e)) return res.json([]);
+    if (isDependencyError(e)) return res.json([]);
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'OAUTH_CLIENT_LIST_FAILED',
