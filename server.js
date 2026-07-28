@@ -767,7 +767,17 @@ app.get(
   try {
     return res.json({ capabilities: await getCapabilities() });
   } catch (err) {
-    if (isDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isDependencyError(err)) {
+      return res.json({
+        capabilities: [],
+        status: 'dependency-unavailable',
+        dependency: {
+          unavailable: true,
+          reason: String(err?.message || 'Privilege broker/state store unavailable'),
+          code: 'DEPENDENCY_UNAVAILABLE',
+        },
+      });
+    }
     return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
 });
@@ -1070,7 +1080,18 @@ app.get(
     });
     return res.json({ sessions, count: sessions.length });
   } catch (err) {
-    if (isDependencyError(err)) return respondServiceDependencyUnavailable(res, err);
+    if (isDependencyError(err)) {
+      return res.json({
+        sessions: [],
+        count: 0,
+        status: 'dependency-unavailable',
+        dependency: {
+          unavailable: true,
+          reason: String(err?.message || 'Privilege broker/state store unavailable'),
+          code: 'DEPENDENCY_UNAVAILABLE',
+        },
+      });
+    }
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'SESSION_LIST_FAILED',
