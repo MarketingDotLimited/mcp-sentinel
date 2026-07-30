@@ -31,6 +31,12 @@ with PKCE, exact audience/issuer/client checks, rotation, and revocation. Keys a
 key ID and may be supplied by systemd credentials, Vault, a cloud KMS, or an HSM adapter; values
 must never appear in SQLite, logs, manifests, or repository files.
 
+WebAuthn ceremonies are HTTPS-origin and RP-ID bound, require user verification, consume challenges
+once, persist credential counters, and issue a five-minute step-up token. Set
+`MCP_REQUIRE_WEBAUTHN_FOR_ADMIN=true` only after all privileged administrators have enrolled and
+tested a passkey; otherwise the enrollment endpoints remain available without changing existing
+default authentication behavior.
+
 ## Observability and recovery
 
 Use `X-Request-ID`, bounded Prometheus metrics, and self-hosted OpenTelemetry-compatible export

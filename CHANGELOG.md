@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Reliability and administrator assurance
+
+- Added a durable SQLite job worker contract with leases, retries, cancellation, bounded results, idempotency, and fail-closed handler registration.
+- Added deployment-profile validation that keeps single-host deployments ready and refuses unconfirmed high-availability configurations.
+- Added HTTPS-bound WebAuthn enrollment/authentication with one-use challenges, credential-counter persistence, and optional five-minute administrator step-up enforcement.
+- Applied the optional WebAuthn step-up gate to critical administrator mutations, including keys, approvals, projects, SSH policy, OAuth administration, backups, sessions, and capability changes.
+
 ## [2.0.0] — 2026-07-23
 
 ### Security architecture release

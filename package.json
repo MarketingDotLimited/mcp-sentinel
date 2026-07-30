@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.4",
+    "@simplewebauthn/server": "^13.3.2",
     "acme-client": "^5.4.0",
     "compression": "^1.8.1",
     "cors": "^2.8.6",

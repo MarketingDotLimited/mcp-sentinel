@@ -372,6 +372,32 @@ export function issueToken(req, res) {
   });
 }
 
+// A short-lived token minted only after a verified WebAuthn ceremony. It is
+// intentionally bound to the current API-key identity and cannot refresh the
+// underlying key or OAuth authorization.
+export function issueStepUpToken(identity) {
+  if (!identity?.userId || !identity?.keyId || identity.authType !== 'apiKey')
+    throw new Error('WebAuthn step-up requires an authenticated Sentinel API-key identity');
+  return jwt.sign(
+    {
+      sub: identity.userId,
+      role: identity.role,
+      scopes: identity.scopes,
+      keyId: identity.keyId,
+      keyVersion: identity.keyVersion,
+      requireApproval: identity.requireApproval === true,
+      projectIds: identity.projectIds,
+      organizationId: identity.organizationId,
+      teamId: identity.teamId,
+      mfaVerified: true,
+      amr: ['webauthn'],
+      jti: randomUUID(),
+    },
+    JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: '5m', issuer: 'mcp-server', audience: 'mcp-client' }
+  );
+}
+
 /**
  * Middleware: Validate JWT token (dual-auth: internal HS256 + Authelia RS256)
  */
@@ -466,6 +492,7 @@ export function authenticateJWT(req, res, next) {
       teamId: decoded.teamId || undefined,
       jti: decoded.jti,
       tokenExpiresAt: decoded.exp ? decoded.exp * 1000 : Date.now(),
+      mfaVerified: decoded.mfaVerified === true && Array.isArray(decoded.amr) && decoded.amr.includes('webauthn'),
     };
 
     return next();

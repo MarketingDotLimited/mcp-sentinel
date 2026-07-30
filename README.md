@@ -222,6 +222,10 @@ with administrative job requests to safely retry a lost HTTP response. Jobs have
 payloads, leases, retry limits, cancellation, and terminal states; the queue never executes
 an arbitrary command by itself.
 
+An approved worker claims work with `POST /admin/jobs/claim`, then reports bounded results with
+`POST /admin/jobs/:id/complete` or failures with `/fail`. Only registered worker handlers may
+execute a job type; an unregistered type is failed closed.
+
 Every response includes an `X-Request-ID` correlation header. Prometheus metrics are available
 to an authenticated administrator or auditor at `/admin/metrics`; the unauthenticated
 `/metrics` endpoint is disabled unless `METRICS_PUBLIC=true`. Configure an OpenTelemetry
@@ -236,6 +240,11 @@ GET /admin/policy/simulate?tool=write_file&role=developer
 
 The response reports matching rule effects, the final allow/deny decision, and whether approval
 is required, without returning the policy file contents.
+
+Passkey enrollment is available through the administrator WebAuthn endpoints. Configure
+`WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGIN` to the production HTTPS origin, enroll every administrator,
+then enable `MCP_REQUIRE_WEBAUTHN_FOR_ADMIN=true` to require a five-minute WebAuthn step-up token
+for high-risk administrator actions.
 
 The live test verifies a low-privilege MCP identity can read system health but cannot read `/etc/shadow` or create users. Both integration suites use temporary state, keys, logs, and ports.
 

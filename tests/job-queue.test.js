@@ -41,4 +41,25 @@ describe('durable job queue', () => {
     assert.equal(queue.cancel(job.id).state, 'cancelled');
     assert.throws(() => queue.complete(job.id, {}), /missing|active/);
   });
+
+  it('runs only explicitly registered handlers and stops cleanly', async () => {
+    const queue = new JobQueue(path.join(directory, 'worker.sqlite3'));
+    const job = queue.enqueue({ type: 'backup', owner: 'worker-test' });
+    let calls = 0;
+    const stop = queue.startWorker({
+      workerId: 'worker-1',
+      pollMs: 25,
+      handlers: {
+        backup: async payload => {
+          calls += 1;
+          return { accepted: payload };
+        },
+      },
+    });
+    for (let index = 0; index < 20 && queue.get(job.id).state !== 'completed'; index += 1)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    stop();
+    assert.equal(calls, 1);
+    assert.deepEqual(queue.get(job.id).result.accepted, {});
+  });
 });

@@ -5,6 +5,7 @@ import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'url';
 import { parseEnvironment } from '../lib/deployment.js';
+import { validateDeploymentProfile } from '../lib/deployment-profile.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(__dirname, '..');
@@ -29,6 +30,15 @@ function attempt(id, callback, failure = 'fail') {
     record(id, failure, error.message);
   }
 }
+
+attempt('deployment-profile', () => {
+  const profile = validateDeploymentProfile({
+    ...process.env,
+    ...parseEnvironment(fs.readFileSync(hostPath('/etc/mcp-sentinel/environment'), 'utf8')),
+  });
+  if (!profile.ready) throw new Error(profile.warning || 'Deployment profile is not ready');
+  return `${profile.profile} profile is configured and ready`;
+});
 
 function assertModeOwner(absolutePath, expectedMode, uid, gid, type = 'file') {
   const target = hostPath(absolutePath);

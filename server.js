@@ -39,6 +39,7 @@ import {
   updateApiKey,
   SCOPE_GROUPS,
   jwtSecretIsConfigured,
+  issueStepUpToken,
 } from './security.js';
 
 import { getAuditChainStatus, logAccess, logError, logServerStart, logSecurityEvent } from './audit.js';
@@ -81,6 +82,14 @@ import { getAdminState, setAdminState } from './lib/admin-state.js';
 import { evaluatePolicy, getPolicyStatus, simulatePolicy } from './lib/policy.js';
 import { getJobQueue } from './lib/job-queue.js';
 import { metricsText, telemetryMiddleware } from './lib/telemetry.js';
+import { validateDeploymentProfile } from './lib/deployment-profile.js';
+import {
+  authenticationOptions,
+  finishAuthentication,
+  finishRegistration,
+  listCredentials,
+  registrationOptions,
+} from './lib/webauthn.js';
 import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } from './lib/capabilities.js';
 import { toolResultSchema } from './lib/tool-result-schemas.js';
 import {
@@ -650,6 +659,17 @@ async function readAdminCollectionFallback(
 async function buildSecurityPosture() {
   const checks = [];
   const add = (id, status, message) => checks.push({ id, status, message });
+  try {
+    const profile = validateDeploymentProfile(process.env);
+    add(
+      'deployment-profile',
+      profile.ready ? 'pass' : 'warning',
+      profile.warning ||
+        `${profile.profile} profile uses ${profile.stateProvider} state and ${profile.leaseProvider} leases.`
+    );
+  } catch (error) {
+    add('deployment-profile', 'fail', error.message);
+  }
   add(
     'transport',
     USE_HTTPS ? 'pass' : 'warning',
@@ -1014,6 +1034,69 @@ app.use('/', coreRouter);
 
 app.use('/auth', authRouter);
 
+function requireAdminStepUp(req, res, next) {
+  if (
+    process.env.MCP_REQUIRE_WEBAUTHN_FOR_ADMIN === 'true' &&
+    req.identity?.role === 'admin' &&
+    req.identity.mfaVerified !== true
+  )
+    return res.status(428).json({ error: 'WebAuthn step-up authentication is required', code: 'MFA_REQUIRED' });
+  return next();
+}
+
+app.post('/admin/webauthn/register/options', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  try {
+    const userId = String(req.body?.userId || req.identity.userId);
+    return res.json(await registrationOptions({ userId, userName: req.body?.userName || userId }));
+  } catch (error) {
+    return res.status(400).json({ error: error.message, code: 'WEBAUTHN_OPTIONS_INVALID' });
+  }
+});
+
+app.post('/admin/webauthn/register/verify', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+  try {
+    const userId = String(req.body?.userId || req.identity.userId);
+    return res.json(
+      await finishRegistration({ userId, challengeId: req.body?.challengeId, response: req.body?.response })
+    );
+  } catch (error) {
+    return res.status(400).json({ error: error.message, code: 'WEBAUTHN_REGISTRATION_FAILED' });
+  }
+});
+
+app.get('/admin/webauthn/credentials', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
+    return res.status(403).json({ error: 'Admin or auditor role required' });
+  try {
+    return res.json({ credentials: listCredentials(String(req.query.userId || req.identity.userId)) });
+  } catch (error) {
+    return res.status(400).json({ error: error.message, code: 'WEBAUTHN_CREDENTIALS_INVALID' });
+  }
+});
+
+app.post('/auth/webauthn/options', authenticateJWT, async (req, res) => {
+  try {
+    return res.json(await authenticationOptions({ userId: req.identity.userId }));
+  } catch (error) {
+    return res.status(400).json({ error: error.message, code: 'WEBAUTHN_AUTH_OPTIONS_FAILED' });
+  }
+});
+
+app.post('/auth/webauthn/verify', authenticateJWT, async (req, res) => {
+  try {
+    const result = await finishAuthentication({
+      userId: req.identity.userId,
+      challengeId: req.body?.challengeId,
+      response: req.body?.response,
+    });
+    return res.json({ ...result, stepUpToken: issueStepUpToken(req.identity), expiresIn: 300 });
+  } catch (error) {
+    return res.status(401).json({ error: error.message, code: 'WEBAUTHN_AUTH_FAILED' });
+  }
+});
+
 app.get('/metrics', (req, res) => {
   if (process.env.METRICS_PUBLIC !== 'true') return res.status(404).end();
   res.type('text/plain').send(metricsText());
@@ -1058,7 +1141,7 @@ app.get('/admin/jobs', authenticateJWT, (req, res) => {
   }
 });
 
-app.post('/admin/jobs', authenticateJWT, async (req, res) => {
+app.post('/admin/jobs', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   const allowedTypes = new Set(['project_test', 'deployment', 'ssh_operation', 'backup']);
@@ -1084,6 +1167,21 @@ app.post('/admin/jobs', authenticateJWT, async (req, res) => {
   }
 });
 
+app.post('/admin/jobs/claim', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
+    return res.status(403).json({ error: 'Admin or operator role required' });
+  try {
+    const workerId = String(req.body?.workerId || `${req.identity.userId}:worker`);
+    return res.json({ job: getJobQueue().claim({ workerId, leaseMs: req.body?.leaseMs ?? 60000 }) });
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 400,
+      code: 'JOB_CLAIM_INVALID',
+      label: 'Invalid job claim',
+    });
+  }
+});
+
 app.get('/admin/jobs/:id', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
     return res.status(403).json({ error: 'Admin or auditor role required' });
@@ -1092,7 +1190,7 @@ app.get('/admin/jobs/:id', authenticateJWT, (req, res) => {
   return res.json(job);
 });
 
-app.post('/admin/jobs/:id/cancel', authenticateJWT, (req, res) => {
+app.post('/admin/jobs/:id/cancel', authenticateJWT, requireAdminStepUp, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
@@ -1106,9 +1204,39 @@ app.post('/admin/jobs/:id/cancel', authenticateJWT, (req, res) => {
   }
 });
 
+app.post('/admin/jobs/:id/complete', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
+    return res.status(403).json({ error: 'Admin or operator role required' });
+  try {
+    return res.json(getJobQueue().complete(req.params.id, req.body?.result ?? {}));
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 409,
+      code: 'JOB_COMPLETE_FAILED',
+      label: 'Job completion failed',
+    });
+  }
+});
+
+app.post('/admin/jobs/:id/fail', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
+    return res.status(403).json({ error: 'Admin or operator role required' });
+  try {
+    return res.json(
+      getJobQueue().fail(req.params.id, req.body?.error || 'Job failed', { retry: req.body?.retry !== false })
+    );
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 409,
+      code: 'JOB_FAIL_FAILED',
+      label: 'Job failure update failed',
+    });
+  }
+});
+
 // ── Admin Key Management (admin only) ─────────────────────
 
-app.post('/admin/keys', authenticateJWT, async (req, res) => {
+app.post('/admin/keys', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -1135,7 +1263,7 @@ app.post('/admin/keys', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/keys/revoke', authenticateJWT, async (req, res) => {
+app.post('/admin/keys/revoke', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -1153,7 +1281,7 @@ app.get('/admin/keys', authenticateJWT, (req, res) => {
   return res.json({ keys: listApiKeys() });
 });
 
-app.put('/admin/keys/:id', authenticateJWT, async (req, res) => {
+app.put('/admin/keys/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const updated = await updateApiKey(req.params.id, req.body);
@@ -1206,7 +1334,7 @@ app.get(
     )
 );
 
-app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
+app.put('/admin/capabilities/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const capabilities = await setCapability(req.params.id, req.body?.enabled);
@@ -1468,7 +1596,7 @@ app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/credential-rotation-status', authenticateJWT, (req, res) => {
+app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepUp, (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   const allowed = new Set([
     'authelia-signing-key',
@@ -1497,7 +1625,7 @@ app.post('/admin/credential-rotation-status', authenticateJWT, (req, res) => {
   return res.json(status);
 });
 
-app.post('/admin/action-refresh-status', authenticateJWT, async (req, res) => {
+app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   await createMcpServer(req.identity, req.clientIP);
   const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));
@@ -1612,7 +1740,7 @@ app.get('/admin/approvals', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/approvals/:id', authenticateJWT, async (req, res) => {
+app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const approval = await decideApproval({
       id: req.params.id,
@@ -1649,7 +1777,7 @@ app.get('/admin/projects', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/projects', authenticateJWT, async (req, res) => {
+app.post('/admin/projects', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const project = await createProject(req.body || {}, req.identity);
     logSecurityEvent({
@@ -1699,7 +1827,7 @@ app.get('/admin/ssh-access', authenticateJWT, async (req, res) => {
   }
 });
 
-app.put('/admin/ssh-access', authenticateJWT, async (req, res) => {
+app.put('/admin/ssh-access', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const result = await adminSetSshAccess(req.body || {}, req.identity);
     logSecurityEvent({
@@ -1713,7 +1841,7 @@ app.put('/admin/ssh-access', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/ssh-hosts', authenticateJWT, async (req, res) => {
+app.post('/admin/ssh-hosts', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const result = await createSshHost(req.body || {}, req.identity);
     logSecurityEvent({
@@ -1727,7 +1855,7 @@ app.post('/admin/ssh-hosts', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/ssh-connections', authenticateJWT, async (req, res) => {
+app.post('/admin/ssh-connections', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const result = await createSshConnection(req.body || {}, req.identity);
     logSecurityEvent({
@@ -1741,7 +1869,7 @@ app.post('/admin/ssh-connections', authenticateJWT, async (req, res) => {
   }
 });
 
-app.put('/admin/projects/:id/transport', authenticateJWT, async (req, res) => {
+app.put('/admin/projects/:id/transport', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const result = await setProjectTransport({ ...req.body, projectId: req.params.id }, req.identity);
     logSecurityEvent({
@@ -1763,7 +1891,7 @@ app.get('/admin/organizations', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/organizations', authenticateJWT, async (req, res) => {
+app.post('/admin/organizations', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const organization = await createOrganization(req.body || {}, req.identity);
     logSecurityEvent({
@@ -1777,7 +1905,7 @@ app.post('/admin/organizations', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/teams', authenticateJWT, async (req, res) => {
+app.post('/admin/teams', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const team = await createTeam(req.body || {}, req.identity);
     logSecurityEvent({
@@ -1884,7 +2012,7 @@ app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
   });
 });
 
-app.delete('/admin/sessions/:id', authenticateJWT, (req, res) => {
+app.delete('/admin/sessions/:id', authenticateJWT, requireAdminStepUp, (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -1958,7 +2086,7 @@ app.get('/admin/backups', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/backups/restore', authenticateJWT, async (req, res) => {
+app.post('/admin/backups/restore', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
@@ -2055,63 +2183,81 @@ app.get(
     })
 );
 
-app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    const user = await addOAuthUser(sanitizeOAuthUserPayload(req.body));
-    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
-    res.json(user);
-  } catch (e) {
-    respondDependencyAwareError(
-      res,
-      e,
-      e.message.includes('Only administrators')
-        ? { status: 403, code: 'OAUTH_USER_CREATE_FORBIDDEN', label: 'Insufficient permission' }
-        : { status: 400, code: 'OAUTH_USER_CREATE_FAILED', label: 'Failed to create OAuth user' }
-    );
+app.post(
+  '/admin/oauth-users',
+  authenticateJWT,
+  requireAdminStepUp,
+  ensurePrivilegeBrokerAvailable,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+      const user = await addOAuthUser(sanitizeOAuthUserPayload(req.body));
+      logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
+      res.json(user);
+    } catch (e) {
+      respondDependencyAwareError(
+        res,
+        e,
+        e.message.includes('Only administrators')
+          ? { status: 403, code: 'OAUTH_USER_CREATE_FORBIDDEN', label: 'Insufficient permission' }
+          : { status: 400, code: 'OAUTH_USER_CREATE_FAILED', label: 'Failed to create OAuth user' }
+      );
+    }
   }
-});
+);
 
-app.put('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    const { username: bodyUsername, ...updates } = req.body || {};
-    if (bodyUsername && bodyUsername !== req.params.username)
-      return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
-    await updateOAuthUser(req.params.username, sanitizeOAuthUserPayload(updates));
-    await invalidateOAuthSessions(req.params.username);
-    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
-    res.json({ success: true });
-  } catch (e) {
-    respondDependencyAwareError(
-      res,
-      e,
-      /No mapping found|cannot update|not found/i.test(e.message)
-        ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
-        : e.message.includes('Only administrators')
-          ? { status: 403, code: 'OAUTH_USER_UPDATE_FORBIDDEN', label: 'Insufficient permission' }
-          : { status: 400, code: 'OAUTH_USER_UPDATE_FAILED', label: 'Failed to update OAuth user' }
-    );
+app.put(
+  '/admin/oauth-users/:username',
+  authenticateJWT,
+  requireAdminStepUp,
+  ensurePrivilegeBrokerAvailable,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+      const { username: bodyUsername, ...updates } = req.body || {};
+      if (bodyUsername && bodyUsername !== req.params.username)
+        return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
+      await updateOAuthUser(req.params.username, sanitizeOAuthUserPayload(updates));
+      await invalidateOAuthSessions(req.params.username);
+      logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
+      res.json({ success: true });
+    } catch (e) {
+      respondDependencyAwareError(
+        res,
+        e,
+        /No mapping found|cannot update|not found/i.test(e.message)
+          ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
+          : e.message.includes('Only administrators')
+            ? { status: 403, code: 'OAUTH_USER_UPDATE_FORBIDDEN', label: 'Insufficient permission' }
+            : { status: 400, code: 'OAUTH_USER_UPDATE_FAILED', label: 'Failed to update OAuth user' }
+      );
+    }
   }
-});
+);
 
-app.delete('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    await deleteOAuthUser(req.params.username);
-    await invalidateOAuthSessions(req.params.username);
-    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
-    res.json({ success: true });
-  } catch (e) {
-    return respondDependencyAwareError(
-      res,
-      e,
-      e.message.includes('not found')
-        ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
-        : { status: 400, code: 'OAUTH_USER_DELETE_FAILED', label: 'Failed to delete OAuth user' }
-    );
+app.delete(
+  '/admin/oauth-users/:username',
+  authenticateJWT,
+  requireAdminStepUp,
+  ensurePrivilegeBrokerAvailable,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+      await deleteOAuthUser(req.params.username);
+      await invalidateOAuthSessions(req.params.username);
+      logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
+      res.json({ success: true });
+    } catch (e) {
+      return respondDependencyAwareError(
+        res,
+        e,
+        e.message.includes('not found')
+          ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
+          : { status: 400, code: 'OAUTH_USER_DELETE_FAILED', label: 'Failed to delete OAuth user' }
+      );
+    }
   }
-});
+);
 
 // ── OAuth Client Management ────────────────────────────────
 
@@ -2136,40 +2282,52 @@ app.get(
     })
 );
 
-app.post('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    const client = await addOAuthClient(req.body);
-    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
-    res.json(client);
-  } catch (e) {
-    return respondDependencyAwareError(res, e, {
-      status: 400,
-      code: 'OAUTH_CLIENT_CREATE_FAILED',
-      label: 'Failed to create OAuth client',
-    });
+app.post(
+  '/admin/oauth-clients',
+  authenticateJWT,
+  requireAdminStepUp,
+  ensurePrivilegeBrokerAvailable,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+      const client = await addOAuthClient(req.body);
+      logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
+      res.json(client);
+    } catch (e) {
+      return respondDependencyAwareError(res, e, {
+        status: 400,
+        code: 'OAUTH_CLIENT_CREATE_FAILED',
+        label: 'Failed to create OAuth client',
+      });
+    }
   }
-});
+);
 
-app.delete('/admin/oauth-clients/:clientId', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  try {
-    await deleteOAuthClient(req.params.clientId);
-    logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
-    res.json({ success: true });
-  } catch (e) {
-    return respondDependencyAwareError(res, e, {
-      status: 400,
-      code: 'OAUTH_CLIENT_DELETE_FAILED',
-      label: 'Failed to delete OAuth client',
-    });
+app.delete(
+  '/admin/oauth-clients/:clientId',
+  authenticateJWT,
+  requireAdminStepUp,
+  ensurePrivilegeBrokerAvailable,
+  async (req, res) => {
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    try {
+      await deleteOAuthClient(req.params.clientId);
+      logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
+      res.json({ success: true });
+    } catch (e) {
+      return respondDependencyAwareError(res, e, {
+        status: 400,
+        code: 'OAUTH_CLIENT_DELETE_FAILED',
+        label: 'Failed to delete OAuth client',
+      });
+    }
   }
-});
+);
 
 // Starts a real authorization-code flow, then tests MCP initialize with the
 // issued access token. It is restricted to admins and removes its temporary
 // OAuth client as soon as the callback completes.
-app.post('/admin/oauth-diagnostic/start', authenticateJWT, async (req, res) => {
+app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
   const resource = (
@@ -2342,7 +2500,7 @@ app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
   }
 });
 
-app.post('/admin/oauth-restart', authenticateJWT, async (req, res) => {
+app.post('/admin/oauth-restart', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   return res.status(409).json({
     error: 'Direct OAuth-provider restart is disabled. Use the registered recovery workflow with console access.',
@@ -2887,6 +3045,19 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
           policyDecision.requireApproval;
         const approvalSensitive =
           requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
+        if (
+          process.env.MCP_REQUIRE_WEBAUTHN_FOR_ADMIN === 'true' &&
+          identity.role === 'admin' &&
+          approvalSensitive &&
+          identity.mfaVerified !== true
+        ) {
+          const message = 'WebAuthn step-up authentication is required for this administrator action.';
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: message, code: 'MFA_REQUIRED' }) }],
+            structuredContent: { result: { error: message, code: 'MFA_REQUIRED' } },
+            isError: true,
+          };
+        }
         if (resumeFromPassed && !forceReplay && approvalSensitive) {
           const latest = await getLatestSuccessfulExecution({
             tool: name,
