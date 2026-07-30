@@ -435,13 +435,29 @@ function sanitizeOAuthUserPayload(payload = {}) {
 }
 
 function normalizeAdminReadPath(pathname = '') {
-  const normalized = `/${String(pathname || '')}`
+  let candidate = String(pathname || '').trim();
+  if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
+    try {
+      candidate = new URL(candidate).pathname;
+    } catch {
+      // Keep the best-effort raw value if URL parsing fails.
+    }
+  }
+  if (candidate.startsWith('///')) {
+    candidate = candidate.replace(/^\/{3,}/, '/');
+  }
+  let normalized = `/${candidate}`
     .replace(/\/+$/u, '')
     .replace(/^\/{2,}/g, '/')
     .replace(/^\/api\/admin\//u, '/admin/')
     .replace(/^\/admin\/api\//u, '/admin/')
     .replace(/^\/api\//u, '/admin/');
-  return normalized;
+  try {
+    normalized = decodeURIComponent(normalized);
+  } catch {
+    // Keep the raw encoded path if decoding is malformed.
+  }
+  return normalized.toLowerCase();
 }
 
 function adminDependencyFallbackResponse(pathname, error) {
