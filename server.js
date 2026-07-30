@@ -2532,6 +2532,11 @@ async function createMcpServer(identity, ip, flowHint = null) {
       .max(128)
       .optional()
       .describe('Optional CLI flow identifier for replays and checkpoints.'),
+    flowStep: z
+      .string()
+      .max(128)
+      .optional()
+      .describe('Optional deterministic per-flow step identifier for resumable run sequences.'),
     resumeFromPassed: z
       .boolean()
       .optional()
@@ -2543,7 +2548,7 @@ async function createMcpServer(identity, ip, flowHint = null) {
   });
   const normalizeFlowArgs = args => {
     if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
-    const { flowId, resumeFromPassed, forceReplay, ...rest } = args;
+    const { flowId, resumeFromPassed, forceReplay, flowStep, ...rest } = args;
     return rest;
   };
 
@@ -2664,9 +2669,11 @@ async function createMcpServer(identity, ip, flowHint = null) {
         const start = Date.now();
         const normalizedArgs = normalizeFlowArgs(args);
         const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
+        const providedFlowStep = typeof args?.flowStep === 'string' ? args.flowStep.trim() : '';
         const explicitFlowId = flowHint || providedFlowId;
         const identityFlowId = resolveFlowId(identity);
         const flowIdArg = explicitFlowId || identityFlowId || identity.sessionId || null;
+        const flowStepArg = providedFlowStep || null;
         const resumeFromPassed =
           args?.resumeFromPassed === true ||
           (args?.resumeFromPassed === undefined && Boolean(flowIdArg));
@@ -2763,7 +2770,11 @@ async function createMcpServer(identity, ip, flowHint = null) {
         if (resumeFromPassed && !forceReplay && approvalSensitive) {
           const latest = await getLatestSuccessfulExecution({
             tool: name,
-            args: { ...normalizedArgs, ...(flowIdArg ? { flowId: flowIdArg } : {}) },
+            args: {
+              ...normalizedArgs,
+              ...(flowIdArg ? { flowId: flowIdArg } : {}),
+              ...(flowStepArg ? { flowStep: flowStepArg } : {}),
+            },
             identity,
           });
           if (latest) {
@@ -2810,7 +2821,11 @@ async function createMcpServer(identity, ip, flowHint = null) {
         // grant is single-use and expires automatically.
         let approvedExecution = null;
         if (approvalSensitive && identity.requireApproval) {
-          const approvalArgs = { ...normalizedArgs, ...(flowIdArg ? { flowId: flowIdArg } : {}) };
+          const approvalArgs = {
+            ...normalizedArgs,
+            ...(flowIdArg ? { flowId: flowIdArg } : {}),
+            ...(flowStepArg ? { flowStep: flowStepArg } : {}),
+          };
           const approved = await consumeApproval({ tool: name, args: approvalArgs, identity });
           if (!approved) {
             const { approval, created } = await requestApproval({

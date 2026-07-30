@@ -125,6 +125,35 @@ describe('approval control plane', () => {
     await controlPlane.completeApprovalExecution(fallbackConsumed.id, requester);
   });
 
+  it('supports deterministic flow-step resume keys', async () => {
+    const step1Action = {
+      tool: 'write_file',
+      args: {
+        filePath: '/srv/app/.env.step',
+        content: 'STEP=1',
+        flowId: 'flow-step-demo',
+        flowStep: 'phase-1',
+      },
+      identity: requester,
+    };
+    const step2Action = {
+      ...step1Action,
+      args: { ...step1Action.args, flowStep: 'phase-2', content: 'STEP=2' },
+    };
+
+    const step1Request = await controlPlane.requestApproval(step1Action);
+    await controlPlane.decideApproval({ id: step1Request.approval.id, decision: 'approved', identity: admin });
+    const step1Execution = await controlPlane.consumeApproval(step1Action);
+    await controlPlane.completeApprovalExecution(step1Execution.id, requester);
+
+    const step1Latest = await controlPlane.getLatestSuccessfulExecution(step1Action);
+    assert.equal(step1Latest?.id, step1Execution.id);
+    assert.equal(step1Latest?.tool, 'write_file');
+
+    const step2Latest = await controlPlane.getLatestSuccessfulExecution(step2Action);
+    assert.equal(step2Latest, null);
+  });
+
   it('tracks successful run_project_tests executions for resume behavior', async () => {
     const runProjectAction = {
       tool: 'run_project_tests',
