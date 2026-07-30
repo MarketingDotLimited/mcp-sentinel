@@ -1203,6 +1203,19 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
   }
 });
 
+function normalizeFlowHint(value) {
+  const normalized = String(value || '').trim();
+  return normalized.length ? normalized.slice(0, 128) : null;
+}
+
+function getFlowHint(req) {
+  return (
+    normalizeFlowHint(req.headers['x-mcp-flow-id']) ||
+    normalizeFlowHint(req.headers['x-flow-id']) ||
+    normalizeFlowHint(req.headers['x-cli-flow-id'])
+  );
+}
+
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
@@ -2245,6 +2258,8 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
 
     const identity = req.identity;
     const ip = req.clientIP;
+    const flowHint = getFlowHint(req);
+    identity.flowHint = flowHint;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
     if (activeTransports.size >= maxConns) {
       return res.status(503).json({ error: 'Too many active connections globally' });
@@ -2254,7 +2269,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     }
 
     let transport;
-    const mcpServer = await createMcpServer(identity, ip);
+    const mcpServer = await createMcpServer(identity, ip, flowHint);
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: initializedSessionId => {
@@ -2305,6 +2320,8 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
   if (!session && req.method === 'GET' && req.path === '/mcp' && !sessionId) {
     const identity = req.identity;
     const ip = req.clientIP;
+    const flowHint = getFlowHint(req);
+    identity.flowHint = flowHint;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
     if (activeTransports.size >= maxConns) {
       return res.status(503).json({ error: 'Too many active connections globally' });
@@ -2315,7 +2332,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
 
     const transport = new SSEServerTransport('/mcp/message', res);
     identity.sessionId = transport.sessionId;
-    const mcpServer = await createMcpServer(identity, ip);
+    const mcpServer = await createMcpServer(identity, ip, flowHint);
     monitor.attachPersistent(transport.sessionId, alertOwnerKey(identity));
 
     // Tools are registered before the transport exists, so the SDK's automatic
@@ -2472,7 +2489,7 @@ app.use((err, req, res, next) => {
 
 // ── MCP Server Factory ─────────────────────────────────────
 
-async function createMcpServer(identity, ip) {
+async function createMcpServer(identity, ip, flowHint = null) {
   const server = new McpServer({
     name: 'server-control',
     version:
@@ -2597,6 +2614,7 @@ async function createMcpServer(identity, ip) {
       .join(' ');
 
     const resolveFlowId = identityObj => {
+      if (flowHint) return flowHint;
       const authType = identityObj?.authType || 'unknown';
       if (authType === 'apiKey') {
         return identityObj?.keyId ? `apiKey:${identityObj.keyId}` : identityObj?.userId ? `apiKey-user:${identityObj.userId}` : null;
