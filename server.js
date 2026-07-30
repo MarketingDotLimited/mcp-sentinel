@@ -78,7 +78,9 @@ import { executeQuery } from './tools/db.js';
 import { monitor } from './lib/monitor.js';
 import { brokerCall } from './lib/broker-client.js';
 import { getAdminState, setAdminState } from './lib/admin-state.js';
-import { evaluatePolicy, getPolicyStatus } from './lib/policy.js';
+import { evaluatePolicy, getPolicyStatus, simulatePolicy } from './lib/policy.js';
+import { getJobQueue } from './lib/job-queue.js';
+import { metricsText, telemetryMiddleware } from './lib/telemetry.js';
 import { getCapabilities, isDeprecatedTool, setCapability, toolAvailability } from './lib/capabilities.js';
 import { toolResultSchema } from './lib/tool-result-schemas.js';
 import {
@@ -604,9 +606,7 @@ function adminReadFallbackHandler(req, res, reader, options = {}) {
       return respondDependencyAwareError(
         res,
         error,
-        error?.status === 403
-          ? { status: 403, code, label: 'Access denied' }
-          : { status: statusCode, code, label }
+        error?.status === 403 ? { status: 403, code, label: 'Access denied' } : { status: statusCode, code, label }
       );
     }
   })();
@@ -642,12 +642,9 @@ async function readAdminCollectionFallback(
     return respondDependencyAwareError(
       res,
       error,
-      error?.status === 403
-        ? { status: 403, code, label: 'Access denied' }
-        : { status: 500, code, label }
+      error?.status === 403 ? { status: 403, code, label: 'Access denied' } : { status: 500, code, label }
     );
   }
-
 }
 
 async function buildSecurityPosture() {
@@ -836,6 +833,10 @@ for (const method of routeHandlers) {
   app[method] = (path, ...handlers) => original(path, ...handlers.map(asyncToNext));
 }
 
+// Every response receives a correlation ID. Metrics are intentionally local
+// and bounded; exporting them is opt-in and never includes request payloads.
+app.use(telemetryMiddleware);
+
 // Redirect legacy port 2053 to the new subdomain
 app.use((req, res, next) => {
   if (req.get('host') === 'begin.shopping:2053') {
@@ -1012,6 +1013,98 @@ app.use('/', coreRouter);
 // ── Auth Endpoints ─────────────────────────────────────────
 
 app.use('/auth', authRouter);
+
+app.get('/metrics', (req, res) => {
+  if (process.env.METRICS_PUBLIC !== 'true') return res.status(404).end();
+  res.type('text/plain').send(metricsText());
+});
+
+app.get('/admin/metrics', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
+    return res.status(403).json({ error: 'Admin or auditor role required' });
+  res.type('text/plain').send(metricsText());
+});
+
+app.get('/admin/policy/simulate', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
+    return res.status(403).json({ error: 'Admin or auditor role required' });
+  try {
+    const identity = {
+      userId: String(req.query.userId || req.identity.userId),
+      role: String(req.query.role || req.identity.role),
+      oauthClient: req.query.oauthClient ? String(req.query.oauthClient) : undefined,
+      oauthSubject: req.query.oauthSubject ? String(req.query.oauthSubject) : undefined,
+    };
+    return res.json(await simulatePolicy({ tool: String(req.query.tool || ''), identity }));
+  } catch (error) {
+    return res.status(400).json({ error: error.message, code: 'POLICY_SIMULATION_INVALID' });
+  }
+});
+
+app.get('/admin/jobs', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
+    return res.status(403).json({ error: 'Admin or auditor role required' });
+  try {
+    const states = req.query.states ? String(req.query.states).split(',').filter(Boolean) : null;
+    return res.json({
+      jobs: getJobQueue().list({ owner: req.query.owner || null, states, limit: Number(req.query.limit || 100) }),
+    });
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 400,
+      code: 'JOB_QUERY_INVALID',
+      label: 'Invalid job query',
+    });
+  }
+});
+
+app.post('/admin/jobs', authenticateJWT, async (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
+    return res.status(403).json({ error: 'Admin or operator role required' });
+  const allowedTypes = new Set(['project_test', 'deployment', 'ssh_operation', 'backup']);
+  try {
+    const type = String(req.body?.type || '');
+    if (!allowedTypes.has(type)) return res.status(400).json({ error: 'Job type is not registered' });
+    const payload = req.body?.payload ?? {};
+    const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey || null;
+    const job = getJobQueue().enqueue({
+      type,
+      owner: req.identity.userId,
+      payload,
+      idempotencyKey,
+      maxAttempts: req.body?.maxAttempts ?? 3,
+    });
+    return res.status(201).json(job);
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 400,
+      code: 'JOB_CREATE_INVALID',
+      label: 'Invalid job request',
+    });
+  }
+});
+
+app.get('/admin/jobs/:id', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
+    return res.status(403).json({ error: 'Admin or auditor role required' });
+  const job = getJobQueue().get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  return res.json(job);
+});
+
+app.post('/admin/jobs/:id/cancel', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
+    return res.status(403).json({ error: 'Admin or operator role required' });
+  try {
+    return res.json(getJobQueue().cancel(req.params.id, req.body?.reason || 'Cancelled by administrator'));
+  } catch (error) {
+    return respondDependencyAwareError(res, error, {
+      status: 409,
+      code: 'JOB_CANCEL_FAILED',
+      label: 'Job cancellation failed',
+    });
+  }
+});
 
 // ── Admin Key Management (admin only) ─────────────────────
 
@@ -1906,8 +1999,7 @@ function safeJsonDependencyFallback(res, reader, operationName, fallbackData = n
     return (
       /privilege\s+broker\s+unavailable|connect\s+ENOENT|enoent|no\s+socket\s+available|broker\.sock|state\s+store\s+unavailable/i.test(
         message
-      ) ||
-      [500, 502, 503].includes(Number(error?.status))
+      ) || [500, 502, 503].includes(Number(error?.status))
     );
   };
 
@@ -2549,11 +2641,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
   // ── Helper: wrap tool calls with audit logging ───────────
   const registrations = [];
   const FLOW_CONTROL_SCHEMA = z.object({
-    flowId: z
-      .string()
-      .max(128)
-      .optional()
-      .describe('Optional CLI flow identifier for replays and checkpoints.'),
+    flowId: z.string().max(128).optional().describe('Optional CLI flow identifier for replays and checkpoints.'),
     flowStep: z
       .string()
       .max(128)
@@ -2563,10 +2651,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       .boolean()
       .optional()
       .describe('Skip execution if an identical action completed successfully earlier.'),
-    forceReplay: z
-      .boolean()
-      .optional()
-      .describe('Force re-execution even when resumeFromPassed has a cached success.'),
+    forceReplay: z.boolean().optional().describe('Force re-execution even when resumeFromPassed has a cached success.'),
   });
   const normalizeFlowArgs = args => {
     if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
@@ -2655,7 +2740,11 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       if (flowHint) return flowHint;
       const authType = identityObj?.authType || 'unknown';
       if (authType === 'apiKey') {
-        return identityObj?.keyId ? `apiKey:${identityObj.keyId}` : identityObj?.userId ? `apiKey-user:${identityObj.userId}` : null;
+        return identityObj?.keyId
+          ? `apiKey:${identityObj.keyId}`
+          : identityObj?.userId
+            ? `apiKey-user:${identityObj.userId}`
+            : null;
       }
       if (authType === 'oauth') {
         const subject = identityObj?.oauthSubject || identityObj?.oauthUser;
@@ -2702,12 +2791,10 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         const explicitFlowId = currentFlowHint || flowHint || providedFlowId;
         const identityFlowId = resolveFlowId(identity);
         const flowIdArg = explicitFlowId || identityFlowId || identity.sessionId || null;
-        const currentFlowStepHint =
-          typeof identity?.flowStepHint === 'string' ? identity.flowStepHint.trim() : '';
+        const currentFlowStepHint = typeof identity?.flowStepHint === 'string' ? identity.flowStepHint.trim() : '';
         const flowStepArg = providedFlowStep || currentFlowStepHint || flowStepHint || null;
         const resumeFromPassed =
-          args?.resumeFromPassed === true ||
-          (args?.resumeFromPassed === undefined && Boolean(flowIdArg));
+          args?.resumeFromPassed === true || (args?.resumeFromPassed === undefined && Boolean(flowIdArg));
         const forceReplay = args?.forceReplay === true;
 
         const availability = await toolAvailability(name);
@@ -2791,7 +2878,9 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
           (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(normalizedArgs.action)) ||
           name === 'deploy_project' ||
           (name === 'execute_query' &&
-            /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(normalizedArgs.query || '')) ||
+            /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(
+              normalizedArgs.query || ''
+            )) ||
           (name === 'set_my_ssh_access' && normalizedArgs.enabled === true) ||
           (name === 'admin_set_ssh_access' &&
             (normalizedArgs.sshAllowed === true || normalizedArgs.sshEnabled === true)) ||

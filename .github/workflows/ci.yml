@@ -54,6 +54,15 @@ jobs:
           fi
           echo "✅ No hardcoded secrets found"
 
+      - name: Generate dependency SBOM
+        run: npm sbom --sbom-format cyclonedx --sbom-type library > sbom.cdx.json
+
+      - name: Upload dependency SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dependency-sbom
+          path: sbom.cdx.json
+
   unit-tests:
     name: Unit Tests & Coverage
     runs-on: ubuntu-latest

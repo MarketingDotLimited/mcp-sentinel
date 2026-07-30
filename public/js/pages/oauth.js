@@ -419,9 +419,7 @@ window.OAuthPage = (function () {
       modal.body.querySelector('#modal-require-approval').checked = user.requireApproval !== false;
       for (const checkbox of modal.body.querySelectorAll('#modal-client-approvals [data-client-id]')) {
         const override = sanitizeClientOverride(user.clients?.[checkbox.dataset.clientId] || {});
-        checkbox.checked =
-          override.requireApproval ??
-          modal.body.querySelector('#modal-require-approval').checked;
+        checkbox.checked = override.requireApproval ?? modal.body.querySelector('#modal-require-approval').checked;
       }
     }
 

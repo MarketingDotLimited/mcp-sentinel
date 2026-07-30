@@ -11,7 +11,7 @@ import net from 'node:net';
 const enabled = process.env.RUN_LIVE_E2E === 'true';
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-sentinel-live-'));
 const adminKey = 'admin-key-placeholder-for-tests';
-const limitedKey = 'limited-key-placeholder-for-tests';
+const limitedKey = 'mcp_limited-key-placeholder-for-tests';
 const username = `mcpqa${process.pid}`.slice(0, 31);
 let child;
 let broker;
@@ -85,7 +85,14 @@ class McpSession {
     const transport =
       this.transportKind === 'streamable'
         ? new StreamableHTTPClientTransport(url, { requestInit: { headers } })
-        : new SSEClientTransport(url, { eventSourceInit: { headers }, requestInit: { headers } });
+        : new SSEClientTransport(url, {
+            // eventsource does not apply arbitrary EventSource options as
+            // HTTP headers; inject them through its fetch hook explicitly.
+            eventSourceInit: {
+              fetch: (input, init) => fetch(input, { ...init, headers: { ...(init?.headers || {}), ...headers } }),
+            },
+            requestInit: { headers },
+          });
     this.client = new Client({ name: 'live-e2e', version: '1.0.0' }, { capabilities: {} });
     this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
       for (const resolve of this.toolListWaiters.splice(0)) resolve();

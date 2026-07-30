@@ -263,8 +263,8 @@ function inspectRelease() {
 }
 
 export function runPreflight() {
-  const allowBrokerOffline = process.env.MCP_PRECHECK_ALLOW_BROKER_OFFLINE === 'true' ||
-    process.env.MCP_PRECHECK_ALLOW_BROKER_OFFLINE === '1';
+  const allowBrokerOffline =
+    process.env.MCP_PRECHECK_ALLOW_BROKER_OFFLINE === 'true' || process.env.MCP_PRECHECK_ALLOW_BROKER_OFFLINE === '1';
   let sentinel;
   attempt('service-account', () => {
     sentinel = account('mcp-sentinel');

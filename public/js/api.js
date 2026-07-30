@@ -120,7 +120,8 @@ const API = {
           warnings: ['Privilege broker unavailable: continuing with a read-only local fallback.'],
         };
       if (/(?:^|\/)admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
-      if (/(?:^|\/)admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
+      if (/(?:^|\/)admin\/sessions$/.test(adminUrl))
+        return { sessions: [], count: 0, status: 'dependency-unavailable' };
       if (/(?:^|\/)action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
         return {
           manifest: {
@@ -230,32 +231,35 @@ const API = {
         return data;
       } catch (error) {
         normalizeDependencyError(error);
-      const readFallback = getReadDependencyFallback(requestUrl);
-      const normalizedRequest = requestPath(String(requestUrl || ''))
-        .replace(/\/+$/, '')
-        .replace(/^\/api\/admin\//, '/admin/')
-        .replace(/^\/admin\/api\//, '/admin/')
-        .replace(/^\/api\//, '/admin/');
-      const isOAuthReadEndpoint =
-        /(?:^|\/)admin\/oauth-users$/i.test(normalizedRequest) ||
-        /^\/oauth-users$/i.test(normalizedRequest) ||
-        /(?:^|\/)admin\/oauth-clients$/i.test(normalizedRequest) ||
-        /^\/oauth-clients$/i.test(normalizedRequest) ||
-        /(?:^|\/)admin\/action-manifest$/i.test(normalizedRequest) ||
-        /^\/action-manifest$/i.test(normalizedRequest) ||
-        /(?:^|\/)admin\/capabilities$/i.test(normalizedRequest) ||
-        /^\/capabilities$/i.test(normalizedRequest) ||
-        /(?:^|\/)admin\/sessions$/i.test(normalizedRequest) ||
-        /^\/sessions$/i.test(normalizedRequest) ||
-        /^\/api\/oauth-users$/i.test(normalizedRequest) ||
-        /^\/api\/oauth-clients$/i.test(normalizedRequest) ||
-        /^\/api\/action-manifest$/i.test(normalizedRequest) ||
-        /^\/api\/capabilities$/i.test(normalizedRequest) ||
-        /^\/api\/sessions$/i.test(normalizedRequest);
+        const readFallback = getReadDependencyFallback(requestUrl);
+        const normalizedRequest = requestPath(String(requestUrl || ''))
+          .replace(/\/+$/, '')
+          .replace(/^\/api\/admin\//, '/admin/')
+          .replace(/^\/admin\/api\//, '/admin/')
+          .replace(/^\/api\//, '/admin/');
+        const isOAuthReadEndpoint =
+          /(?:^|\/)admin\/oauth-users$/i.test(normalizedRequest) ||
+          /^\/oauth-users$/i.test(normalizedRequest) ||
+          /(?:^|\/)admin\/oauth-clients$/i.test(normalizedRequest) ||
+          /^\/oauth-clients$/i.test(normalizedRequest) ||
+          /(?:^|\/)admin\/action-manifest$/i.test(normalizedRequest) ||
+          /^\/action-manifest$/i.test(normalizedRequest) ||
+          /(?:^|\/)admin\/capabilities$/i.test(normalizedRequest) ||
+          /^\/capabilities$/i.test(normalizedRequest) ||
+          /(?:^|\/)admin\/sessions$/i.test(normalizedRequest) ||
+          /^\/sessions$/i.test(normalizedRequest) ||
+          /^\/api\/oauth-users$/i.test(normalizedRequest) ||
+          /^\/api\/oauth-clients$/i.test(normalizedRequest) ||
+          /^\/api\/action-manifest$/i.test(normalizedRequest) ||
+          /^\/api\/capabilities$/i.test(normalizedRequest) ||
+          /^\/api\/sessions$/i.test(normalizedRequest);
 
-      if (readFallback !== null && (appearsDependencyLayerFailure(error) || error.status === 404 || isOAuthReadEndpoint)) {
-        return readFallback;
-      }
+        if (
+          readFallback !== null &&
+          (appearsDependencyLayerFailure(error) || error.status === 404 || isOAuthReadEndpoint)
+        ) {
+          return readFallback;
+        }
 
         const retryable =
           error.status === 404 ||

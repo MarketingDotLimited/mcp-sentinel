@@ -14,6 +14,13 @@ MCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3
 CONTROL_PLANE_KEY_ID=state-v1
 MCP_STATE_BACKUP_KEY_ID=state-backup-v1
 MCP_BROKER_SOCKET=/run/mcp-sentinel/broker.sock
+# Keep jobs in the encrypted/state-backup database unless an explicitly
+# coordinated multi-database backup profile is configured.
+MCP_JOB_DB=/var/lib/mcp-sentinel/state.sqlite3
+MCP_JOB_MAX_PAYLOAD_BYTES=1048576
+METRICS_PUBLIC=false
+MCP_TELEMETRY_EXPORTER=none
+MCP_KEY_PROVIDER=systemd
 MCP_SSH_RUNTIME_DIR=/run/mcp-sentinel/ssh
 MCP_SSH_CREDENTIAL_DIR=/etc/mcp-sentinel/ssh-credentials
 AUDIT_LOG_DIR=/var/log/mcp-sentinel

@@ -31,8 +31,9 @@ import { Router } from '../router.js';
       renderTable(sessions);
     } catch (err) {
       const isDependency =
-        /broker|state store|dependency|connect ENOENT|no such file|socket unavailable/i.test(String(err?.message || '')) ||
-        err?.status >= 500;
+        /broker|state store|dependency|connect ENOENT|no such file|socket unavailable/i.test(
+          String(err?.message || '')
+        ) || err?.status >= 500;
       if (!isDependency) {
         Toast.error(formatDependencyError('Failed to load sessions', err));
       }

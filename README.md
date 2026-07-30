@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/MarketingDotLimited/mcp-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/MarketingDotLimited/mcp-sentinel/actions/workflows/ci.yml)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-green)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/MCP-HTTP%2FSSE-blue)](https://modelcontextprotocol.io)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -19,6 +19,8 @@ A **security-hardened MCP (Model Context Protocol) server** that lets AI cloud s
 - **Guided Workflows** — plain-language diagnostics, security review, and development prompts for any MCP-compatible AI
 - **Project Registry** — register approved repositories and generate safe deployment plans for developers and AI coding agents
 - **Managed SSH Nodes** — optional multi-host project operations through pinned, forced-command, typed gateways; disabled by default
+- **Durable operations** — SQLite-backed jobs with idempotency, leases, retries, cancellation, request IDs, and opt-in Prometheus metrics
+- **Policy explainability** — administrators can simulate a policy decision without exposing policy files or secrets
 - **systemd Ready** — auto-start on boot
 
 ## 🚀 Quick Start
@@ -211,6 +213,29 @@ npm test                 # unit and security tests
 npm run test:ui          # Playwright browser flow (uses an isolated local Sentinel)
 npm run test:live        # creates and removes one temporary no-login OS user; run only on a disposable or approved host
 ```
+
+## Operations and reliability
+
+Long-running work is represented as a registered job type (`project_test`, `deployment`,
+`ssh_operation`, or `backup`) and persisted in SQLite. Submit an `Idempotency-Key`
+with administrative job requests to safely retry a lost HTTP response. Jobs have bounded
+payloads, leases, retry limits, cancellation, and terminal states; the queue never executes
+an arbitrary command by itself.
+
+Every response includes an `X-Request-ID` correlation header. Prometheus metrics are available
+to an authenticated administrator or auditor at `/admin/metrics`; the unauthenticated
+`/metrics` endpoint is disabled unless `METRICS_PUBLIC=true`. Configure an OpenTelemetry
+collector outside Sentinel when traces are required; request bodies and credentials are never
+exported.
+
+Administrators and auditors can inspect a decision explanation with:
+
+```text
+GET /admin/policy/simulate?tool=write_file&role=developer
+```
+
+The response reports matching rule effects, the final allow/deny decision, and whether approval
+is required, without returning the policy file contents.
 
 The live test verifies a low-privilege MCP identity can read system health but cannot read `/etc/shadow` or create users. Both integration suites use temporary state, keys, logs, and ports.
 
