@@ -2406,6 +2406,11 @@ app.use((req, res, next) => {
   const acceptHeader = String(req.get('accept') || '').toLowerCase();
   if (acceptHeader.includes('text/html')) return next();
 
+  // Only intercept known dependency-read endpoints for authenticated API callers.
+  // Otherwise, let normal auth/404 handling run.
+  const hasAuthHeader = Boolean(req.headers.authorization || req.headers['x-api-key']);
+  if (!hasAuthHeader) return next();
+
   return res.status(fallback.status).json(fallback.body);
 });
 
