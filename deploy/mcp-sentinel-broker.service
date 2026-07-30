@@ -23,7 +23,12 @@ ProtectKernelLogs=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @file-system @process @network-io
+SystemCallFilter=~@raw-io @reboot @resources @swap @mount @debug @module
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=169.254.169.254/32
+IPAddressDeny=fd00:ec2::254/128
 ReadWritePaths=/run/mcp-sentinel /var/lib/mcp-sentinel /etc/ufw /etc/mcp-sentinel /etc/nginx /etc/passwd /etc/shadow /etc/group /etc/gshadow
 # Exact registered project write paths are installed as a root-owned generated
 # drop-in by the signed release activator.
