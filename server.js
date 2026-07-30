@@ -2425,6 +2425,11 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     return res.status(403).json({ error: 'Session does not belong to you' });
   }
 
+  const requestFlowHint = resolveFlowHint(req);
+  const requestFlowStepHint = resolveFlowStepHint(req);
+  if (requestFlowHint) session.identity.flowHint = requestFlowHint;
+  if (requestFlowStepHint) session.identity.flowStepHint = requestFlowStepHint;
+
   session.lastActivity = Date.now();
   session.inFlight = true;
 
