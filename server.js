@@ -2659,10 +2659,11 @@ async function createMcpServer(identity, ip, flowHint = null) {
         const start = Date.now();
         const normalizedArgs = normalizeFlowArgs(args);
         const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
+        const explicitFlowId = flowHint || providedFlowId;
         const identityFlowId = resolveFlowId(identity);
-        const flowIdArg = providedFlowId || identityFlowId || identity.sessionId || null;
+        const flowIdArg = explicitFlowId || identityFlowId || identity.sessionId || null;
         const resumeFromPassed =
-          args?.resumeFromPassed === true || (args?.resumeFromPassed === undefined && flowIdArg !== null);
+          args?.resumeFromPassed === true || (args?.resumeFromPassed === undefined && Boolean(explicitFlowId));
         const forceReplay = args?.forceReplay === true;
 
         const availability = await toolAvailability(name);
