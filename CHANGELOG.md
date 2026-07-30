@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added deployment-profile validation that keeps single-host deployments ready and refuses unconfirmed high-availability configurations.
 - Added HTTPS-bound WebAuthn enrollment/authentication with one-use challenges, credential-counter persistence, and optional five-minute administrator step-up enforcement.
 - Applied the optional WebAuthn step-up gate to critical administrator mutations, including keys, approvals, projects, SSH policy, OAuth administration, backups, sessions, and capability changes.
+- Added bounded self-hosted OTLP telemetry, declarative operational SLO definitions, worker-lease binding, and SQLite-only migration dry-run support.
+- Purged historical runtime state and credential-bearing paths from all reachable Git refs after creating and verifying an encrypted recovery bundle.
 
 ## [2.0.0] — 2026-07-23
 
