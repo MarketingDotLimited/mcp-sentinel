@@ -89,6 +89,20 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.equal(usersRes.status, 200);
       assert.equal(Array.isArray(usersBody), true);
 
+      const apiUsersRes = await fetch(`${baseUrl}/admin/api/oauth-users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const apiUsersBody = await apiUsersRes.json();
+      assert.equal(apiUsersRes.status, 200);
+      assert.equal(Array.isArray(apiUsersBody), true);
+
+      const altUsersRes = await fetch(`${baseUrl}/api/admin/oauth-users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const altUsersBody = await altUsersRes.json();
+      assert.equal(altUsersRes.status, 200);
+      assert.equal(Array.isArray(altUsersBody), true);
+
       const clientsRes = await fetch(`${baseUrl}/admin/oauth-clients`, {
         headers: { Authorization: `Bearer ${token}` },
       });

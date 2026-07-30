@@ -571,13 +571,14 @@ function adminReadFallbackHandler(req, res, reader, options = {}) {
     code = 'ADMIN_READ_FAILED',
     label = 'Failed to load admin data',
     pathHint = req?.path || '',
+    fallbackOnAnyError = false,
   } = options;
   return (async () => {
     try {
       return await reader();
     } catch (error) {
       const fallback = adminDependencyFallbackResponse(pathHint || req.path, error);
-      if (fallback && req.method === 'GET') {
+      if (fallback && req.method === 'GET' && (fallbackOnAnyError || isDependencyError(error))) {
         return res.status(fallback.status).json(fallback.body);
       }
       return respondDependencyAwareError(
@@ -1047,6 +1048,7 @@ app.get(
         pathHint: '/admin/capabilities',
         code: 'CAPABILITIES_LOAD_FAILED',
         label: 'Failed to load capabilities',
+        fallbackOnAnyError: true,
       }
     )
 );
@@ -1382,6 +1384,7 @@ app.get(
         pathHint: '/admin/sessions',
         code: 'SESSION_LIST_FAILED',
         label: 'Failed to load sessions',
+        fallbackOnAnyError: true,
       }
     )
 );
@@ -1867,7 +1870,12 @@ app.get(
           fallbackOnAnyError: true,
         });
       },
-      { pathHint: '/admin/oauth-users', code: 'OAUTH_USERS_LIST_FAILED', label: 'Failed to load OAuth users' }
+      {
+        pathHint: '/admin/oauth-users',
+        code: 'OAUTH_USERS_LIST_FAILED',
+        label: 'Failed to load OAuth users',
+        fallbackOnAnyError: true,
+      }
     )
 );
 
@@ -1952,7 +1960,12 @@ app.get(
           fallbackOnAnyError: true,
         });
       },
-      { pathHint: '/admin/oauth-clients', code: 'OAUTH_CLIENTS_LIST_FAILED', label: 'Failed to load OAuth clients' }
+      {
+        pathHint: '/admin/oauth-clients',
+        code: 'OAUTH_CLIENTS_LIST_FAILED',
+        label: 'Failed to load OAuth clients',
+        fallbackOnAnyError: true,
+      }
     )
 );
 
