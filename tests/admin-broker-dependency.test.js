@@ -89,6 +89,13 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.equal(usersRes.status, 200);
       assert.equal(Array.isArray(usersBody), true);
 
+      const apiUsersPlainRes = await fetch(`${baseUrl}/api/oauth-users`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const apiUsersPlainBody = await apiUsersPlainRes.json();
+      assert.equal(apiUsersPlainRes.status, 200);
+      assert.equal(Array.isArray(apiUsersPlainBody), true);
+
       const apiUsersRes = await fetch(`${baseUrl}/admin/api/oauth-users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -109,6 +116,13 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       const clientsBody = await clientsRes.json();
       assert.equal(clientsRes.status, 200);
       assert.equal(Array.isArray(clientsBody), true);
+
+      const apiClientsPlainRes = await fetch(`${baseUrl}/api/oauth-clients`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const apiClientsPlainBody = await apiClientsPlainRes.json();
+      assert.equal(apiClientsPlainRes.status, 200);
+      assert.equal(Array.isArray(apiClientsPlainBody), true);
 
       const manifestRes = await fetch(`${baseUrl}/admin/action-manifest`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -180,10 +194,14 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       const compatibilityChecks = [
         { label: 'admin capabilities', url: '/api/admin/capabilities', expectedStatus: 200 },
         { label: 'legacy admin capabilities', url: '/admin/api/capabilities', expectedStatus: 200 },
+        { label: 'legacy api capabilities', url: '/api/capabilities', expectedStatus: 200 },
+        { label: 'legacy api capabilities (slash)', url: '/api/capabilities/', expectedStatus: 200 },
         { label: 'admin action manifest', url: '/admin/action-manifest', expectedStatus: 200 },
         { label: 'admin action manifest (slash)', url: '/admin/action-manifest/', expectedStatus: 200 },
         { label: 'legacy action manifest', url: '/admin/api/action-manifest', expectedStatus: 200 },
         { label: 'legacy action manifest (slash)', url: '/admin/api/action-manifest/', expectedStatus: 200 },
+        { label: 'api sessions', url: '/api/sessions', expectedStatus: 200 },
+        { label: 'api sessions (slash)', url: '/api/sessions/', expectedStatus: 200 },
       ];
 
       for (const { label, url, expectedStatus } of compatibilityChecks) {
