@@ -1169,7 +1169,6 @@ app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
 });
 
 async function handleActionManifest(req, res) {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     await createMcpServer(req.identity, req.clientIP);
     const manifest = manifestSnapshots.get(manifestIdentityKey(req.identity));

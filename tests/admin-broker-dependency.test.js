@@ -159,6 +159,84 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
     }
   });
 
+  it('returns a filtered action manifest for non-admin identities based on scope and capability filters', async () => {
+    const port = await freePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const missingBrokerSocket = path.join(tmp, 'broker.sock');
+    const developerKey = 'developer-dependency-test-key-placeholder-32chars!!';
+
+    child = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
+        ADMIN_API_KEY: adminKey,
+        JWT_SECRET: jwtSecret,
+        KEYS_FILE: path.join(tmp, 'keys.json'),
+        KEYSTORE_FILE: path.join(tmp, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'),
+        MCP_STATE_DB: path.join(tmp, 'state.sqlite3'),
+        MCP_BROKER_SOCKET: missingBrokerSocket,
+        AUDIT_LOG_DIR: path.join(tmp, 'logs'),
+      },
+      stdio: 'ignore',
+    });
+
+    try {
+      await waitFor(`${baseUrl}/health`);
+      const adminToken = await fetchToken(baseUrl);
+
+      const createDevKeyRes = await fetch(`${baseUrl}/admin/keys`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          key: developerKey,
+          userId: 'admin',
+          role: 'developer',
+          scopes: ['system.*', 'files.*', 'git.*', 'projects.*', 'ssh.*'],
+          requireApproval: false,
+          label: 'Dependency test developer key',
+        }),
+      });
+      assert.equal(createDevKeyRes.status, 200);
+      const createDevBody = await createDevKeyRes.json();
+      assert.equal(createDevBody?.success, true);
+
+      const developerTokenRes = await fetch(`${baseUrl}/auth/token`, {
+        method: 'POST',
+        headers: { 'x-api-key': developerKey },
+      });
+      const developerTokenBody = await developerTokenRes.json();
+      assert.equal(developerTokenRes.status, 200);
+      const developerToken = developerTokenBody.token;
+
+      const manifestRes = await fetch(`${baseUrl}/action-manifest`, {
+        headers: { Authorization: `Bearer ${developerToken}` },
+      });
+      const manifestBody = await manifestRes.json();
+      assert.equal(manifestRes.status, 200);
+      assert.equal(Array.isArray(manifestBody?.manifest?.tools), true);
+
+      const toolNames = new Set((manifestBody?.manifest?.tools || []).map(item => item.name));
+      assert.equal(toolNames.has('run_project_tests'), true);
+      assert.equal(toolNames.has('get_my_ssh_access'), true);
+      assert.equal(toolNames.has('set_my_ssh_access'), true);
+      assert.equal(toolNames.has('admin_set_ssh_access'), false);
+      assert.equal(toolNames.has('list_ssh_access_policies'), false);
+    } finally {
+      if (child && !child.killed) child.kill('SIGTERM');
+      child = null;
+    }
+  });
+
   it('supports admin endpoint aliases and keeps unrelated endpoints usable without the broker', async () => {
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
