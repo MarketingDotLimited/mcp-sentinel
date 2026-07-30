@@ -90,6 +90,39 @@ describe('approval control plane', () => {
       args: { ...resumeAction.args, resumeFromPassed: true, forceReplay: false },
     });
     assert.equal(ignoredControlFields?.id, executedApproval.id);
+
+    const legacyFlowAction = {
+      tool: 'write_file',
+      args: { filePath: '/srv/app/.env.legacy', content: 'MODE=legacy' },
+      identity: requester,
+    };
+
+    const { approval: legacyApproval } = await controlPlane.requestApproval(legacyFlowAction);
+    await controlPlane.decideApproval({ id: legacyApproval.id, decision: 'approved', identity: admin });
+
+    const legacyConsumed = await controlPlane.consumeApproval(legacyFlowAction);
+    assert.equal(legacyConsumed?.status, 'executing');
+    await controlPlane.completeApprovalExecution(legacyConsumed.id, requester);
+
+    const fallbackLatest = await controlPlane.getLatestSuccessfulExecution({
+      ...legacyFlowAction,
+      args: { ...legacyFlowAction.args, flowId: 'new-flow-id' },
+    });
+    assert.equal(fallbackLatest?.id, legacyConsumed.id);
+
+    const fallbackFlowAction = {
+      tool: 'write_file',
+      args: { filePath: '/srv/app/.env.legacy-pending', content: 'MODE=legacy-pending' },
+      identity: requester,
+    };
+    const { approval: legacyPendingApproval } = await controlPlane.requestApproval(fallbackFlowAction);
+    await controlPlane.decideApproval({ id: legacyPendingApproval.id, decision: 'approved', identity: admin });
+    const fallbackConsumed = await controlPlane.consumeApproval({
+      ...fallbackFlowAction,
+      args: { ...fallbackFlowAction.args, flowId: 'new-flow-id' },
+    });
+    assert.equal(fallbackConsumed?.status, 'executing');
+    await controlPlane.completeApprovalExecution(fallbackConsumed.id, requester);
   });
 
   it('records a bounded failure and links the next reviewed retry', async () => {
