@@ -2625,9 +2625,10 @@ async function createMcpServer(identity, ip) {
       async args => {
         const start = Date.now();
         const normalizedArgs = normalizeFlowArgs(args);
-        const flowId = typeof args?.flowId === 'string' ? args.flowId.trim() : null;
-        const flowIdArg = flowId || null;
-        const resumeFromPassed = args?.resumeFromPassed === true;
+        const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
+        const flowIdArg = providedFlowId || identity.sessionId || null;
+        const resumeFromPassed =
+          args?.resumeFromPassed === true || (args?.resumeFromPassed === undefined && flowIdArg !== null);
         const forceReplay = args?.forceReplay === true;
 
         const availability = await toolAvailability(name);
