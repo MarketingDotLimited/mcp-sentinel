@@ -154,6 +154,13 @@ jobs:
         run: |
           "$(go env GOPATH)/bin/gitleaks" git --redact --no-banner --exit-code 1
 
+      - name: Reject historical runtime-state paths
+        run: |
+          if git log --all --name-only --pretty=format: | sort -u | grep -E '(^|/)(keys\.json|coverage/|data/|certs/|logs/|authelia/(configuration\.yml|users\.yml|user-mappings\.json|db\.sqlite3|notification\.txt|oidc_.*\.pem|backups/))'; then
+            echo 'Historical runtime-state paths are still reachable from a Git ref.' >&2
+            exit 1
+          fi
+
       - name: Verify secrets with TruffleHog
         uses: trufflesecurity/trufflehog@a2ef4f51a5e3644c500f02650db88504cd7d9b68 # main, pinned 2026-07-23
         with:
