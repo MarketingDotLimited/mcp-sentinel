@@ -145,7 +145,7 @@ async function ensurePrivilegeBrokerAvailable(req, res, next) {
 
 function isBrokerUnavailable(error, visited = new Set()) {
   if (!error || visited.has(error)) return false;
-  if (typeof error === 'string') return /broker unavailable|connect ENOENT|no socket available/i.test(error);
+  if (typeof error === 'string') return /broker unavailable|connect ENOENT|ENOENT|no socket available/i.test(error);
   if (typeof error !== 'object') return false;
   visited.add(error);
 
@@ -167,7 +167,7 @@ function isBrokerUnavailable(error, visited = new Set()) {
     code === 'ECONNREFUSED' ||
     code === 'EPIPE' ||
     code === 'ECONNRESET' ||
-    /Privilege broker unavailable|broker unavailable|connect ENOENT|no socket available/i.test(errorText) ||
+    /Privilege broker unavailable|broker unavailable|connect ENOENT|ENOENT|no socket available/i.test(errorText) ||
     /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(errorText)
   )
     return true;
@@ -218,7 +218,7 @@ function isRecoverableDependencyError(error) {
   const directText = typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean' ? String(error) : '';
   if (
     directText &&
-    /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+is\s+unavailable|cannot\s+connect|privilege\s+broker\s+unavailable|socket\s+unavailable|BROKER_UNAVAILABLE/i.test(
+    /connect\s+ENOENT|ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+is\s+unavailable|cannot\s+connect|privilege\s+broker\s+unavailable|socket\s+unavailable|BROKER_UNAVAILABLE/i.test(
       directText
     )
   )
@@ -280,7 +280,7 @@ function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
   if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
   if (
-    /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
+    /connect\s+ENOENT|ENOENT|no\s+socket\s+available|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
       message
     )
   )
@@ -311,10 +311,10 @@ function isOAuthDependencyError(error) {
       current?.message || current?.error || current?.reason || current?.statusText || current?.toString?.() || ''
     );
     if (
-      /connect\s+ENOENT|no\s+socket\s+available|no\s+such\s+file|privilege\s+broker|broker\.?sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
+      /connect\s+ENOENT|ENOENT|no\s+socket\s+available|no\s+such\s+file|privilege\s+broker|broker\.?sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
         currentText
       )
-    )
+      )
       return true;
 
     for (const key of dependencySignals) {
@@ -342,7 +342,11 @@ function safeLogError(error, context) {
 
 function isBrokerUnavailableError(error) {
   const message = String(error?.message || error || '');
-  return /privilege\s+broker\s+unavailable|connect\s+enoent|no\s+such\s+file|socket\s+unavailable|broker\s+is\s+unavailable/i.test(message);
+  return (
+    /privilege\s+broker\s+unavailable|connect\s+enoent|ENOENT|no\s+such\s+file|socket\s+unavailable|broker\s+is\s+unavailable/i.test(
+      message
+    ) || /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(message)
+  );
 }
 
 function respondBrokerUnavailable(res, error) {
@@ -981,13 +985,22 @@ async function handleActionManifest(req, res) {
     });
   } catch (err) {
     if (isDependencyError(err)) {
-      return res.status(503).json({
+      return res.status(200).json({
         manifest: {
           version: 'missing',
           hash: 'missing',
           name: 'MCP Sentinel',
           tools: [],
+          status: 'dependency-unavailable',
           warnings: ['Privilege broker or state store dependency unavailable.'],
+          dependency: {
+            unavailable: true,
+            reason: String(err?.message || err?.cause?.message || 'Privilege broker or state store unavailable'),
+            code:
+              (err?.code && String(err.code)) ||
+              (err?.cause?.code && String(err.cause.code)) ||
+              (isStateStoreUnavailable(err) ? 'STATE_STORE_UNAVAILABLE' : 'BROKER_UNAVAILABLE'),
+          },
         },
         refreshChecklist: [
           'Restore broker/state dependencies, then refresh the connector action snapshot in ChatGPT.',
