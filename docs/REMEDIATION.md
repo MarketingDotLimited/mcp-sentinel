@@ -47,11 +47,11 @@ Require fresh clones after the rewrite. Do not reuse old worktrees, caches, imag
    sudo ./install.sh rollback <rollback-uuid>
    ```
 
-   Activation records previous units, active services, release pointer, and deployment receipt before changing anything. It atomically selects the staged release, starts the broker before the API, waits for loopback health, runs the complete production preflight, and automatically restores the previous services and release if any gate fails.
+Activation records previous units, active services, release pointer, and deployment receipt before changing anything. It atomically selects the staged release, starts the API service, waits for loopback health, runs the complete production preflight, then starts the broker; if any gate fails, it automatically restores the previous services and release.
 
 3. Generate independent 32-byte state, audit, JWT, and backup keys into `/etc/mcp-sentinel/credentials/state-key`, `/etc/mcp-sentinel/credentials/audit-key`, `/etc/mcp-sentinel/credentials/jwt-key`, and `/etc/mcp-sentinel/credentials/state-backup-key`; store them as 64-character hexadecimal values and set mode `0600`. Set `CONTROL_PLANE_KEY_ID` and `MCP_STATE_BACKUP_KEY_ID` whenever rotating the corresponding key.
 4. Copy `deploy/broker-environment.example` to `/etc/mcp-sentinel/broker-environment`. Register only the application services and firewall ports Sentinel may manage. Never add arbitrary executable, argument, path, or environment inputs.
-5. Install `deploy/mcp-sentinel-broker.service` and `deploy/mcp-sentinel.service`, run `systemd-analyze security` on both, then enable the broker before the public service.
+5. Install `deploy/mcp-sentinel-broker.service` and `deploy/mcp-sentinel.service`, run `systemd-analyze security` on both, then enable both services. The API can start with a reduced feature set when the broker is unavailable.
 6. Bind Sentinel and Authelia to loopback. Terminate TLS at the trusted Nginx proxy, disable proxy buffering for `/mcp`, and set explicit `ALLOWED_ORIGINS`, `TRUST_PROXY=true`, and loopback-only `TRUSTED_PROXIES`.
 
 Copy `deploy/environment.example` to `/etc/mcp-sentinel/environment`, replace every example hostname, and keep secrets out of that file. Before any traffic cutover, run `npm run deploy:preflight` from the reviewed release. It fails closed unless the service identity, modes, independent systemd credentials, exact installed units, signed release receipt, SQLite integrity/migrations, Rabeeb project registration, OAuth mapping, stored recovery administrator, proxy boundary, and broker allow-lists all match the production contract.
