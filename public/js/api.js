@@ -104,11 +104,21 @@ const API = {
         .replace(/^\/api\//, '/admin/')
         .replace(/^$/, '/');
       const isOAuthUsersOrClients = /\/oauth-(?:users|clients)(?:\/|$)/i.test(adminUrl);
-      const isGenericDependencyEndpoint = /^(?:\/admin)?\/(oauth-(?:users|clients)|action-manifest|capabilities|sessions)(?:\/|$)/i.test(
-        adminUrl
-      );
+      const isManifestEndpoint = /(?:^|\/)action-manifest(?:\/|$)/i.test(adminUrl);
+      const isGenericDependencyEndpoint = /^(?:\/admin)?\/(oauth-(?:users|clients))(?:\/|$)/i.test(adminUrl);
 
       if (isOAuthUsersOrClients || isGenericDependencyEndpoint) return [];
+      if (isManifestEndpoint)
+        return {
+          manifest: {
+            version: 'missing',
+            hash: 'missing',
+            name: 'MCP Sentinel',
+            tools: [],
+          },
+          refreshChecklist: [],
+          warnings: ['Privilege broker unavailable: continuing with a read-only local fallback.'],
+        };
       if (/(?:^|\/)admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
       if (/(?:^|\/)admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
       if (/(?:^|\/)action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
