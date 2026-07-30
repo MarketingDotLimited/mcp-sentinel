@@ -1216,6 +1216,12 @@ function getFlowHint(req) {
   );
 }
 
+function resolveFlowHint(req) {
+  const headerHint = getFlowHint(req);
+  if (headerHint) return headerHint;
+  return `mcp-session-${randomUUID()}`;
+}
+
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
@@ -2258,7 +2264,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
 
     const identity = req.identity;
     const ip = req.clientIP;
-    const flowHint = getFlowHint(req);
+    const flowHint = resolveFlowHint(req);
     identity.flowHint = flowHint;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
     if (activeTransports.size >= maxConns) {
@@ -2320,7 +2326,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
   if (!session && req.method === 'GET' && req.path === '/mcp' && !sessionId) {
     const identity = req.identity;
     const ip = req.clientIP;
-    const flowHint = getFlowHint(req);
+    const flowHint = resolveFlowHint(req);
     identity.flowHint = flowHint;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
     if (activeTransports.size >= maxConns) {
