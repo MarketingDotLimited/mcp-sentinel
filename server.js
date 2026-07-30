@@ -1705,7 +1705,7 @@ app.put('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBrokerAv
     respondDependencyAwareError(
       res,
       e,
-      e.message.includes('No mapping found') || e.message.includes('cannot update')
+      /No mapping found|cannot update|not found/i.test(e.message)
         ? { status: 404, code: 'OAUTH_USER_NOT_FOUND', label: 'OAuth user not found' }
         : e.message.includes('Only administrators')
           ? { status: 403, code: 'OAUTH_USER_UPDATE_FORBIDDEN', label: 'Insufficient permission' }
