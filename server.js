@@ -400,6 +400,40 @@ function safeLogError(error, context) {
   } catch {}
 }
 
+const CLIENT_OVERRIDE_FIELDS = new Set([
+  'linuxUser',
+  'role',
+  'scopes',
+  'requireApproval',
+  'projectIds',
+  'organizationId',
+  'teamId',
+  'authorizationVersion',
+]);
+
+function sanitizeClientOverrides(rawOverrides = {}) {
+  if (!rawOverrides || Array.isArray(rawOverrides) || typeof rawOverrides !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(rawOverrides).flatMap(([clientId, rawOverride]) => {
+      if (!clientId || typeof clientId !== 'string') return [];
+      if (!rawOverride || Array.isArray(rawOverride) || typeof rawOverride !== 'object') return [clientId, {}];
+      const sanitized = {};
+      for (const field of CLIENT_OVERRIDE_FIELDS) {
+        if (Object.prototype.hasOwnProperty.call(rawOverride, field)) {
+          sanitized[field] = rawOverride[field];
+        }
+      }
+      return [[clientId, sanitized]];
+    })
+  );
+}
+
+function sanitizeOAuthUserPayload(payload = {}) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
+  if (payload.clients === undefined) return { ...payload };
+  return { ...payload, clients: sanitizeClientOverrides(payload.clients) };
+}
+
 function normalizeAdminReadPath(pathname = '') {
   const normalized = `/${String(pathname || '')}`
     .replace(/\/+$/u, '')
@@ -1837,7 +1871,7 @@ app.get(
 app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
-    const user = await addOAuthUser(req.body);
+    const user = await addOAuthUser(sanitizeOAuthUserPayload(req.body));
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
     res.json(user);
   } catch (e) {
@@ -1857,7 +1891,7 @@ app.put('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBrokerAv
     const { username: bodyUsername, ...updates } = req.body || {};
     if (bodyUsername && bodyUsername !== req.params.username)
       return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
-    await updateOAuthUser(req.params.username, updates);
+    await updateOAuthUser(req.params.username, sanitizeOAuthUserPayload(updates));
     await invalidateOAuthSessions(req.params.username);
     logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
     res.json({ success: true });

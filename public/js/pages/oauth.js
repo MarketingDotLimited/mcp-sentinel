@@ -16,6 +16,26 @@ window.OAuthPage = (function () {
 
   // Store modals to clean them up
   let activeModals = [];
+  const CLIENT_OVERRIDE_FIELDS = new Set([
+    'linuxUser',
+    'role',
+    'scopes',
+    'requireApproval',
+    'projectIds',
+    'organizationId',
+    'teamId',
+    'authorizationVersion',
+  ]);
+
+  function sanitizeClientOverride(override = {}) {
+    const clean = {};
+    for (const field of CLIENT_OVERRIDE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(override, field)) {
+        clean[field] = override[field];
+      }
+    }
+    return clean;
+  }
 
   function render(root) {
     container = root;
@@ -398,8 +418,9 @@ window.OAuthPage = (function () {
       modal.body.querySelector('#modal-group-users').checked = (user.groups || []).includes('users');
       modal.body.querySelector('#modal-require-approval').checked = user.requireApproval !== false;
       for (const checkbox of modal.body.querySelectorAll('#modal-client-approvals [data-client-id]')) {
+        const override = sanitizeClientOverride(user.clients?.[checkbox.dataset.clientId] || {});
         checkbox.checked =
-          user.clients?.[checkbox.dataset.clientId]?.requireApproval ??
+          override.requireApproval ??
           modal.body.querySelector('#modal-require-approval').checked;
       }
     }
@@ -417,7 +438,7 @@ window.OAuthPage = (function () {
     } else {
       orderedClientIds.forEach(clientId => {
         if (!clientId) return;
-        const override = currentClientOverrides[clientId] || {};
+        const override = sanitizeClientOverride(currentClientOverrides[clientId] || {});
         const label = document.createElement('label');
         label.className = 'checkbox-label';
         label.style.display = 'block';
@@ -481,7 +502,7 @@ window.OAuthPage = (function () {
         for (const checkbox of clientCheckboxes) {
           const clientId = checkbox.dataset.clientId;
           if (!clientId) continue;
-          const existing = (user?.clients || {})[clientId] || {};
+          const existing = sanitizeClientOverride((user?.clients || {})[clientId] || {});
           data.clients[clientId] = {
             ...existing,
             requireApproval: checkbox.checked,
