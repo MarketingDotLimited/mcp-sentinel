@@ -1029,6 +1029,8 @@ app.get('/admin/scope-registry', authenticateJWT, (req, res) => {
 app.get(
   [
     '/admin/capabilities',
+    '/api/capabilities',
+    '/api/capabilities/',
     '/admin/api/capabilities',
     '/admin/api/capabilities/',
     '/api/admin/capabilities',
@@ -1352,6 +1354,8 @@ app.post('/admin/action-refresh-status', authenticateJWT, async (req, res) => {
 app.get(
   [
     '/admin/sessions',
+    '/api/sessions',
+    '/api/sessions/',
     '/admin/sessions/',
     '/admin/api/sessions',
     '/admin/api/sessions/',
@@ -1854,6 +1858,8 @@ function safeJsonDependencyFallback(res, reader, operationName, fallbackData = n
 app.get(
   [
     '/admin/oauth-users',
+    '/api/oauth-users',
+    '/api/oauth-users/',
     '/admin/oauth-users/',
     '/admin/api/oauth-users',
     '/admin/api/oauth-users/',
@@ -1944,6 +1950,8 @@ app.delete('/admin/oauth-users/:username', authenticateJWT, ensurePrivilegeBroke
 app.get(
   [
     '/admin/oauth-clients',
+    '/api/oauth-clients',
+    '/api/oauth-clients/',
     '/admin/oauth-clients/',
     '/admin/api/oauth-clients',
     '/admin/api/oauth-clients/',
