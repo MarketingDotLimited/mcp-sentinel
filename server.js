@@ -439,7 +439,8 @@ function normalizeAdminReadPath(pathname = '') {
     .replace(/\/+$/u, '')
     .replace(/^\/{2,}/g, '/')
     .replace(/^\/api\/admin\//u, '/admin/')
-    .replace(/^\/admin\/api\//u, '/admin/');
+    .replace(/^\/admin\/api\//u, '/admin/')
+    .replace(/^\/api\//u, '/admin/');
   return normalized;
 }
 

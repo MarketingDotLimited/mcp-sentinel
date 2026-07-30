@@ -29,9 +29,19 @@ const API = {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    const requestPath = input => {
+      if (typeof input !== 'string') return '';
+      try {
+        if (input.startsWith('http://') || input.startsWith('https://')) return new URL(input).pathname;
+        return input;
+      } catch {
+        return input;
+      }
+    };
+
     const candidateUrls = [];
     if (typeof url === 'string' && url.startsWith('/admin/')) {
-      const adminRelative = url.replace(/^\/admin\//, '/');
+      const adminRelative = requestPath(url).replace(/^\/admin\//, '/');
       const adminWithoutTrailingSlash = adminRelative.endsWith('/') ? adminRelative.slice(0, -1) : adminRelative;
 
       candidateUrls.push(url);
@@ -85,12 +95,13 @@ const API = {
       error.status === 500;
 
     const getReadDependencyFallback = requestUrl => {
-      const normalizedUrl = String(requestUrl || '')
+      const normalizedUrl = requestPath(String(requestUrl || ''))
         .split('?')[0]
         .replace(/\/+$/u, '');
       const adminUrl = normalizedUrl
         .replace(/^\/api\/admin\//, '/admin/')
         .replace(/^\/admin\/api\//, '/admin/')
+        .replace(/^\/api\//, '/admin/')
         .replace(/^$/, '/');
 
       if (/^\/admin\/oauth-users$/.test(adminUrl)) return [];
@@ -208,10 +219,11 @@ const API = {
       } catch (error) {
         normalizeDependencyError(error);
       const readFallback = getReadDependencyFallback(requestUrl);
-      const normalizedRequest = String(requestUrl || '')
+      const normalizedRequest = requestPath(String(requestUrl || ''))
         .replace(/\/+$/, '')
         .replace(/^\/api\/admin\//, '/admin/')
-        .replace(/^\/admin\/api\//, '/admin/');
+        .replace(/^\/admin\/api\//, '/admin/')
+        .replace(/^\/api\//, '/admin/');
       const isOAuthReadEndpoint =
         /^\/admin\/oauth-users$/i.test(normalizedRequest) ||
         /^\/admin\/oauth-clients$/i.test(normalizedRequest) ||
