@@ -315,4 +315,56 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       await fs.rm(malformedDir, { recursive: true, force: true });
     }
   });
+
+  it('returns dependency-unavailable for user update when the broker socket is missing', async () => {
+    const port = await freePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const missingBrokerSocket = path.join(tmp, 'broker.sock');
+    const stateDir = await fs.mkdtemp(path.join(tmp, 'mcp-oauth-missing-user-'));
+
+    child = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
+        ADMIN_API_KEY: adminKey,
+        JWT_SECRET: jwtSecret,
+        KEYS_FILE: path.join(stateDir, 'keys.json'),
+        KEYSTORE_FILE: path.join(stateDir, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(stateDir, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(stateDir, 'capabilities.json'),
+        MCP_STATE_DB: path.join(stateDir, 'state.sqlite3'),
+        MCP_BROKER_SOCKET: missingBrokerSocket,
+        AUTHELIA_USERS_FILE: path.join(stateDir, 'users.yml'),
+        AUTHELIA_CONFIG_FILE: path.join(stateDir, 'authelia.yml'),
+        AUDIT_LOG_DIR: path.join(stateDir, 'logs'),
+      },
+      stdio: 'ignore',
+    });
+
+    try {
+      await fs.writeFile(path.join(stateDir, 'users.yml'), 'users: {}\n', { mode: 0o600 });
+      await fs.writeFile(path.join(stateDir, 'authelia.yml'), 'identity_providers:\n  oidc:\n    clients: []\n', { mode: 0o600 });
+
+      await waitFor(`${baseUrl}/health`);
+      const token = await fetchToken(baseUrl);
+
+      const response = await fetch(`${baseUrl}/admin/oauth-users/missing-user`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'missing@example.test' }),
+      });
+      const body = await response.json();
+      assert.equal(response.status, 503);
+      assert.equal(body?.code, 'BROKER_UNAVAILABLE');
+    } finally {
+      if (child && !child.killed) child.kill('SIGTERM');
+      child = null;
+      await fs.rm(stateDir, { recursive: true, force: true });
+    }
+  });
 });
