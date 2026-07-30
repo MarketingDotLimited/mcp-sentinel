@@ -1173,7 +1173,8 @@ async function handleActionManifest(req, res) {
       refreshChecklist: [
         'Refresh the connector action snapshot in ChatGPT.',
         'Review and approve the reported schema and annotation changes.',
-        'Explicitly enable get_my_ssh_access and set_my_ssh_access.',
+        'Enable Advanced System Administration capabilities if you need admin_set_ssh_access and list_ssh_access_policies in the toolset.',
+        'Enable and then explicitly verify get_my_ssh_access and set_my_ssh_access.',
         'Explicitly enable run_project_tests, get_project_test_run, and cancel_project_test_run.',
         'Reauthorize OAuth after the credential rotation.',
         'Open a new chat and run one small assigned-project test target.',

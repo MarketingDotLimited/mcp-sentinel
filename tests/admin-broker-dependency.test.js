@@ -121,6 +121,20 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       assert.equal(Array.isArray(manifestBody?.refreshChecklist), true);
       assert.ok(Array.isArray(manifestBody?.manifest?.tools));
 
+      const adminActionManifestRes = await fetch(`${baseUrl}/admin/api/action-manifest`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const adminActionManifestBody = await adminActionManifestRes.json();
+      assert.equal(adminActionManifestRes.status, 200);
+      assert.ok(adminActionManifestBody?.manifest || adminActionManifestBody?.tools);
+
+      const actionManifestRes = await fetch(`${baseUrl}/api/action-manifest`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const actionManifestBody = await actionManifestRes.json();
+      assert.equal(actionManifestRes.status, 200);
+      assert.ok(actionManifestBody?.manifest || actionManifestBody?.tools);
+
       const unauthRes = await fetch(`${baseUrl}/admin/oauth-users`);
       const unauthBody = await unauthRes.json();
       assert.equal(unauthRes.status, 401);
