@@ -2663,7 +2663,8 @@ async function createMcpServer(identity, ip, flowHint = null) {
         const identityFlowId = resolveFlowId(identity);
         const flowIdArg = explicitFlowId || identityFlowId || identity.sessionId || null;
         const resumeFromPassed =
-          args?.resumeFromPassed === true || (args?.resumeFromPassed === undefined && Boolean(explicitFlowId));
+          args?.resumeFromPassed === true ||
+          (args?.resumeFromPassed === undefined && Boolean(flowIdArg));
         const forceReplay = args?.forceReplay === true;
 
         const availability = await toolAvailability(name);
