@@ -1680,6 +1680,14 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 // ── OAuth User Management ──────────────────────────────────
 
 function safeJsonDependencyFallback(res, reader, operationName) {
+  const isDependencyLikeError = error => {
+    const message = String(error?.message || error || '');
+    if (isOAuthDependencyError(error) || isDependencyError(error)) return true;
+    return /privilege\s+broker\s+unavailable|connect\s+ENOENT|enoent|no\s+socket\s+available|broker\.sock|state\s+store\s+unavailable/i.test(
+      message
+    );
+  };
+
   try {
     const data = reader();
     if (data && typeof data.then === 'function') {
@@ -1687,13 +1695,7 @@ function safeJsonDependencyFallback(res, reader, operationName) {
         .then(result => res.json(result))
         .catch(error => {
           safeLogError(error, operationName);
-          if (
-            isOAuthDependencyError(error) ||
-            isDependencyError(error) ||
-            /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
-              String(error?.message || error || '')
-            )
-          ) {
+          if (isDependencyLikeError(error)) {
             return res.json([]);
           }
           return respondDependencyAwareError(res, error, {
@@ -1706,13 +1708,7 @@ function safeJsonDependencyFallback(res, reader, operationName) {
     return res.json(data);
   } catch (error) {
     safeLogError(error, operationName);
-    if (
-      isOAuthDependencyError(error) ||
-      isDependencyError(error) ||
-      /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
-        String(error?.message || error || '')
-      )
-    ) {
+    if (isDependencyLikeError(error)) {
       return res.json([]);
     }
     return respondDependencyAwareError(res, error, {
