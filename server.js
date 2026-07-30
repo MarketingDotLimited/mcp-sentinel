@@ -2646,6 +2646,12 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       .join(' ');
 
     const resolveFlowId = identityObj => {
+      // Flow metadata can be supplied on any message in a long-lived MCP
+      // session. Read the current identity value first so a CLI can advance
+      // its flow without opening a new session; the factory argument remains
+      // a backwards-compatible initial default.
+      const currentFlowHint = typeof identityObj?.flowHint === 'string' ? identityObj.flowHint.trim() : '';
+      if (currentFlowHint) return currentFlowHint;
       if (flowHint) return flowHint;
       const authType = identityObj?.authType || 'unknown';
       if (authType === 'apiKey') {
@@ -2692,10 +2698,13 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         const normalizedArgs = normalizeFlowArgs(args);
         const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
         const providedFlowStep = typeof args?.flowStep === 'string' ? args.flowStep.trim() : '';
-        const explicitFlowId = flowHint || providedFlowId;
+        const currentFlowHint = typeof identity?.flowHint === 'string' ? identity.flowHint.trim() : '';
+        const explicitFlowId = currentFlowHint || flowHint || providedFlowId;
         const identityFlowId = resolveFlowId(identity);
         const flowIdArg = explicitFlowId || identityFlowId || identity.sessionId || null;
-        const flowStepArg = providedFlowStep || flowStepHint || null;
+        const currentFlowStepHint =
+          typeof identity?.flowStepHint === 'string' ? identity.flowStepHint.trim() : '';
+        const flowStepArg = providedFlowStep || currentFlowStepHint || flowStepHint || null;
         const resumeFromPassed =
           args?.resumeFromPassed === true ||
           (args?.resumeFromPassed === undefined && Boolean(flowIdArg));
