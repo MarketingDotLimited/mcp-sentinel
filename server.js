@@ -1802,7 +1802,8 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-function safeJsonDependencyFallback(res, reader, operationName, fallbackData = null) {
+function safeJsonDependencyFallback(res, reader, operationName, fallbackData = null, options = {}) {
+  const { fallbackOnAnyError = false } = options;
   const isDependencyLikeError = error => {
     const message = String(error?.message || error || '');
     if (isOAuthDependencyError(error) || isDependencyError(error)) return true;
@@ -1821,7 +1822,7 @@ function safeJsonDependencyFallback(res, reader, operationName, fallbackData = n
         .then(result => res.json(result))
         .catch(error => {
           safeLogError(error, operationName);
-          if (isDependencyLikeError(error)) {
+          if (isDependencyLikeError(error) || fallbackOnAnyError) {
             return res.status(200).json(fallbackData ?? []);
           }
           return respondDependencyAwareError(res, error, {
@@ -1834,7 +1835,7 @@ function safeJsonDependencyFallback(res, reader, operationName, fallbackData = n
     return res.json(data);
   } catch (error) {
     safeLogError(error, operationName);
-    if (isDependencyLikeError(error)) {
+    if (isDependencyLikeError(error) || fallbackOnAnyError) {
       return res.status(200).json(fallbackData ?? []);
     }
     return respondDependencyAwareError(res, error, {
@@ -1862,7 +1863,9 @@ app.get(
       () => {
         if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
         if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-        return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), []);
+        return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'OAuth users list', [], {
+          fallbackOnAnyError: true,
+        });
       },
       { pathHint: '/admin/oauth-users', code: 'OAUTH_USERS_LIST_FAILED', label: 'Failed to load OAuth users' }
     )
@@ -1945,7 +1948,9 @@ app.get(
       () => {
         if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
         if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-        return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), []);
+        return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'OAuth clients list', [], {
+          fallbackOnAnyError: true,
+        });
       },
       { pathHint: '/admin/oauth-clients', code: 'OAUTH_CLIENTS_LIST_FAILED', label: 'Failed to load OAuth clients' }
     )
