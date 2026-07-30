@@ -103,9 +103,9 @@ const API = {
         .replace(/^\/admin\/api\//, '/admin/')
         .replace(/^\/api\//, '/admin/')
         .replace(/^$/, '/');
+      const isOAuthUsersOrClients = /\/oauth-(?:users|clients)(?:\/|$)/i.test(adminUrl);
 
-      if (/^\/admin\/oauth-users$/.test(adminUrl)) return [];
-      if (/^\/admin\/oauth-clients$/.test(adminUrl)) return [];
+      if (isOAuthUsersOrClients) return [];
       if (/^\/admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
       if (/^\/admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
       if (/^\/admin\/action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
@@ -120,8 +120,7 @@ const API = {
           warnings: ['Privilege broker unavailable: continuing with a read-only local fallback.'],
         };
       }
-      if (/^\/api\/oauth-users$/.test(adminUrl)) return [];
-      if (/^\/api\/oauth-clients$/.test(adminUrl)) return [];
+      if (/^\/api\/oauth-users$/.test(adminUrl) || /^\/api\/oauth-clients$/.test(adminUrl)) return [];
       if (/^\/api\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
       if (/^\/api\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
       if (/^\/api\/action-manifest$/.test(adminUrl)) {

@@ -446,15 +446,17 @@ function normalizeAdminReadPath(pathname = '') {
 
 function adminDependencyFallbackResponse(pathname, error) {
   const path = normalizeAdminReadPath(pathname);
+  const isOauthUsersLike = /^\/admin\/oauth-users(?:\/.*)?$/u.test(path);
+  const isOauthClientsLike = /^\/admin\/oauth-clients(?:\/.*)?$/u.test(path);
 
-  if (/^\/admin\/oauth-users$/u.test(path)) {
+  if (isOauthUsersLike) {
     return {
       status: 200,
       body: [],
     };
   }
 
-  if (/^\/admin\/oauth-clients$/u.test(path)) {
+  if (isOauthClientsLike) {
     return {
       status: 200,
       body: [],
