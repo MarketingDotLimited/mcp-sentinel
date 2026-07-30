@@ -1802,7 +1802,7 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-function safeJsonDependencyFallback(res, reader, operationName) {
+function safeJsonDependencyFallback(res, reader, operationName, fallbackData = null) {
   const isDependencyLikeError = error => {
     const message = String(error?.message || error || '');
     if (isOAuthDependencyError(error) || isDependencyError(error)) return true;
@@ -1822,7 +1822,7 @@ function safeJsonDependencyFallback(res, reader, operationName) {
         .catch(error => {
           safeLogError(error, operationName);
           if (isDependencyLikeError(error)) {
-            return res.json([]);
+            return res.status(200).json(fallbackData ?? []);
           }
           return respondDependencyAwareError(res, error, {
             status: 500,
@@ -1835,7 +1835,7 @@ function safeJsonDependencyFallback(res, reader, operationName) {
   } catch (error) {
     safeLogError(error, operationName);
     if (isDependencyLikeError(error)) {
-      return res.json([]);
+      return res.status(200).json(fallbackData ?? []);
     }
     return respondDependencyAwareError(res, error, {
       status: 500,
@@ -2360,11 +2360,11 @@ app.use((err, req, res, next) => {
     errorId,
     error: err,
   });
+  const fallback = adminDependencyFallbackResponse(req.path, err);
+  if (fallback && req.method === 'GET') {
+    return res.status(fallback.status).json(fallback.body);
+  }
   if (isBrokerUnavailable(err) || isStateStoreUnavailable(err)) {
-    const fallback = adminDependencyFallbackResponse(req.path, err);
-    if (fallback && req.method === 'GET') {
-      return res.status(fallback.status).json(fallback.body);
-    }
     return respondServiceDependencyUnavailable(res, err);
   }
   if (!res.headersSent) {
