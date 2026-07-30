@@ -531,6 +531,32 @@ function summarizeHealth(stats) {
   };
 }
 
+function adminReadFallbackHandler(req, res, reader, options = {}) {
+  const {
+    statusCode = 500,
+    code = 'ADMIN_READ_FAILED',
+    label = 'Failed to load admin data',
+    pathHint = req?.path || '',
+  } = options;
+  return (async () => {
+    try {
+      return await reader();
+    } catch (error) {
+      const fallback = adminDependencyFallbackResponse(pathHint || req.path, error);
+      if (fallback && req.method === 'GET') {
+        return res.status(fallback.status).json(fallback.body);
+      }
+      return respondDependencyAwareError(
+        res,
+        error,
+        error?.status === 403
+          ? { status: 403, code, label: 'Access denied' }
+          : { status: statusCode, code, label }
+      );
+    }
+  })();
+}
+
 async function buildSecurityPosture() {
   const checks = [];
   const add = (id, status, message) => checks.push({ id, status, message });
@@ -973,25 +999,22 @@ app.get(
     '/api/admin/capabilities/',
   ],
   authenticateJWT,
-  async (req, res) => {
-    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-    try {
-      return res.json({ capabilities: await getCapabilities() });
-    } catch (err) {
-      if (isDependencyError(err) || [500, 502, 503].includes(Number(err?.status))) {
-        return res.json({
-          capabilities: [],
-          status: 'dependency-unavailable',
-          dependency: {
-            unavailable: true,
-            reason: String(err?.message || 'Privilege broker/state store unavailable'),
-            code: 'DEPENDENCY_UNAVAILABLE',
-          },
-        });
+  (req, res) =>
+    adminReadFallbackHandler(
+      req,
+      res,
+      () => {
+        if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+        return (async () => {
+          return res.json({ capabilities: await getCapabilities() });
+        })();
+      },
+      {
+        pathHint: '/admin/capabilities',
+        code: 'CAPABILITIES_LOAD_FAILED',
+        label: 'Failed to load capabilities',
       }
-      return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
-    }
-  }
+    )
 );
 
 app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
@@ -1298,45 +1321,35 @@ app.get(
     '/api/admin/sessions/',
   ],
   authenticateJWT,
-  (req, res) => {
-    if (req.identity.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin role required' });
-    }
-    try {
-      const sessions = Array.from(activeTransports.entries()).map(([id, s]) => {
-        const identity = s?.identity || {};
-        return {
-          sessionId: id,
-          id,
-          userId: identity.userId,
-          role: identity.role,
-          authType: identity.type || 'unknown',
-          scopes: identity.scopes || [],
-          ip: s.ip,
-          connectedAt: s.connectedAt,
-        };
-      });
-      return res.json({ sessions, count: sessions.length });
-    } catch (err) {
-      if (isDependencyError(err) || [500, 502, 503].includes(Number(err?.status))) {
-        return res.json({
-          sessions: [],
-          count: 0,
-          status: 'dependency-unavailable',
-          dependency: {
-            unavailable: true,
-            reason: String(err?.message || 'Privilege broker/state store unavailable'),
-            code: 'DEPENDENCY_UNAVAILABLE',
-          },
+  (req, res) =>
+    adminReadFallbackHandler(
+      req,
+      res,
+      () => {
+        if (req.identity.role !== 'admin') {
+          return res.status(403).json({ error: 'Admin role required' });
+        }
+        const sessions = Array.from(activeTransports.entries()).map(([id, s]) => {
+          const identity = s?.identity || {};
+          return {
+            sessionId: id,
+            id,
+            userId: identity.userId,
+            role: identity.role,
+            authType: identity.type || 'unknown',
+            scopes: identity.scopes || [],
+            ip: s.ip,
+            connectedAt: s.connectedAt,
+          };
         });
-      }
-      return respondDependencyAwareError(res, err, {
-        status: 500,
+        return res.json({ sessions, count: sessions.length });
+      },
+      {
+        pathHint: '/admin/sessions',
         code: 'SESSION_LIST_FAILED',
         label: 'Failed to load sessions',
-      });
-    }
-  }
+      }
+    )
 );
 
 // ── Admin Web UI API Endpoints ─────────────────────────────
@@ -1808,11 +1821,17 @@ app.get(
     '/api/admin/oauth-users/',
   ],
   authenticateJWT,
-  async (req, res) => {
-    if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
-    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'oauth-users-list');
-  }
+  (req, res) =>
+    adminReadFallbackHandler(
+      req,
+      res,
+      () => {
+        if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
+        if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'oauth-users-list');
+      },
+      { pathHint: '/admin/oauth-users', code: 'OAUTH_USERS_LIST_FAILED', label: 'Failed to load OAuth users' }
+    )
 );
 
 app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
@@ -1885,11 +1904,17 @@ app.get(
     '/api/admin/oauth-clients/',
   ],
   authenticateJWT,
-  async (req, res) => {
-    if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
-    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'oauth-clients-list');
-  }
+  (req, res) =>
+    adminReadFallbackHandler(
+      req,
+      res,
+      () => {
+        if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
+        if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+        return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'oauth-clients-list');
+      },
+      { pathHint: '/admin/oauth-clients', code: 'OAUTH_CLIENTS_LIST_FAILED', label: 'Failed to load OAuth clients' }
+    )
 );
 
 app.post('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
