@@ -30,7 +30,13 @@ import { Router } from '../router.js';
       const sessions = Array.isArray(response) ? response : response.sessions || response.data || [];
       renderTable(sessions);
     } catch (err) {
-      Toast.error(formatDependencyError('Failed to load sessions', err));
+      const isDependency =
+        /broker|state store|dependency|connect ENOENT|no such file|socket unavailable/i.test(String(err?.message || '')) ||
+        err?.status >= 500;
+      if (!isDependency) {
+        Toast.error(formatDependencyError('Failed to load sessions', err));
+      }
+      renderTable([]);
     }
   }
 

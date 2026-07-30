@@ -1862,7 +1862,7 @@ app.get(
       () => {
         if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
         if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-        return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'oauth-users-list');
+        return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), []);
       },
       { pathHint: '/admin/oauth-users', code: 'OAUTH_USERS_LIST_FAILED', label: 'Failed to load OAuth users' }
     )
@@ -1945,7 +1945,7 @@ app.get(
       () => {
         if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
         if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-        return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'oauth-clients-list');
+        return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), []);
       },
       { pathHint: '/admin/oauth-clients', code: 'OAUTH_CLIENTS_LIST_FAILED', label: 'Failed to load OAuth clients' }
     )
