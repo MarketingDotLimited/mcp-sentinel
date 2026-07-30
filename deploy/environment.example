@@ -27,6 +27,9 @@ MCP_TELEMETRY_EXPORTER=none
 # Optional self-hosted OTLP/HTTP endpoint; leave unset to keep telemetry local.
 # OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.internal
 MCP_KEY_PROVIDER=systemd
+# For a KMS/HSM adapter, use MCP_KEY_PROVIDER=module and place a root-owned,
+# mode-0600 CommonJS adapter below /etc/mcp-sentinel/providers.
+# MCP_KEY_PROVIDER_MODULE=/etc/mcp-sentinel/providers/example.cjs
 MCP_DEPLOYMENT_PROFILE=single-host
 # HA remains fail-closed until real replicated-state and lease-fencing adapters
 # plus a completed failover rehearsal are installed and verified.

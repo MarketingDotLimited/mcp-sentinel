@@ -30,7 +30,9 @@ OIDC/Authelia remains supported. Privileged human administration should use WebA
 and step-up authentication. Machine clients continue to use narrowly scoped OAuth/API credentials
 with PKCE, exact audience/issuer/client checks, rotation, and revocation. Keys are addressed by
 key ID and may be supplied by systemd credentials, Vault, a cloud KMS, or an HSM adapter; values
-must never appear in SQLite, logs, manifests, or repository files.
+must never appear in SQLite, logs, manifests, or repository files. The optional module provider
+contract is rooted under `/etc/mcp-sentinel/providers`, requires a private regular module file,
+and exposes only `get(keyId)`/`rotate(keyId)`; request data cannot select a provider path.
 
 WebAuthn ceremonies are HTTPS-origin and RP-ID bound, require user verification, consume challenges
 once, persist credential counters, and issue a five-minute step-up token. Set
