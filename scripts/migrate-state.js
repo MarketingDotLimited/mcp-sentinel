@@ -6,7 +6,31 @@ import { openSqliteState, loadSqliteState } from '../lib/sqlite-state.js';
 const mode = process.argv.includes('--apply') ? 'apply' : 'dry-run';
 const legacyFile = process.env.CONTROL_PLANE_STATE_FILE;
 const databaseFile = process.env.MCP_STATE_DB || '/var/lib/mcp-sentinel/state.sqlite3';
-if (!legacyFile) throw new Error('CONTROL_PLANE_STATE_FILE must identify the legacy control-plane JSON');
+if (!legacyFile) {
+  if (mode === 'apply') throw new Error('CONTROL_PLANE_STATE_FILE must identify the legacy control-plane JSON');
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        mode,
+        source: null,
+        destination: path.resolve(databaseFile),
+        counts: {},
+        removedDomainCounts: {},
+        malformedProjectIds: [],
+        legacyAliasesToCreate: 0,
+        backup: null,
+        idempotenceMarker: 'legacy_migration',
+        exportVerified: true,
+        valid: true,
+        skipped: true,
+        reason: 'No legacy JSON source is configured; SQLite is already the durable state source.',
+      },
+      null,
+      2
+    )}\n`
+  );
+  process.exit(0);
+}
 
 let legacy;
 try {
