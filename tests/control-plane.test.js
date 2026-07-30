@@ -60,6 +60,38 @@ describe('approval control plane', () => {
     assert.equal(completed.status, 'executed');
   });
 
+  it('returns the latest successful execution for a resume flow and respects flow scoping', async () => {
+    const resumeAction = {
+      tool: 'write_file',
+      args: {
+        filePath: '/srv/app/.env',
+        content: 'MODE=resume',
+        flowId: 'flow-1',
+      },
+      identity: requester,
+    };
+    const { approval } = await controlPlane.requestApproval(resumeAction);
+    await controlPlane.decideApproval({ id: approval.id, decision: 'approved', identity: admin });
+    const executedApproval = await controlPlane.consumeApproval(resumeAction);
+    await controlPlane.completeApprovalExecution(executedApproval.id, requester);
+
+    const latest = await controlPlane.getLatestSuccessfulExecution(resumeAction);
+    assert.equal(latest?.id, executedApproval.id);
+    assert.equal(latest.status, 'executed');
+
+    const skippedForDifferentFlow = await controlPlane.getLatestSuccessfulExecution({
+      ...resumeAction,
+      args: { ...resumeAction.args, flowId: 'other-flow' },
+    });
+    assert.equal(skippedForDifferentFlow, null);
+
+    const ignoredControlFields = await controlPlane.getLatestSuccessfulExecution({
+      ...resumeAction,
+      args: { ...resumeAction.args, resumeFromPassed: true, forceReplay: false },
+    });
+    assert.equal(ignoredControlFields?.id, executedApproval.id);
+  });
+
   it('records a bounded failure and links the next reviewed retry', async () => {
     const retryAction = {
       tool: 'move_file',

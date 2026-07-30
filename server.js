@@ -98,6 +98,7 @@ import {
   getMySshAccess,
   getProject,
   getWorkflowCatalog,
+  getLatestSuccessfulExecution,
   listApprovals,
   listOrganizations,
   listProjects,
@@ -2503,6 +2504,27 @@ async function createMcpServer(identity, ip) {
 
   // ── Helper: wrap tool calls with audit logging ───────────
   const registrations = [];
+  const FLOW_CONTROL_SCHEMA = z.object({
+    flowId: z
+      .string()
+      .max(128)
+      .optional()
+      .describe('Optional CLI flow identifier for replays and checkpoints.'),
+    resumeFromPassed: z
+      .boolean()
+      .optional()
+      .describe('Skip execution if an identical action completed successfully earlier.'),
+    forceReplay: z
+      .boolean()
+      .optional()
+      .describe('Force re-execution even when resumeFromPassed has a cached success.'),
+  });
+  const normalizeFlowArgs = args => {
+    if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
+    const { flowId, resumeFromPassed, forceReplay, ...rest } = args;
+    return rest;
+  };
+
   function tool(name, description, schema, handler, resultSchema = null) {
     // Tools outside the authenticated identity's scope are never advertised.
     // Invocation checks below remain as defense in depth for stale sessions.
@@ -2574,7 +2596,8 @@ async function createMcpServer(identity, ip) {
       .map(word => word[0].toUpperCase() + word.slice(1))
       .join(' ');
     const fullDescription = `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`;
-    const inputJsonSchema = zodToJsonSchema(z.object(schema), { target: 'openApi3', $refStrategy: 'none' });
+    const resolvedSchema = schema instanceof z.ZodObject ? schema.extend(FLOW_CONTROL_SCHEMA.shape) : schema;
+    const inputJsonSchema = zodToJsonSchema(z.object(resolvedSchema), { target: 'openApi3', $refStrategy: 'none' });
     const errorResultSchema = z
       .object({
         error: z.string(),
@@ -2595,12 +2618,18 @@ async function createMcpServer(identity, ip) {
       {
         title,
         description: fullDescription,
-        inputSchema: schema,
+        inputSchema: resolvedSchema,
         outputSchema: { result: effectiveResultSchema.describe('Structured result returned by this operation') },
         annotations,
       },
       async args => {
         const start = Date.now();
+        const normalizedArgs = normalizeFlowArgs(args);
+        const flowId = typeof args?.flowId === 'string' ? args.flowId.trim() : null;
+        const flowIdArg = flowId || null;
+        const resumeFromPassed = args?.resumeFromPassed === true;
+        const forceReplay = args?.forceReplay === true;
+
         const availability = await toolAvailability(name);
         if (!availability.available) {
           logSecurityEvent({
@@ -2674,19 +2703,48 @@ async function createMcpServer(identity, ip) {
             'run_project_tests',
             'cancel_project_test_run',
           ].includes(name) ||
-          (name === 'modify_user' && Object.keys(args).some(key => !['username', 'confirm'].includes(key))) ||
-          (name === 'manage_ssh_keys' && ['add', 'remove'].includes(args.action)) ||
-          (name === 'manage_firewall' && !['status', 'list'].includes(args.action)) ||
-          (name === 'manage_service' && !['status', 'is-active'].includes(args.action)) ||
-          (name === 'run_sandboxed_code' && args.allowNetwork === true) ||
-          (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(args.action)) ||
+          (name === 'modify_user' && Object.keys(normalizedArgs).some(key => !['username', 'confirm'].includes(key))) ||
+          (name === 'manage_ssh_keys' && ['add', 'remove'].includes(normalizedArgs.action)) ||
+          (name === 'manage_firewall' && !['status', 'list'].includes(normalizedArgs.action)) ||
+          (name === 'manage_service' && !['status', 'is-active'].includes(normalizedArgs.action)) ||
+          (name === 'run_sandboxed_code' && normalizedArgs.allowNetwork === true) ||
+          (name === 'git_operation' && ['checkout', 'add', 'commit', 'pull', 'push'].includes(normalizedArgs.action)) ||
           name === 'deploy_project' ||
           (name === 'execute_query' &&
-            /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(args.query || '')) ||
-          (name === 'set_my_ssh_access' && args.enabled === true) ||
-          (name === 'admin_set_ssh_access' && (args.sshAllowed === true || args.sshEnabled === true)) ||
+            /^\s*(?:INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|GRANT|REVOKE)/i.test(normalizedArgs.query || '')) ||
+          (name === 'set_my_ssh_access' && normalizedArgs.enabled === true) ||
+          (name === 'admin_set_ssh_access' &&
+            (normalizedArgs.sshAllowed === true || normalizedArgs.sshEnabled === true)) ||
           policyDecision.requireApproval;
-        if (requiresConfirmation && !args.confirm) {
+        const approvalSensitive =
+          requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
+        if (resumeFromPassed && !forceReplay && approvalSensitive) {
+          const latest = await getLatestSuccessfulExecution({
+            tool: name,
+            args: { ...normalizedArgs, ...(flowIdArg ? { flowId: flowIdArg } : {}) },
+            identity,
+          });
+          if (latest) {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    skipped: true,
+                    reason: 'Already completed in prior pass',
+                    approvalId: latest.id,
+                  }),
+                },
+              ],
+              structuredContent: {
+                result: { skipped: true, reason: 'Already completed in prior pass', approvalId: latest.id },
+              },
+              isError: false,
+            };
+          }
+        }
+
+        if (requiresConfirmation && !normalizedArgs.confirm) {
           return {
             content: [
               {
@@ -2708,15 +2766,14 @@ async function createMcpServer(identity, ip) {
         // Keys created with approval mode cannot execute a risky action until an
         // administrator has approved this exact, redacted request. The approved
         // grant is single-use and expires automatically.
-        const approvalSensitive =
-          requiresConfirmation || ['write_file', 'move_file', 'copy_file', 'run_sandboxed_code'].includes(name);
         let approvedExecution = null;
         if (approvalSensitive && identity.requireApproval) {
-          const approved = await consumeApproval({ tool: name, args, identity });
+          const approvalArgs = { ...normalizedArgs, ...(flowIdArg ? { flowId: flowIdArg } : {}) };
+          const approved = await consumeApproval({ tool: name, args: approvalArgs, identity });
           if (!approved) {
             const { approval, created } = await requestApproval({
               tool: name,
-              args,
+              args: approvalArgs,
               identity,
               risk: 'high',
               summary: `AI requested ${name.replaceAll('_', ' ')}`,
@@ -2750,7 +2807,7 @@ async function createMcpServer(identity, ip) {
         }
 
         try {
-          const result = await handler(args, identity);
+          const result = await handler(normalizedArgs, identity);
           if (approvedExecution) await completeApprovalExecution(approvedExecution.id, identity);
           logAccess({
             ip,
