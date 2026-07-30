@@ -24,6 +24,8 @@ MCP_JOB_DB=/var/lib/mcp-sentinel/state.sqlite3
 MCP_JOB_MAX_PAYLOAD_BYTES=1048576
 METRICS_PUBLIC=false
 MCP_TELEMETRY_EXPORTER=none
+# Optional self-hosted OTLP/HTTP endpoint; leave unset to keep telemetry local.
+# OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.internal
 MCP_KEY_PROVIDER=systemd
 MCP_DEPLOYMENT_PROFILE=single-host
 MCP_SSH_RUNTIME_DIR=/run/mcp-sentinel/ssh

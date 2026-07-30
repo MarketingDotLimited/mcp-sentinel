@@ -228,9 +228,9 @@ execute a job type; an unregistered type is failed closed.
 
 Every response includes an `X-Request-ID` correlation header. Prometheus metrics are available
 to an authenticated administrator or auditor at `/admin/metrics`; the unauthenticated
-`/metrics` endpoint is disabled unless `METRICS_PUBLIC=true`. Configure an OpenTelemetry
-collector outside Sentinel when traces are required; request bodies and credentials are never
-exported.
+`/metrics` endpoint is disabled unless `METRICS_PUBLIC=true`. Configure a self-hosted OTLP/HTTP
+collector with `OTEL_EXPORTER_OTLP_ENDPOINT` when traces are required; spans are bounded and
+request bodies and credentials are never exported.
 
 Administrators and auditors can inspect a decision explanation with:
 
