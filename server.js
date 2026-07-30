@@ -2392,6 +2392,23 @@ function sendAdminSpaFallback(req, res, next) {
 
 app.get(['/admin', '/admin/*'], sendAdminSpaFallback);
 
+// Compatibility fallback for stale frontend caches or reverse-proxy rewrites that
+// can briefly request admin read endpoints before this route exists in a given
+// deployment. These endpoints are intentionally dependency-safe and should never
+// be 404-fatal for the dashboard; instead, return a local fallback shape.
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+
+  const fallback = adminDependencyFallbackResponse(req.path);
+  if (!fallback) return next();
+
+  // Ensure browser navigations still resolve to the SPA shell.
+  const acceptHeader = String(req.get('accept') || '').toLowerCase();
+  if (acceptHeader.includes('text/html')) return next();
+
+  return res.status(fallback.status).json(fallback.body);
+});
+
 // ── Centralized Error Handler ──────────────────────────────
 
 app.use((err, req, res, next) => {
