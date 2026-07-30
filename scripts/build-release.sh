@@ -23,6 +23,10 @@ mkdir -p "$output_root"
 artifact="$output_root/mcp-sentinel-${version}.tar.gz"
 checksum="$artifact.sha256"
 manifest="$artifact.manifest.json"
+# Never let a signature from a previous commit be mistaken for a signature of
+# this artifact. The output directory is ignored, but stale files are still a
+# release-integrity hazard when operators rebuild in place.
+rm -f -- "$artifact" "$checksum" "$manifest" "$artifact.asc" "$manifest.asc"
 
 git archive --format=tar --prefix="mcp-sentinel-${version}/" "$commit" | gzip -n -9 >"$artifact"
 (
