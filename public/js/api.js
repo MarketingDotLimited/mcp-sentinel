@@ -104,11 +104,14 @@ const API = {
         .replace(/^\/api\//, '/admin/')
         .replace(/^$/, '/');
       const isOAuthUsersOrClients = /\/oauth-(?:users|clients)(?:\/|$)/i.test(adminUrl);
+      const isGenericDependencyEndpoint = /^(?:\/admin)?\/(oauth-(?:users|clients)|action-manifest|capabilities|sessions)(?:\/|$)/i.test(
+        adminUrl
+      );
 
-      if (isOAuthUsersOrClients) return [];
-      if (/^\/admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
-      if (/^\/admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
-      if (/^\/admin\/action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
+      if (isOAuthUsersOrClients || isGenericDependencyEndpoint) return [];
+      if (/(?:^|\/)admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
+      if (/(?:^|\/)admin\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
+      if (/(?:^|\/)action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
         return {
           manifest: {
             version: 'missing',
@@ -224,12 +227,16 @@ const API = {
         .replace(/^\/admin\/api\//, '/admin/')
         .replace(/^\/api\//, '/admin/');
       const isOAuthReadEndpoint =
-        /^\/admin\/oauth-users$/i.test(normalizedRequest) ||
-        /^\/admin\/oauth-clients$/i.test(normalizedRequest) ||
-        /^\/admin\/action-manifest$/i.test(normalizedRequest) ||
+        /(?:^|\/)admin\/oauth-users$/i.test(normalizedRequest) ||
+        /^\/oauth-users$/i.test(normalizedRequest) ||
+        /(?:^|\/)admin\/oauth-clients$/i.test(normalizedRequest) ||
+        /^\/oauth-clients$/i.test(normalizedRequest) ||
+        /(?:^|\/)admin\/action-manifest$/i.test(normalizedRequest) ||
         /^\/action-manifest$/i.test(normalizedRequest) ||
-        /^\/admin\/capabilities$/i.test(normalizedRequest) ||
-        /^\/admin\/sessions$/i.test(normalizedRequest) ||
+        /(?:^|\/)admin\/capabilities$/i.test(normalizedRequest) ||
+        /^\/capabilities$/i.test(normalizedRequest) ||
+        /(?:^|\/)admin\/sessions$/i.test(normalizedRequest) ||
+        /^\/sessions$/i.test(normalizedRequest) ||
         /^\/api\/oauth-users$/i.test(normalizedRequest) ||
         /^\/api\/oauth-clients$/i.test(normalizedRequest) ||
         /^\/api\/action-manifest$/i.test(normalizedRequest) ||

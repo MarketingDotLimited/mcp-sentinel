@@ -446,8 +446,8 @@ function normalizeAdminReadPath(pathname = '') {
 
 function adminDependencyFallbackResponse(pathname, error) {
   const path = normalizeAdminReadPath(pathname);
-  const isOauthUsersLike = /^\/admin\/oauth-users(?:\/.*)?$/u.test(path);
-  const isOauthClientsLike = /^\/admin\/oauth-clients(?:\/.*)?$/u.test(path);
+  const isOauthUsersLike = /^(?:\/admin\/)?oauth-users(?:\/.*)?$/u.test(path);
+  const isOauthClientsLike = /^(?:\/admin\/)?oauth-clients(?:\/.*)?$/u.test(path);
 
   if (isOauthUsersLike) {
     return {
@@ -463,7 +463,7 @@ function adminDependencyFallbackResponse(pathname, error) {
     };
   }
 
-  if (/^\/admin\/capabilities$/u.test(path)) {
+  if (/^(?:\/admin\/)?capabilities$/u.test(path)) {
     return {
       status: 200,
       body: {
@@ -478,7 +478,7 @@ function adminDependencyFallbackResponse(pathname, error) {
     };
   }
 
-  if (/^\/admin\/sessions$/u.test(path)) {
+  if (/^(?:\/admin\/)?sessions$/u.test(path)) {
     return {
       status: 200,
       body: {
@@ -494,7 +494,7 @@ function adminDependencyFallbackResponse(pathname, error) {
     };
   }
 
-  if (/^\/admin\/action-manifest$/u.test(path) || /^\/action-manifest$/u.test(path)) {
+  if (/^(?:\/admin)?\/action-manifest$/u.test(path) || /^\/action-manifest$/u.test(path)) {
     return {
       status: 200,
       body: {
