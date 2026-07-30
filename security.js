@@ -561,7 +561,9 @@ export function authenticateJWT(req, res, next) {
         scopes: mappedScopes,
         requireApproval:
           clientMapping.requireApproval === undefined
-            ? ((userMapping.requireApproval !== undefined ? userMapping.requireApproval : ROLE_TEMPLATES[mappedRole]?.requireApproval) ?? true)
+            ? ((userMapping.requireApproval !== undefined
+                ? userMapping.requireApproval
+                : ROLE_TEMPLATES[mappedRole]?.requireApproval) ?? true)
             : clientMapping.requireApproval === true,
         projectIds: clientMapping.projectIds || userMapping.projectIds,
         organizationId: clientMapping.organizationId || userMapping.organizationId,

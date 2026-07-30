@@ -277,7 +277,8 @@ import { Toast } from '../toast.js';
     const heading = document.createElement('h2');
     heading.textContent = 'Create or modify a policy quickly';
     const subtitle = document.createElement('p');
-    subtitle.textContent = 'Use this for a specific identity/client/connection/project/host policy that is not listed above.';
+    subtitle.textContent =
+      'Use this for a specific identity/client/connection/project/host policy that is not listed above.';
     const form = document.createElement('form');
     form.className = 'project-card';
     form.innerHTML = `
@@ -375,15 +376,18 @@ import { Toast } from '../toast.js';
           'Organization and Team Policies',
           item => `${item.id} (${item.scopeType || 'scoped'})`,
           item => ({
-            targetType: item.scopeType === 'organization' ? 'organization' : item.scopeType === 'team' ? 'team' : item.scopeType,
+            targetType:
+              item.scopeType === 'organization' ? 'organization' : item.scopeType === 'team' ? 'team' : item.scopeType,
             targetId: item.scopeId || item.id,
             ...pickBoolean({ sshAllowed: item.sshAllowed, sshEnabled: item.sshEnabled }),
           })
         )
       );
-      list.appendChild(renderIdentitySection({
-        identities: policies.identities || [],
-      }));
+      list.appendChild(
+        renderIdentitySection({
+          identities: policies.identities || [],
+        })
+      );
       list.appendChild(renderOAuthClientSection(policies.oauthClients || []));
       list.appendChild(renderSubjectClientSection(policies.subjectClients || []));
       list.appendChild(addPolicyForm());

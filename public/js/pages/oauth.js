@@ -96,7 +96,9 @@ window.OAuthPage = (function () {
       err?.status === 500 ||
       err?.status === 502 ||
       err?.status === 503 ||
-      /privilege broker unavailable|connect ENOENT|no such file|socket unavailable|state store unavailable/i.test(String(err?.message || ''))
+      /privilege broker unavailable|connect ENOENT|no such file|socket unavailable|state store unavailable/i.test(
+        String(err?.message || '')
+      )
     );
   }
 
@@ -396,7 +398,9 @@ window.OAuthPage = (function () {
       modal.body.querySelector('#modal-group-users').checked = (user.groups || []).includes('users');
       modal.body.querySelector('#modal-require-approval').checked = user.requireApproval !== false;
       for (const checkbox of modal.body.querySelectorAll('#modal-client-approvals [data-client-id]')) {
-        checkbox.checked = (user.clients?.[checkbox.dataset.clientId]?.requireApproval ?? modal.body.querySelector('#modal-require-approval').checked);
+        checkbox.checked =
+          user.clients?.[checkbox.dataset.clientId]?.requireApproval ??
+          modal.body.querySelector('#modal-require-approval').checked;
       }
     }
 

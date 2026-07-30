@@ -117,7 +117,10 @@ import {
   deleteOAuthClient,
   getAutheliaHealth,
 } from './lib/authelia-client.js';
-import { getOAuthUsers as listOAuthUsersFromState, getOAuthClients as listOAuthClientsFromState } from './lib/authelia.js';
+import {
+  getOAuthUsers as listOAuthUsersFromState,
+  getOAuthClients as listOAuthClientsFromState,
+} from './lib/authelia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || '4444');
@@ -215,7 +218,8 @@ function isStateStoreUnavailable(error) {
 }
 
 function isRecoverableDependencyError(error) {
-  const directText = typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean' ? String(error) : '';
+  const directText =
+    typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean' ? String(error) : '';
   if (
     directText &&
     /connect\s+ENOENT|ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+is\s+unavailable|cannot\s+connect|privilege\s+broker\s+unavailable|socket\s+unavailable|BROKER_UNAVAILABLE/i.test(
@@ -234,7 +238,8 @@ function isRecoverableDependencyError(error) {
     if (current == null || seen.has(current)) continue;
     seen.add(current);
 
-    const text = typeof current === 'string' || typeof current === 'number' || typeof current === 'boolean' ? String(current) : '';
+    const text =
+      typeof current === 'string' || typeof current === 'number' || typeof current === 'boolean' ? String(current) : '';
     if (
       text &&
       /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+is\s+unavailable|cannot\s+connect/i.test(text)
@@ -244,7 +249,9 @@ function isRecoverableDependencyError(error) {
     const message = String(current?.message || current?.error || current?.reason || '');
     if (isBrokerUnavailable(current) || isStateStoreUnavailable(current)) return true;
     if (
-      /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+unavailable|socket\s+is\s+unavailable/i.test(message)
+      /connect\s+ENOENT|no\s+such\s+file|no\s+socket\s+available|broker\s+unavailable|socket\s+is\s+unavailable/i.test(
+        message
+      )
     )
       return true;
     if (current?.code === 'ENOENT') return true;
@@ -279,7 +286,8 @@ function isDependencyError(error) {
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
   if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
-  if (message.includes('/run/mcp-sentinel/broker.sock') || message.includes('/var/run/mcp-sentinel/broker.sock')) return true;
+  if (message.includes('/run/mcp-sentinel/broker.sock') || message.includes('/var/run/mcp-sentinel/broker.sock'))
+    return true;
   if (
     /connect\s+ENOENT|ENOENT|no\s+socket\s+available|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
       message
@@ -315,7 +323,7 @@ function isOAuthDependencyError(error) {
       /connect\s+ENOENT|ENOENT|no\s+socket\s+available|no\s+such\s+file|privilege\s+broker|broker\.?sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
         currentText
       )
-      )
+    )
       return true;
 
     for (const key of dependencySignals) {
@@ -839,24 +847,25 @@ app.get(
   ],
   authenticateJWT,
   async (req, res) => {
-  if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
-  try {
-    return res.json({ capabilities: await getCapabilities() });
-  } catch (err) {
-    if (isDependencyError(err)) {
-      return res.json({
-        capabilities: [],
-        status: 'dependency-unavailable',
-        dependency: {
-          unavailable: true,
-          reason: String(err?.message || 'Privilege broker/state store unavailable'),
-          code: 'DEPENDENCY_UNAVAILABLE',
-        },
-      });
+    if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
+    try {
+      return res.json({ capabilities: await getCapabilities() });
+    } catch (err) {
+      if (isDependencyError(err)) {
+        return res.json({
+          capabilities: [],
+          status: 'dependency-unavailable',
+          dependency: {
+            unavailable: true,
+            reason: String(err?.message || 'Privilege broker/state store unavailable'),
+            code: 'DEPENDENCY_UNAVAILABLE',
+          },
+        });
+      }
+      return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
     }
-    return res.status(500).json({ error: err.message, code: 'CAPABILITIES_LOAD_FAILED' });
   }
-});
+);
 
 app.put('/admin/capabilities/:id', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
@@ -1059,7 +1068,9 @@ app.get('/admin/broker-status', authenticateJWT, async (req, res) => {
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
-    const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
+    const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({
+      error: error.message,
+    }));
     let auditVerification = null;
     try {
       auditVerification = JSON.parse(
@@ -1161,44 +1172,45 @@ app.get(
   ],
   authenticateJWT,
   (req, res) => {
-  if (req.identity.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin role required' });
-  }
-  try {
-    const sessions = Array.from(activeTransports.entries()).map(([id, s]) => {
-      const identity = s?.identity || {};
-      return {
-        sessionId: id,
-        id,
-        userId: identity.userId,
-        role: identity.role,
-        authType: identity.type || 'unknown',
-        scopes: identity.scopes || [],
-        ip: s.ip,
-        connectedAt: s.connectedAt,
-      };
-    });
-    return res.json({ sessions, count: sessions.length });
-  } catch (err) {
-    if (isDependencyError(err)) {
-      return res.json({
-        sessions: [],
-        count: 0,
-        status: 'dependency-unavailable',
-        dependency: {
-          unavailable: true,
-          reason: String(err?.message || 'Privilege broker/state store unavailable'),
-          code: 'DEPENDENCY_UNAVAILABLE',
-        },
+    if (req.identity.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin role required' });
+    }
+    try {
+      const sessions = Array.from(activeTransports.entries()).map(([id, s]) => {
+        const identity = s?.identity || {};
+        return {
+          sessionId: id,
+          id,
+          userId: identity.userId,
+          role: identity.role,
+          authType: identity.type || 'unknown',
+          scopes: identity.scopes || [],
+          ip: s.ip,
+          connectedAt: s.connectedAt,
+        };
+      });
+      return res.json({ sessions, count: sessions.length });
+    } catch (err) {
+      if (isDependencyError(err)) {
+        return res.json({
+          sessions: [],
+          count: 0,
+          status: 'dependency-unavailable',
+          dependency: {
+            unavailable: true,
+            reason: String(err?.message || 'Privilege broker/state store unavailable'),
+            code: 'DEPENDENCY_UNAVAILABLE',
+          },
+        });
+      }
+      return respondDependencyAwareError(res, err, {
+        status: 500,
+        code: 'SESSION_LIST_FAILED',
+        label: 'Failed to load sessions',
       });
     }
-    return respondDependencyAwareError(res, err, {
-      status: 500,
-      code: 'SESSION_LIST_FAILED',
-      label: 'Failed to load sessions',
-    });
   }
-});
+);
 
 // ── Admin Web UI API Endpoints ─────────────────────────────
 
@@ -1620,23 +1632,25 @@ function safeJsonDependencyFallback(res, reader, operationName) {
   try {
     const data = reader();
     if (data && typeof data.then === 'function') {
-      return data.then(result => res.json(result)).catch(error => {
-        safeLogError(error, operationName);
-        if (
-          isOAuthDependencyError(error) ||
-          isDependencyError(error) ||
-          /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
-            String(error?.message || error || '')
-          )
-        ) {
-          return res.json([]);
-        }
-        return respondDependencyAwareError(res, error, {
-          status: 500,
-          code: 'OAUTH_LIST_FAILED',
-          label: `${operationName} failed`,
+      return data
+        .then(result => res.json(result))
+        .catch(error => {
+          safeLogError(error, operationName);
+          if (
+            isOAuthDependencyError(error) ||
+            isDependencyError(error) ||
+            /connect\s+ENOENT|no\s+socket\s+available|privilege\s+broker|broker\.sock|state\s+store\s+unavailable|no\s+such\s+file/i.test(
+              String(error?.message || error || '')
+            )
+          ) {
+            return res.json([]);
+          }
+          return respondDependencyAwareError(res, error, {
+            status: 500,
+            code: 'OAUTH_LIST_FAILED',
+            label: `${operationName} failed`,
+          });
         });
-      });
     }
     return res.json(data);
   } catch (error) {
@@ -1665,14 +1679,15 @@ app.get(
     '/admin/api/oauth-users',
     '/admin/api/oauth-users/',
     '/api/admin/oauth-users',
-  '/api/admin/oauth-users/',
+    '/api/admin/oauth-users/',
   ],
   authenticateJWT,
   async (req, res) => {
     if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'oauth-users-list');
-});
+  }
+);
 
 app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -1741,14 +1756,15 @@ app.get(
     '/admin/api/oauth-clients',
     '/admin/api/oauth-clients/',
     '/api/admin/oauth-clients',
-  '/api/admin/oauth-clients/',
+    '/api/admin/oauth-clients/',
   ],
   authenticateJWT,
   async (req, res) => {
     if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'oauth-clients-list');
-});
+  }
+);
 
 app.post('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -3120,18 +3136,18 @@ async function createMcpServer(identity, ip) {
     'Set an SSH administrator ceiling or preference at the global, organization, team, host, connection, project, identity, OAuth client, or subject-client layer.',
     {
       targetType: z
-      .enum([
-        'global',
-        'organization',
-        'team',
-        'host',
-        'connection',
-        'project',
-        'identity',
-        'identity-key',
-        'oauth-client',
-        'subject-client',
-      ])
+        .enum([
+          'global',
+          'organization',
+          'team',
+          'host',
+          'connection',
+          'project',
+          'identity',
+          'identity-key',
+          'oauth-client',
+          'subject-client',
+        ])
         .describe('Policy layer to update'),
       targetId: z
         .string()
