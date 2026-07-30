@@ -200,8 +200,14 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
         { label: 'admin action manifest (slash)', url: '/admin/action-manifest/', expectedStatus: 200 },
         { label: 'legacy action manifest', url: '/admin/api/action-manifest', expectedStatus: 200 },
         { label: 'legacy action manifest (slash)', url: '/admin/api/action-manifest/', expectedStatus: 200 },
+        { label: 'api action manifest', url: '/api/action-manifest', expectedStatus: 200 },
+        { label: 'api action manifest (slash)', url: '/api/action-manifest/', expectedStatus: 200 },
         { label: 'api sessions', url: '/api/sessions', expectedStatus: 200 },
         { label: 'api sessions (slash)', url: '/api/sessions/', expectedStatus: 200 },
+        { label: 'api oauth-users', url: '/api/oauth-users', expectedStatus: 200 },
+        { label: 'api oauth-users (slash)', url: '/api/oauth-users/', expectedStatus: 200 },
+        { label: 'api oauth-clients', url: '/api/oauth-clients', expectedStatus: 200 },
+        { label: 'api oauth-clients (slash)', url: '/api/oauth-clients/', expectedStatus: 200 },
       ];
 
       for (const { label, url, expectedStatus } of compatibilityChecks) {
