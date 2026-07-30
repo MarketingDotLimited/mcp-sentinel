@@ -373,22 +373,30 @@ export function issueToken(req, res) {
 }
 
 // A short-lived token minted only after a verified WebAuthn ceremony. It is
-// intentionally bound to the current API-key identity and cannot refresh the
-// underlying key or OAuth authorization.
+// bound to the current authorization identity and cannot refresh the
+// underlying API key or OAuth authorization.
 export function issueStepUpToken(identity) {
-  if (!identity?.userId || !identity?.keyId || identity.authType !== 'apiKey')
-    throw new Error('WebAuthn step-up requires an authenticated Sentinel API-key identity');
+  if (!identity?.userId || !['apiKey', 'oauth'].includes(identity.authType))
+    throw new Error('WebAuthn step-up requires an authenticated API-key or OAuth identity');
   return jwt.sign(
     {
       sub: identity.userId,
+      authType: identity.authType,
       role: identity.role,
       scopes: identity.scopes,
-      keyId: identity.keyId,
-      keyVersion: identity.keyVersion,
+      ...(identity.authType === 'apiKey'
+        ? { keyId: identity.keyId, keyVersion: identity.keyVersion }
+        : {
+            stepUp: true,
+            oauthSubject: identity.oauthSubject,
+            oauthClient: identity.oauthClient,
+            oauthIssuer: identity.oauthIssuer,
+          }),
       requireApproval: identity.requireApproval === true,
       projectIds: identity.projectIds,
       organizationId: identity.organizationId,
       teamId: identity.teamId,
+      authorizationVersion: identity.authorizationVersion,
       mfaVerified: true,
       amr: ['webauthn'],
       jti: randomUUID(),
@@ -467,10 +475,18 @@ export function authenticateJWT(req, res, next) {
       return sendUnauthorized(req, res, 'Token revoked');
     }
 
-    const keyEntry = getKeyById(decoded.keyId);
-    if (!keyEntry || !keyEntry.active || keyEntry.version !== decoded.keyVersion) {
-      logSecurityEvent({ ip, event: 'TOKEN_KEY_REVOKED', detail: { keyId: decoded.keyId } });
-      return sendUnauthorized(req, res, 'Token invalidated (key revoked or changed)');
+    let keyEntry = null;
+    if (decoded.stepUp === true) {
+      if (decoded.authType !== 'oauth' && !decoded.oauthSubject) {
+        logSecurityEvent({ ip, event: 'TOKEN_INVALID', detail: { reason: 'step-up-binding-missing' } });
+        return sendUnauthorized(req, res, 'Token invalidated (step-up binding missing)');
+      }
+    } else {
+      keyEntry = getKeyById(decoded.keyId);
+      if (!keyEntry || !keyEntry.active || keyEntry.version !== decoded.keyVersion) {
+        logSecurityEvent({ ip, event: 'TOKEN_KEY_REVOKED', detail: { keyId: decoded.keyId } });
+        return sendUnauthorized(req, res, 'Token invalidated (key revoked or changed)');
+      }
     }
 
     // Detect IP changes without rejecting sessions behind rotating trusted proxies.
@@ -485,11 +501,15 @@ export function authenticateJWT(req, res, next) {
       scopes: decoded.scopes,
       keyId: decoded.keyId,
       keyVersion: decoded.keyVersion,
-      authType: 'apiKey',
+      authType: decoded.stepUp === true ? 'oauth' : 'apiKey',
       requireApproval: decoded.requireApproval === true,
       projectIds: Array.isArray(decoded.projectIds) ? decoded.projectIds : undefined,
       organizationId: decoded.organizationId || undefined,
       teamId: decoded.teamId || undefined,
+      authorizationVersion: decoded.authorizationVersion || undefined,
+      oauthSubject: decoded.oauthSubject || undefined,
+      oauthClient: decoded.oauthClient || undefined,
+      oauthIssuer: decoded.oauthIssuer || undefined,
       jti: decoded.jti,
       tokenExpiresAt: decoded.exp ? decoded.exp * 1000 : Date.now(),
       mfaVerified: decoded.mfaVerified === true && Array.isArray(decoded.amr) && decoded.amr.includes('webauthn'),
