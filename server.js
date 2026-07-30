@@ -279,6 +279,7 @@ function isDependencyError(error) {
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
   if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
+  if (message.includes('/run/mcp-sentinel/broker.sock') || message.includes('/var/run/mcp-sentinel/broker.sock')) return true;
   if (
     /connect\s+ENOENT|ENOENT|no\s+socket\s+available|privilege\s+broker|no\s+such\s+file|broker\.sock|state\s+store\s+unavailable|cannot\s+connect/i.test(
       message

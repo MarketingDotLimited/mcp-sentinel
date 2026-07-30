@@ -60,6 +60,8 @@ const API = {
       return (
         error?.code === 'BROKER_UNAVAILABLE' ||
         error?.code === 'E_BROKER_UNAVAILABLE' ||
+        String(error?.message || '').includes('/run/mcp-sentinel/broker.sock') ||
+        String(error?.message || '').includes('/var/run/mcp-sentinel/broker.sock') ||
         /Privilege broker unavailable|broker unavailable|socket unavailable|connect ENOENT|no such file or directory|Broker unavailable|E_BROKER_UNAVAILABLE/i.test(
           String(error?.message || '')
         )
@@ -113,6 +115,8 @@ const API = {
     const appearsDependencyLayerFailure = error => {
       return (
         isDependencyUnavailable(error) ||
+        String(error?.message || '').includes('/run/mcp-sentinel/broker.sock') ||
+        String(error?.message || '').includes('/var/run/mcp-sentinel/broker.sock') ||
         /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|state\.sqlite3/i.test(
           String(error?.message || '')
         ) ||
