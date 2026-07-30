@@ -1216,9 +1216,22 @@ function getFlowHint(req) {
   );
 }
 
+function getFlowStepHint(req) {
+  return (
+    normalizeFlowHint(req.query?.flowStep) ||
+    normalizeFlowHint(req.headers['x-mcp-flow-step']) ||
+    normalizeFlowHint(req.headers['x-flow-step']) ||
+    normalizeFlowHint(req.headers['x-cli-flow-step'])
+  );
+}
+
 function resolveFlowHint(req) {
   const headerHint = getFlowHint(req);
   return headerHint || null;
+}
+
+function resolveFlowStepHint(req) {
+  return getFlowStepHint(req) || null;
 }
 
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
@@ -2264,7 +2277,9 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     const identity = req.identity;
     const ip = req.clientIP;
     const flowHint = resolveFlowHint(req);
+    const flowStepHint = resolveFlowStepHint(req);
     identity.flowHint = flowHint;
+    identity.flowStepHint = flowStepHint;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
     if (activeTransports.size >= maxConns) {
       return res.status(503).json({ error: 'Too many active connections globally' });
@@ -2274,7 +2289,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     }
 
     let transport;
-    const mcpServer = await createMcpServer(identity, ip, flowHint);
+    const mcpServer = await createMcpServer(identity, ip, flowHint, flowStepHint);
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: initializedSessionId => {
@@ -2326,7 +2341,9 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     const identity = req.identity;
     const ip = req.clientIP;
     const flowHint = resolveFlowHint(req);
+    const flowStepHint = resolveFlowStepHint(req);
     identity.flowHint = flowHint;
+    identity.flowStepHint = flowStepHint;
     const maxConns = parseInt(process.env.MAX_SSE_CONNECTIONS || '100', 10);
     if (activeTransports.size >= maxConns) {
       return res.status(503).json({ error: 'Too many active connections globally' });
@@ -2337,7 +2354,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
 
     const transport = new SSEServerTransport('/mcp/message', res);
     identity.sessionId = transport.sessionId;
-    const mcpServer = await createMcpServer(identity, ip, flowHint);
+    const mcpServer = await createMcpServer(identity, ip, flowHint, flowStepHint);
     monitor.attachPersistent(transport.sessionId, alertOwnerKey(identity));
 
     // Tools are registered before the transport exists, so the SDK's automatic
@@ -2494,7 +2511,7 @@ app.use((err, req, res, next) => {
 
 // ── MCP Server Factory ─────────────────────────────────────
 
-async function createMcpServer(identity, ip, flowHint = null) {
+async function createMcpServer(identity, ip, flowHint = null, flowStepHint = null) {
   const server = new McpServer({
     name: 'server-control',
     version:
@@ -2673,7 +2690,7 @@ async function createMcpServer(identity, ip, flowHint = null) {
         const explicitFlowId = flowHint || providedFlowId;
         const identityFlowId = resolveFlowId(identity);
         const flowIdArg = explicitFlowId || identityFlowId || identity.sessionId || null;
-        const flowStepArg = providedFlowStep || null;
+        const flowStepArg = providedFlowStep || flowStepHint || null;
         const resumeFromPassed =
           args?.resumeFromPassed === true ||
           (args?.resumeFromPassed === undefined && Boolean(flowIdArg));
