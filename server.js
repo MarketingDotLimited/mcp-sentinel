@@ -1208,7 +1208,7 @@ app.post('/admin/jobs/:id/complete', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    return res.json(getJobQueue().complete(req.params.id, req.body?.result ?? {}));
+    return res.json(getJobQueue().complete(req.params.id, req.body?.result ?? {}, { workerId: req.body?.workerId }));
   } catch (error) {
     return respondDependencyAwareError(res, error, {
       status: 409,
@@ -1223,7 +1223,10 @@ app.post('/admin/jobs/:id/fail', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
     return res.json(
-      getJobQueue().fail(req.params.id, req.body?.error || 'Job failed', { retry: req.body?.retry !== false })
+      getJobQueue().fail(req.params.id, req.body?.error || 'Job failed', {
+        retry: req.body?.retry !== false,
+        workerId: req.body?.workerId,
+      })
     );
   } catch (error) {
     return respondDependencyAwareError(res, error, {

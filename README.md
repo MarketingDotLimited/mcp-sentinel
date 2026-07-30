@@ -223,8 +223,9 @@ payloads, leases, retry limits, cancellation, and terminal states; the queue nev
 an arbitrary command by itself.
 
 An approved worker claims work with `POST /admin/jobs/claim`, then reports bounded results with
-`POST /admin/jobs/:id/complete` or failures with `/fail`. Only registered worker handlers may
-execute a job type; an unregistered type is failed closed.
+`POST /admin/jobs/:id/complete` or failures with `/fail`, including the same `workerId` lease
+binding. Expired or stolen leases cannot be completed by the old worker. Only registered worker
+handlers may execute a job type; an unregistered type is failed closed.
 
 Every response includes an `X-Request-ID` correlation header. Prometheus metrics are available
 to an authenticated administrator or auditor at `/admin/metrics`; the unauthenticated

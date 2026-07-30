@@ -27,7 +27,12 @@ describe('durable job queue', () => {
     const claimed = queue.claim({ workerId: 'worker-a', leaseMs: 1000 });
     assert.equal(claimed.state, 'running');
     assert.equal(queue.claim({ workerId: 'worker-b', leaseMs: 1000 }), null);
-    queue.complete(first.id, { state: 'passed', exitCode: 0 });
+    assert.throws(() => queue.complete(first.id, { state: 'passed', exitCode: 0 }), /Worker ID/);
+    assert.throws(
+      () => queue.complete(first.id, { state: 'passed', exitCode: 0 }, { workerId: 'worker-b' }),
+      /missing|active/
+    );
+    queue.complete(first.id, { state: 'passed', exitCode: 0 }, { workerId: 'worker-a' });
     assert.equal(queue.get(first.id).result.exitCode, 0);
   });
 
@@ -39,7 +44,7 @@ describe('durable job queue', () => {
     );
     const job = queue.enqueue({ type: 'backup', owner: 'alice' });
     assert.equal(queue.cancel(job.id).state, 'cancelled');
-    assert.throws(() => queue.complete(job.id, {}), /missing|active/);
+    assert.throws(() => queue.complete(job.id, {}, { workerId: 'worker-1' }), /missing|active/);
   });
 
   it('runs only explicitly registered handlers and stops cleanly', async () => {
