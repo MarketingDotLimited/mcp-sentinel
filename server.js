@@ -463,7 +463,7 @@ function adminDependencyFallbackResponse(pathname, error) {
     };
   }
 
-  if (/^(?:\/admin\/)?capabilities$/u.test(path)) {
+  if (/^(?:\/admin\/)?capabilities\/?$/u.test(path)) {
     return {
       status: 200,
       body: {
@@ -478,7 +478,7 @@ function adminDependencyFallbackResponse(pathname, error) {
     };
   }
 
-  if (/^(?:\/admin\/)?sessions$/u.test(path)) {
+  if (/^(?:\/admin\/)?sessions\/?$/u.test(path)) {
     return {
       status: 200,
       body: {
@@ -494,7 +494,7 @@ function adminDependencyFallbackResponse(pathname, error) {
     };
   }
 
-  if (/^(?:\/admin)?\/action-manifest$/u.test(path) || /^\/action-manifest$/u.test(path)) {
+  if (/^(?:\/admin)?\/action-manifest\/?$/u.test(path) || /^\/action-manifest\/?$/u.test(path)) {
     return {
       status: 200,
       body: {
@@ -593,6 +593,44 @@ function adminReadFallbackHandler(req, res, reader, options = {}) {
       );
     }
   })();
+}
+
+async function readAdminCollectionFallback(
+  req,
+  res,
+  reader,
+  {
+    pathHint = req?.path || '',
+    fallbackData = [],
+    code = 'ADMIN_LIST_FAILED',
+    label = 'Failed to load admin collection',
+    fallbackOnAnyError = true,
+  }
+) {
+  try {
+    if (!req?.identity) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (req.identity.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin only' });
+    }
+    const data = await reader();
+    return res.json(Array.isArray(data) ? data : fallbackData);
+  } catch (error) {
+    safeLogError(error, label);
+    const fallback = adminDependencyFallbackResponse(pathHint, error);
+    if (fallback && (fallbackOnAnyError || isDependencyError(error))) {
+      return res.status(fallback.status).json(fallback.body);
+    }
+    return respondDependencyAwareError(
+      res,
+      error,
+      error?.status === 403
+        ? { status: 403, code, label: 'Access denied' }
+        : { status: 500, code, label }
+    );
+  }
+
 }
 
 async function buildSecurityPosture() {
@@ -1869,23 +1907,12 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    adminReadFallbackHandler(
-      req,
-      res,
-      () => {
-        if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
-        if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-        return safeJsonDependencyFallback(res, () => listOAuthUsersFromState(), 'OAuth users list', [], {
-          fallbackOnAnyError: true,
-        });
-      },
-      {
-        pathHint: '/admin/oauth-users',
-        code: 'OAUTH_USERS_LIST_FAILED',
-        label: 'Failed to load OAuth users',
-        fallbackOnAnyError: true,
-      }
-    )
+    readAdminCollectionFallback(req, res, () => listOAuthUsersFromState(), {
+      pathHint: '/admin/oauth-users',
+      fallbackData: [],
+      code: 'OAUTH_USERS_LIST_FAILED',
+      label: 'OAuth users list',
+    })
 );
 
 app.post('/admin/oauth-users', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
@@ -1961,23 +1988,12 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    adminReadFallbackHandler(
-      req,
-      res,
-      () => {
-        if (!req?.identity) return res.status(401).json({ error: 'Authentication required' });
-        if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-        return safeJsonDependencyFallback(res, () => listOAuthClientsFromState(), 'OAuth clients list', [], {
-          fallbackOnAnyError: true,
-        });
-      },
-      {
-        pathHint: '/admin/oauth-clients',
-        code: 'OAUTH_CLIENTS_LIST_FAILED',
-        label: 'Failed to load OAuth clients',
-        fallbackOnAnyError: true,
-      }
-    )
+    readAdminCollectionFallback(req, res, () => listOAuthClientsFromState(), {
+      pathHint: '/admin/oauth-clients',
+      fallbackData: [],
+      code: 'OAUTH_CLIENTS_LIST_FAILED',
+      label: 'OAuth clients list',
+    })
 );
 
 app.post('/admin/oauth-clients', authenticateJWT, ensurePrivilegeBrokerAvailable, async (req, res) => {
