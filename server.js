@@ -274,18 +274,69 @@ function isRecoverableDependencyError(error) {
   return false;
 }
 
+function extractDependencyErrorText(error, seen = new Set()) {
+  if (error == null || seen.has(error)) return '';
+  if (typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean') return String(error);
+  if (error instanceof Error && typeof error.message === 'string') return error.message;
+  if (typeof error !== 'object') return String(error);
+
+  seen.add(error);
+  const entries = [];
+  const stack = [error];
+
+  while (stack.length) {
+    const current = stack.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) continue;
+    seen.add(current);
+
+    for (const key of [
+      'message',
+      'error',
+      'detail',
+      'reason',
+      'code',
+      'statusText',
+      'status',
+      'socketPath',
+      'name',
+      'cause',
+      'err',
+      'response',
+      'body',
+      'data',
+    ]) {
+      if (current[key] != null && typeof current[key] !== 'object') entries.push(String(current[key]));
+      else if (current[key] != null && Array.isArray(current[key])) {
+        for (const item of current[key]) stack.push(item);
+      } else if (current[key] != null) {
+        stack.push(current[key]);
+      }
+    }
+  }
+
+  return entries.join(' ');
+}
+
+function isDependencyText(error) {
+  const text = extractDependencyErrorText(error);
+  return /connect\s+ENOENT|ENOENT|no such file|no such file or directory|no\s+socket\s+available|socket\s+unavailable|privilege\s+broker\s+unavailable|broker\s+is\s+unavailable|broker\.sock|state\s+store\s+unavailable/i.test(
+    text
+  );
+}
+
 function isDependencyError(error) {
   return (
     isRecoverableDependencyError(error) ||
     isBrokerUnavailable(error) ||
     isBrokerUnavailableError(error) ||
-    isStateStoreUnavailable(error)
+    isStateStoreUnavailable(error) ||
+    isDependencyText(error)
   );
 }
 
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
-  if (isDependencyError(error) || isRecoverableDependencyError(error)) return true;
+  if (isDependencyError(error) || isRecoverableDependencyError(error) || isDependencyText(error)) return true;
   if (message.includes('/run/mcp-sentinel/broker.sock') || message.includes('/var/run/mcp-sentinel/broker.sock'))
     return true;
   if (
