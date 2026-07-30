@@ -406,7 +406,8 @@ function activateRelease(releaseId) {
     command('/usr/bin/node', [path.join(release, 'scripts', 'upgrade-state.js')], {
       env: { ...process.env, ...environment, CREDENTIALS_DIRECTORY: path.join(configurationRoot, 'credentials') },
     });
-    command('systemctl', ['enable', '--now', 'mcp-sentinel-broker.service', 'mcp-sentinel.service']);
+    command('systemctl', ['enable', 'mcp-sentinel.service']);
+    command('systemctl', ['start', 'mcp-sentinel.service']);
     const healthUrl = `${environment.USE_HTTPS === 'true' ? 'https' : 'http'}://${environment.HOST}:${environment.PORT || '4444'}/health`;
     let healthy = false;
     for (let attempt = 0; attempt < 30; attempt++) {
@@ -419,6 +420,8 @@ function activateRelease(releaseId) {
     }
     if (!healthy) throw new Error(`New service did not become healthy at ${healthUrl}`);
     command('/usr/bin/node', [path.join(release, 'scripts', 'production-preflight.js')]);
+    command('systemctl', ['enable', 'mcp-sentinel-broker.service']);
+    command('systemctl', ['start', 'mcp-sentinel-broker.service']);
     command('systemctl', ['enable', '--now', 'mcp-sentinel-audit-verify.timer', 'mcp-sentinel-state-backup.timer']);
     if (metadata.previousLegacyActive) command('systemctl', ['disable', 'mcp-server.service']);
     process.stdout.write(`${JSON.stringify({ activated: true, releaseId, rollbackId, receipt })}\n`);
