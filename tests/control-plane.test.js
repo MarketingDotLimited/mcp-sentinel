@@ -125,6 +125,46 @@ describe('approval control plane', () => {
     await controlPlane.completeApprovalExecution(fallbackConsumed.id, requester);
   });
 
+  it('tracks successful run_project_tests executions for resume behavior', async () => {
+    const runProjectAction = {
+      tool: 'run_project_tests',
+      args: {
+        projectId: '436b432a-206b-43cd-abfa-6291dbef0c50',
+        runner: 'composer-validate',
+        target: 'composer.json',
+        confirm: true,
+      },
+      identity: {
+        userId: 'developer',
+        keyId: 'key-2',
+        role: 'developer',
+        authType: 'apiKey',
+      },
+    };
+
+    const requested = await controlPlane.requestApproval(runProjectAction);
+    assert.equal(requested.created, true);
+
+    await controlPlane.decideApproval({ id: requested.approval.id, decision: 'approved', identity: admin });
+    const executed = await controlPlane.consumeApproval(runProjectAction);
+    assert.equal(executed.status, 'executing');
+    await controlPlane.completeApprovalExecution(executed.id, {
+      userId: 'developer',
+      role: 'developer',
+      authType: 'apiKey',
+      keyId: 'key-2',
+    });
+
+    const latest = await controlPlane.getLatestSuccessfulExecution({
+      ...runProjectAction,
+      args: { ...runProjectAction.args, flowId: 'flow-project-test' },
+    });
+
+    assert.equal(latest?.status, 'executed');
+    assert.equal(latest?.tool, 'run_project_tests');
+    assert.equal(latest?.requestedBy?.keyId, 'key-2');
+  });
+
   it('records a bounded failure and links the next reviewed retry', async () => {
     const retryAction = {
       tool: 'move_file',
