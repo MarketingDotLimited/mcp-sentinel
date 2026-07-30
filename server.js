@@ -2354,6 +2354,20 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
   }
 });
 
+function sendAdminSpaFallback(req, res, next) {
+  if (req.method !== 'GET') return next();
+
+  const acceptHeader = String(req.get('accept') || '').toLowerCase();
+  const looksLikeBrowserPage = acceptHeader.includes('text/html');
+  if (!looksLikeBrowserPage) return next();
+
+  if (/\/(?:css|js|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|map|json)$/u.test(req.path)) return next();
+
+  return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+}
+
+app.get(['/admin', '/admin/*'], sendAdminSpaFallback);
+
 // ── Centralized Error Handler ──────────────────────────────
 
 app.use((err, req, res, next) => {

@@ -211,6 +211,47 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
     }
   });
 
+  it('serves the SPA shell for unknown /admin browser routes', async () => {
+    const port = await freePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const missingBrokerSocket = path.join(tmp, 'broker.sock');
+
+    child = spawn(process.execPath, ['server.js'], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        NODE_ENV: 'test',
+        PORT: String(port),
+        HOST: '127.0.0.1',
+        USE_HTTPS: 'false',
+        ALLOWED_ORIGINS: baseUrl,
+        ADMIN_API_KEY: adminKey,
+        JWT_SECRET: jwtSecret,
+        KEYS_FILE: path.join(tmp, 'keys.json'),
+        KEYSTORE_FILE: path.join(tmp, 'keys.json'),
+        CONTROL_PLANE_STATE_FILE: path.join(tmp, 'state.json'),
+        MCP_CAPABILITIES_FILE: path.join(tmp, 'capabilities.json'),
+        MCP_STATE_DB: path.join(tmp, 'state.sqlite3'),
+        MCP_BROKER_SOCKET: missingBrokerSocket,
+        AUDIT_LOG_DIR: path.join(tmp, 'logs'),
+      },
+      stdio: 'ignore',
+    });
+
+    try {
+      await waitFor(`${baseUrl}/health`);
+      const response = await fetch(`${baseUrl}/admin/does-not-exist`, {
+        headers: { Accept: 'text/html' },
+      });
+      const body = await response.text();
+      assert.equal(response.status, 200);
+      assert.ok(body.includes('<!DOCTYPE html>') || body.includes('<html'));
+    } finally {
+      if (child && !child.killed) child.kill('SIGTERM');
+      child = null;
+    }
+  });
+
   it('returns empty OAuth collections when files are absent instead of 500', async () => {
     const port = await freePort();
     const baseUrl = `http://127.0.0.1:${port}`;
