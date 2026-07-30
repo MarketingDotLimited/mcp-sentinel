@@ -115,8 +115,13 @@ const API = {
     const appearsDependencyLayerFailure = error => {
       return (
         isDependencyUnavailable(error) ||
+        isBrokerUnavailable(error) ||
+        isStateStoreUnavailable(error) ||
         String(error?.message || '').includes('/run/mcp-sentinel/broker.sock') ||
         String(error?.message || '').includes('/var/run/mcp-sentinel/broker.sock') ||
+        /Privilege broker unavailable|broker unavailable|state store unavailable|state\.sqlite3/i.test(
+          String(error?.message || '')
+        ) ||
         /Privilege broker unavailable|broker unavailable|connect ENOENT|no such file or directory|state\.sqlite3/i.test(
           String(error?.message || '')
         ) ||
@@ -186,10 +191,22 @@ const API = {
         return data;
       } catch (error) {
         normalizeDependencyError(error);
-        const readFallback = getReadDependencyFallback(requestUrl);
-        if (readFallback !== null && (appearsDependencyLayerFailure(error) || error.status === 404)) {
-          return readFallback;
-        }
+      const readFallback = getReadDependencyFallback(requestUrl);
+      const normalizedRequest = String(requestUrl || '')
+        .replace(/\/+$/, '')
+        .replace(/^\/api\/admin\//, '/admin/')
+        .replace(/^\/admin\/api\//, '/admin/');
+      const isOAuthReadEndpoint =
+        /^\/admin\/oauth-users$/i.test(normalizedRequest) ||
+        /^\/admin\/oauth-clients$/i.test(normalizedRequest) ||
+        /^\/admin\/action-manifest$/i.test(normalizedRequest) ||
+        /^\/action-manifest$/i.test(normalizedRequest) ||
+        /^\/admin\/capabilities$/i.test(normalizedRequest) ||
+        /^\/admin\/sessions$/i.test(normalizedRequest);
+
+      if (readFallback !== null && (appearsDependencyLayerFailure(error) || error.status === 404 || isOAuthReadEndpoint)) {
+        return readFallback;
+      }
 
         const retryable =
           error.status === 404 ||
