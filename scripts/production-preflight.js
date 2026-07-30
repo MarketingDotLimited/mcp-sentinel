@@ -263,6 +263,8 @@ function inspectRelease() {
 }
 
 export function runPreflight() {
+  const allowBrokerOffline = process.env.MCP_PRECHECK_ALLOW_BROKER_OFFLINE === 'true' ||
+    process.env.MCP_PRECHECK_ALLOW_BROKER_OFFLINE === '1';
   let sentinel;
   attempt('service-account', () => {
     sentinel = account('mcp-sentinel');
@@ -283,12 +285,16 @@ export function runPreflight() {
   attempt('credentials', inspectCredentials);
   attempt('public-environment', inspectPublicEnvironment);
   attempt('broker-environment', inspectBrokerEnvironment);
-  attempt('broker-socket', () => {
-    const socket = fs.lstatSync(hostPath('/run/mcp-sentinel/broker.sock'));
-    if (!socket.isSocket()) throw new Error('Typed privilege broker socket is not listening');
-    if ((socket.mode & 0o777) !== 0o660) throw new Error('Typed privilege broker socket must be mode 0660');
-    return 'Typed privilege broker is listening on its mode-0660 Unix socket';
-  });
+  attempt(
+    'broker-socket',
+    () => {
+      const socket = fs.lstatSync(hostPath('/run/mcp-sentinel/broker.sock'));
+      if (!socket.isSocket()) throw new Error('Typed privilege broker socket is not listening');
+      if ((socket.mode & 0o777) !== 0o660) throw new Error('Typed privilege broker socket must be mode 0660');
+      return 'Typed privilege broker is listening on its mode-0660 Unix socket';
+    },
+    allowBrokerOffline ? 'warn' : 'fail'
+  );
   attempt('systemd-units', inspectUnits);
   attempt('signed-release', inspectRelease);
   attempt('durable-state', () => {

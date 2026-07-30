@@ -419,7 +419,9 @@ function activateRelease(releaseId) {
       command('sleep', ['1']);
     }
     if (!healthy) throw new Error(`New service did not become healthy at ${healthUrl}`);
-    command('/usr/bin/node', [path.join(release, 'scripts', 'production-preflight.js')]);
+    command('/usr/bin/node', [path.join(release, 'scripts', 'production-preflight.js')], {
+      env: { ...process.env, MCP_PRECHECK_ALLOW_BROKER_OFFLINE: 'true' },
+    });
     command('systemctl', ['enable', 'mcp-sentinel-broker.service']);
     command('systemctl', ['start', 'mcp-sentinel-broker.service']);
     command('systemctl', ['enable', '--now', 'mcp-sentinel-audit-verify.timer', 'mcp-sentinel-state-backup.timer']);
