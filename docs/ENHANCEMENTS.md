@@ -19,9 +19,10 @@ excluded from aggregate c8 percentages and are covered by live, UI, and deployme
 ## Deployment profiles
 
 The single-host profile uses SQLite WAL, systemd credentials, the local typed broker, and the
-durable job queue. The HA profile may add replicated state and workers only after lease fencing,
-duplicate execution prevention, audit ordering, and failover tests pass. HA must not change the
-authorization or approval semantics.
+durable job queue. The HA profile is fail-closed until replicated state, lease fencing, duplicate
+execution prevention, audit ordering, and failover tests are implemented and rehearsed; setting
+`MCP_HA_IMPLEMENTATION_READY=true` is an explicit operator assertion after those adapters exist.
+HA must not change the authorization or approval semantics.
 
 ## Identity and keys
 

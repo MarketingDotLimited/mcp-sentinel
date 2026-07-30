@@ -28,6 +28,13 @@ MCP_TELEMETRY_EXPORTER=none
 # OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.internal
 MCP_KEY_PROVIDER=systemd
 MCP_DEPLOYMENT_PROFILE=single-host
+# HA remains fail-closed until real replicated-state and lease-fencing adapters
+# plus a completed failover rehearsal are installed and verified.
+# MCP_HA_NODE_ID=node-a
+# MCP_HA_STATE_PROVIDER=postgres
+# MCP_HA_LEASE_PROVIDER=redis
+# MCP_HA_CONFIRM_FAILOVER=false
+# MCP_HA_IMPLEMENTATION_READY=false
 MCP_SSH_RUNTIME_DIR=/run/mcp-sentinel/ssh
 MCP_SSH_CREDENTIAL_DIR=/etc/mcp-sentinel/ssh-credentials
 AUDIT_LOG_DIR=/var/log/mcp-sentinel
