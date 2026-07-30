@@ -978,7 +978,7 @@ app.get(
     try {
       return res.json({ capabilities: await getCapabilities() });
     } catch (err) {
-      if (isDependencyError(err)) {
+      if (isDependencyError(err) || [500, 502, 503].includes(Number(err?.status))) {
         return res.json({
           capabilities: [],
           status: 'dependency-unavailable',
@@ -1318,7 +1318,7 @@ app.get(
       });
       return res.json({ sessions, count: sessions.length });
     } catch (err) {
-      if (isDependencyError(err)) {
+      if (isDependencyError(err) || [500, 502, 503].includes(Number(err?.status))) {
         return res.json({
           sessions: [],
           count: 0,
@@ -1759,8 +1759,11 @@ function safeJsonDependencyFallback(res, reader, operationName) {
   const isDependencyLikeError = error => {
     const message = String(error?.message || error || '');
     if (isOAuthDependencyError(error) || isDependencyError(error)) return true;
-    return /privilege\s+broker\s+unavailable|connect\s+ENOENT|enoent|no\s+socket\s+available|broker\.sock|state\s+store\s+unavailable/i.test(
-      message
+    return (
+      /privilege\s+broker\s+unavailable|connect\s+ENOENT|enoent|no\s+socket\s+available|broker\.sock|state\s+store\s+unavailable/i.test(
+        message
+      ) ||
+      [500, 502, 503].includes(Number(error?.status))
     );
   };
 
