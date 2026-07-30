@@ -1218,8 +1218,7 @@ function getFlowHint(req) {
 
 function resolveFlowHint(req) {
   const headerHint = getFlowHint(req);
-  if (headerHint) return headerHint;
-  return `mcp-session-${randomUUID()}`;
+  return headerHint || null;
 }
 
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
