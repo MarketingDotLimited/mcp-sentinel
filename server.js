@@ -82,6 +82,7 @@ import { getAdminState, setAdminState } from './lib/admin-state.js';
 import { evaluatePolicy, getPolicyStatus, simulatePolicy } from './lib/policy.js';
 import { getJobQueue } from './lib/job-queue.js';
 import { metricsText, telemetryMiddleware } from './lib/telemetry.js';
+import { getSloDefinitions } from './lib/slo.js';
 import { validateDeploymentProfile } from './lib/deployment-profile.js';
 import {
   authenticationOptions,
@@ -1106,6 +1107,12 @@ app.get('/admin/metrics', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
     return res.status(403).json({ error: 'Admin or auditor role required' });
   res.type('text/plain').send(metricsText());
+});
+
+app.get('/admin/slo', authenticateJWT, (req, res) => {
+  if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
+    return res.status(403).json({ error: 'Admin or auditor role required' });
+  return res.json({ definitions: getSloDefinitions(), status: 'telemetry-window-required' });
 });
 
 app.get('/admin/policy/simulate', authenticateJWT, async (req, res) => {

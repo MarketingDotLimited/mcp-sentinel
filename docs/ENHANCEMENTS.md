@@ -40,9 +40,11 @@ default authentication behavior.
 ## Observability and recovery
 
 Use `X-Request-ID`, bounded Prometheus metrics, and self-hosted OpenTelemetry-compatible export
-for diagnostics. Define SLOs for API availability, broker latency, job latency, test completion,
-and rollback success. Test broker loss, disk-full, database locks, network loss, stale leases,
-orphaned processes, and failed health checks before enabling new capabilities.
+for diagnostics. The authenticated `/admin/slo` endpoint publishes versioned SLO definitions for
+API availability, broker latency, job latency, test completion, and rollback success; it reports
+that a telemetry window is required instead of fabricating local status. Test broker loss,
+disk-full, database locks, network loss, stale leases, orphaned processes, and failed health
+checks before enabling new capabilities.
 
 ## Multi-host safety
 
