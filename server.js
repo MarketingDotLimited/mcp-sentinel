@@ -2595,6 +2595,21 @@ async function createMcpServer(identity, ip) {
       .split('_')
       .map(word => word[0].toUpperCase() + word.slice(1))
       .join(' ');
+
+    const resolveFlowId = identityObj => {
+      const authType = identityObj?.authType || 'unknown';
+      if (authType === 'apiKey') {
+        return identityObj?.keyId ? `apiKey:${identityObj.keyId}` : identityObj?.userId ? `apiKey-user:${identityObj.userId}` : null;
+      }
+      if (authType === 'oauth') {
+        const subject = identityObj?.oauthSubject || identityObj?.oauthUser;
+        const client = identityObj?.oauthClient || 'default';
+        return subject ? `oauth:${subject}:${client}` : null;
+      }
+      if (identityObj?.userId) return `user:${identityObj.userId}`;
+      return null;
+    };
+
     const fullDescription = `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`;
     const resolvedSchema = schema instanceof z.ZodObject ? schema.extend(FLOW_CONTROL_SCHEMA.shape) : schema;
     const inputJsonSchema = zodToJsonSchema(z.object(resolvedSchema), { target: 'openApi3', $refStrategy: 'none' });
@@ -2626,7 +2641,8 @@ async function createMcpServer(identity, ip) {
         const start = Date.now();
         const normalizedArgs = normalizeFlowArgs(args);
         const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
-        const flowIdArg = providedFlowId || identity.sessionId || null;
+        const identityFlowId = resolveFlowId(identity);
+        const flowIdArg = providedFlowId || identityFlowId || identity.sessionId || null;
         const resumeFromPassed =
           args?.resumeFromPassed === true || (args?.resumeFromPassed === undefined && flowIdArg !== null);
         const forceReplay = args?.forceReplay === true;
