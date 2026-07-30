@@ -400,6 +400,82 @@ function safeLogError(error, context) {
   } catch {}
 }
 
+function normalizeAdminReadPath(pathname = '') {
+  const normalized = `/${String(pathname || '')}`
+    .replace(/\/+$/u, '')
+    .replace(/^\/{2,}/g, '/')
+    .replace(/^\/api\/admin\//u, '/admin/')
+    .replace(/^\/admin\/api\//u, '/admin/');
+  return normalized;
+}
+
+function adminDependencyFallbackResponse(pathname, error) {
+  const path = normalizeAdminReadPath(pathname);
+
+  if (/^\/admin\/oauth-users$/u.test(path)) {
+    return {
+      status: 200,
+      body: [],
+    };
+  }
+
+  if (/^\/admin\/oauth-clients$/u.test(path)) {
+    return {
+      status: 200,
+      body: [],
+    };
+  }
+
+  if (/^\/admin\/capabilities$/u.test(path)) {
+    return {
+      status: 200,
+      body: {
+        capabilities: [],
+        status: 'dependency-unavailable',
+        dependency: {
+          unavailable: true,
+          reason: String(error?.message || 'Privilege broker/state store unavailable'),
+          code: 'DEPENDENCY_UNAVAILABLE',
+        },
+      },
+    };
+  }
+
+  if (/^\/admin\/sessions$/u.test(path)) {
+    return {
+      status: 200,
+      body: {
+        sessions: [],
+        count: 0,
+        status: 'dependency-unavailable',
+        dependency: {
+          unavailable: true,
+          reason: String(error?.message || 'Privilege broker/state store unavailable'),
+          code: 'DEPENDENCY_UNAVAILABLE',
+        },
+      },
+    };
+  }
+
+  if (/^\/admin\/action-manifest$/u.test(path) || /^\/action-manifest$/u.test(path)) {
+    return {
+      status: 200,
+      body: {
+        manifest: {
+          version: 'missing',
+          hash: 'missing',
+          name: 'MCP Sentinel',
+          tools: [],
+        },
+        refreshChecklist: [],
+        warnings: ['Privilege broker unavailable: continuing with a read-only local manifest fallback.'],
+      },
+    };
+  }
+
+  return null;
+}
+
 function isBrokerUnavailableError(error) {
   const message = String(error?.message || error || '');
   return (
@@ -2222,8 +2298,13 @@ app.use((err, req, res, next) => {
     errorId,
     error: err,
   });
-  if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
-  if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
+  if (isBrokerUnavailable(err) || isStateStoreUnavailable(err)) {
+    const fallback = adminDependencyFallbackResponse(req.path, err);
+    if (fallback && req.method === 'GET') {
+      return res.status(fallback.status).json(fallback.body);
+    }
+    return respondServiceDependencyUnavailable(res, err);
+  }
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
   }
