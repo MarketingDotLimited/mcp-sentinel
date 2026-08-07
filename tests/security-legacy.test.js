@@ -28,6 +28,7 @@ describe('security.js legacy state', async () => {
 
     process.env.JWT_REVOCATION_FILE = revFile;
     delete process.env.MCP_STATE_DB;
+    process.env.KEYSTORE_FILE = path.join(tmpDir, 'keys.json');
     process.env.JWT_SECRET = 's'.repeat(64);
 
     security = await import(`../security.js?test=${Date.now()}`);

@@ -28,7 +28,6 @@ mock.module('../audit.js', {
 let authRouter;
 let logSecurityEvent;
 
-
 describe('auth router', () => {
   let app;
   let server;

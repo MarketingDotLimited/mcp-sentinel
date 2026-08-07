@@ -85,6 +85,9 @@ describe('server.js exhaustive fuzzer', async () => {
     process.env.AUDIT_LOG_DIR = tmpDir;
     process.env.AUDIT_CHECKPOINT_FILE = checkpointPath;
     process.env.MCP_BROKER_SOCKET = brokerSocketPath;
+    process.env.MCP_STATE_DB = path.join(tmpDir, 'state.db');
+    process.env.KEYSTORE_FILE = path.join(tmpDir, 'keys.json');
+    process.env.JWT_REVOCATION_FILE = path.join(tmpDir, 'revocations.json');
 
     await import('../server.js');
   });
