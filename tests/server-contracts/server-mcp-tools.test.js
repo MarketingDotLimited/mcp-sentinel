@@ -88,6 +88,10 @@ describe('server-mcp-tools fuzzer', () => {
       const res = await client.callTool({ name: t.name, arguments: args }).catch(err => ({ error: err }));
       assert.ok(res !== undefined, `Tool ${t.name} returned a valid response or error`);
     }
+    
+    const { __TEST_EXPORTS__ } = await import('../../server.js');
+    await __TEST_EXPORTS__.refreshActiveToolLists().catch(()=>{});
+
     await client.close();
   });
 

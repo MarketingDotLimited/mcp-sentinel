@@ -39,10 +39,12 @@ test('users tools', async t => {
 
   await t.test('getUserInfo rejects invalid username', async () => {
     await assert.rejects(users.getUserInfo({ username: 'root' }, userIdentity), /You can only view your own user info/);
-    // Even if it's admin, if allowRoot is true, root is valid.
     await users.getUserInfo({ username: 'root' }, adminIdentity);
-
+    
     await assert.rejects(users.getUserInfo({ username: 'invalid name!' }, adminIdentity), /Invalid username/);
+    await assert.rejects(users.getUserInfo({ username: 'a'.repeat(33) }, adminIdentity), /Invalid username/);
+    await assert.rejects(users.getUserInfo({ username: '' }, adminIdentity), /Invalid username/);
+    await assert.rejects(users.getUserInfo({ username: null }, adminIdentity), /Invalid username/);
   });
 
   await t.test('createUser requires admin and valid inputs', async () => {
@@ -82,24 +84,17 @@ test('users tools', async t => {
   });
 
   await t.test('setUserPassword requires admin and valid password', async () => {
-    await assert.rejects(
-      users.setUserPassword({ username: 'user1', password: 'password1234' }, userIdentity),
-      /User management requires admin role/
-    );
-    await assert.rejects(
-      users.setUserPassword({ username: 'user1', password: 'short' }, adminIdentity),
-      /Password must be 12-1024 characters/
-    );
-    await assert.rejects(
-      users.setUserPassword({ username: 'user1', password: 'password\n1234' }, adminIdentity),
-      /Password contains invalid characters/
-    );
-
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'password1234' }, userIdentity), /User management requires admin role/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'short' }, adminIdentity), /Password must be 12-1024 characters/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'password\n1234' }, adminIdentity), /Password contains invalid characters/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'password\r1234' }, adminIdentity), /Password contains invalid characters/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'password\x001234' }, adminIdentity), /Password contains invalid characters/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'password:1234' }, adminIdentity), /Password contains invalid characters/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: 'a'.repeat(1025) }, adminIdentity), /Password must be 12-1024 characters/);
+    await assert.rejects(users.setUserPassword({ username: 'user1', password: null }, adminIdentity), /Password contains invalid characters/);
+    
     await users.setUserPassword({ username: 'user1', password: 'validpassword123' }, adminIdentity);
-    assert.deepEqual(brokerCallMock.mock.calls[0].arguments, [
-      'user.password',
-      { username: 'user1', password: 'validpassword123' },
-    ]);
+    assert.deepEqual(brokerCallMock.mock.calls[0].arguments, ['user.password', { username: 'user1', password: 'validpassword123' }]);
   });
 
   await t.test('modifyUser requires admin and valid inputs', async () => {

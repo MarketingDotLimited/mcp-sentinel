@@ -4,29 +4,28 @@ import assert from 'node:assert/strict';
 import * as deployment from '../../lib/deployment.js';
 
 test('deployment utilities', async t => {
-  await t.test('parseEnvironment', async t => {
+  await t.test('parseEnvironment', async (t) => {
     await t.test('parses valid environment correctly', () => {
       const input = `
 # Comment line
 FOO=bar
   BAR= baz 
 EMPTY=
+WITH_NUM_1=val
       `;
       const result = deployment.parseEnvironment(input);
-      assert.deepEqual(result, { FOO: 'bar', BAR: 'baz', EMPTY: '' });
+      assert.deepEqual(result, { FOO: 'bar', BAR: 'baz', EMPTY: '', WITH_NUM_1: 'val' });
     });
 
     await t.test('throws on missing separator', () => {
-      assert.throws(() => deployment.parseEnvironment('INVALID_LINE'), {
-        message: 'Invalid environment entry on line 1',
-      });
+      assert.throws(() => deployment.parseEnvironment('INVALID_LINE'), { message: 'Invalid environment entry on line 1' });
     });
 
     await t.test('throws on invalid key', () => {
-      assert.throws(() => deployment.parseEnvironment('1INVALID=value'), {
-        message: 'Invalid environment key on line 1',
-      });
+      assert.throws(() => deployment.parseEnvironment('1INVALID=value'), { message: 'Invalid environment key on line 1' });
       assert.throws(() => deployment.parseEnvironment('lower=value'), { message: 'Invalid environment key on line 1' });
+      assert.throws(() => deployment.parseEnvironment('_INVALID=value'), { message: 'Invalid environment key on line 1' });
+      assert.throws(() => deployment.parseEnvironment('A-B=value'), { message: 'Invalid environment key on line 1' });
     });
 
     await t.test('throws on duplicate key', () => {
@@ -36,31 +35,39 @@ EMPTY=
     });
   });
 
-  await t.test('validateProjectWritePaths', async t => {
+  await t.test('validateProjectWritePaths', async (t) => {
     await t.test('returns normalized paths', () => {
-      const result = deployment.validateProjectWritePaths('/app/project1, /app/project2');
+      const result = deployment.validateProjectWritePaths('/app/project1, /app/project2, /app/project1');
       assert.deepEqual(result, ['/app/project1', '/app/project2']);
     });
 
     await t.test('throws if empty', () => {
-      assert.throws(() => deployment.validateProjectWritePaths(''), {
-        message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository',
-      });
-      assert.throws(() => deployment.validateProjectWritePaths(null), {
-        message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository',
-      });
+      assert.throws(() => deployment.validateProjectWritePaths(''), { message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository' });
+      assert.throws(() => deployment.validateProjectWritePaths(null), { message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository' });
+      assert.throws(() => deployment.validateProjectWritePaths(' ,  , '), { message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository' });
     });
 
-    await t.test('throws on non-absolute or not normalized paths', () => {
+    await t.test('throws on non-absolute or not normalized paths or invalid chars', () => {
       assert.throws(() => deployment.validateProjectWritePaths('relative/path'), /must be a normalized absolute path/);
       assert.throws(() => deployment.validateProjectWritePaths('/app/../path'), /must be a normalized absolute path/);
       assert.throws(() => deployment.validateProjectWritePaths('/app/ path'), /must be a normalized absolute path/);
       assert.throws(() => deployment.validateProjectWritePaths('/app/path\n2'), /must be a normalized absolute path/);
+      assert.throws(() => deployment.validateProjectWritePaths('/app/path\0'), /must be a normalized absolute path/);
+      assert.throws(() => deployment.validateProjectWritePaths('/app/path"'), /must be a normalized absolute path/);
+      assert.throws(() => deployment.validateProjectWritePaths("/app/path'"), /must be a normalized absolute path/);
+      assert.throws(() => deployment.validateProjectWritePaths('/app/path\\'), /must be a normalized absolute path/);
     });
 
     await t.test('throws on broad paths', () => {
       assert.throws(() => deployment.validateProjectWritePaths('/'), /is too broad/);
       assert.throws(() => deployment.validateProjectWritePaths('/etc'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/usr'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/var'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/var/www'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/srv'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/opt'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/root'), /is too broad/);
+      assert.throws(() => deployment.validateProjectWritePaths('/home'), /is too broad/);
     });
   });
 

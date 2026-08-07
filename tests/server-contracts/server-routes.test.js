@@ -85,9 +85,25 @@ describe('server-routes-fuzzer', () => {
 
     for (const r of handlers) {
       if (typeof r.handler !== 'function') continue;
+      const validBody = { 
+        id: '123', q: 'test', key: 'dummy-key', userId: 'dummy-user', name: 'dummy-name',
+        components: ['api-keys'], enabledTools: ['test'], manifestHash: 'test', 
+        username: 'test', clientId: 'test', oauthReauthorized: true, newChatTested: true, 
+        type: 'test', hostname: 'test', port: 22, remote: 'test', provider: 'test', 
+        confirmationCode: '123', description: 'test', ip: '127.0.0.1', password: 'test', 
+        role: 'admin', confirm: true, address: '127.0.0.1', targetType: 'global',
+        sshAllowed: true, sshEnabled: true, enabled: true, scope: 'identity'
+      };
+
+      // Ensure activeTransports has at least 6 entries to trigger idle cleanup in makeSessionRoom
+      if (r.path === '/mcp' && r.method === 'get') {
+         for (let i=0; i<6; i++) {
+           await fuzzHandler(r.handler, 'admin', {}, {}, { transport: 'sse' });
+         }
+      } 
       await fuzzHandler(r.handler, 'admin', {}, {}, {});
-      await fuzzHandler(r.handler, 'admin', { id: '123' }, { q: 'test' }, { id: '123' });
-      await fuzzHandler(r.handler, 'user', {}, {}, {});
+      await fuzzHandler(r.handler, 'admin', validBody, validBody, validBody);
+      await fuzzHandler(r.handler, 'user', validBody, validBody, validBody);
       await fuzzHandler(r.handler, null, null, null, null);
     }
   });
@@ -122,6 +138,16 @@ describe('server-helpers-explicit', () => {
       .catch(() => {});
     assert.ok(typeof statusCode === 'number');
 
+    await __TEST_EXPORTS__
+      .ensurePrivilegeBrokerAvailable({}, dummyRes, () => {})
+      .catch(() => {});
+    assert.equal(statusCode, 401);
+
+    await __TEST_EXPORTS__
+      .ensurePrivilegeBrokerAvailable({ identity: { role: 'user' } }, dummyRes, () => {})
+      .catch(() => {});
+    assert.equal(statusCode, 403);
+
     assert.equal(typeof __TEST_EXPORTS__.isRecoverableDependencyError(new Error('ENOENT')), 'boolean');
     assert.equal(typeof __TEST_EXPORTS__.isRecoverableDependencyError('connect ENOENT'), 'boolean');
 
@@ -134,6 +160,9 @@ describe('server-helpers-explicit', () => {
 
     const fallback = __TEST_EXPORTS__.adminDependencyFallbackResponse('/admin/oauth-users', new Error('test'));
     assert.ok(fallback.status >= 200);
+
+    const fallbackManifest = __TEST_EXPORTS__.adminDependencyFallbackResponse('/admin/action-manifest', new Error('test'));
+    assert.ok(fallbackManifest.status >= 200);
 
     assert.equal(typeof __TEST_EXPORTS__.isBrokerUnavailable(new Error('broker unavailable')), 'boolean');
     assert.equal(typeof __TEST_EXPORTS__.isOAuthDependencyError(new Error('oauth')), 'boolean');
@@ -176,6 +205,10 @@ describe('server-helpers-extract', () => {
       typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', error: { detail: 'nested' } }),
       'string'
     );
+    assert.equal(
+      typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', cause: [ { detail: 'nested2' } ] }),
+      'string'
+    );
 
     assert.equal(typeof __TEST_EXPORTS__.isDependencyText('test'), 'boolean');
     assert.equal(typeof __TEST_EXPORTS__.isDependencyError(new Error('test')), 'boolean');
@@ -184,6 +217,9 @@ describe('server-helpers-extract', () => {
 
     __TEST_EXPORTS__.readAdminCollectionFallback({}, dummyRes, () => {}, {});
     assert.ok(statusCode >= 100);
+
+    await __TEST_EXPORTS__.readAdminCollectionFallback({ originalUrl: '/admin/oauth-users' }, dummyRes, () => { throw new Error('test') }, []);
+    assert.ok(statusCode >= 200);
 
     __TEST_EXPORTS__.invalidateOAuthSessions('test');
 
