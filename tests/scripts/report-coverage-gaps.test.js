@@ -23,7 +23,7 @@ test('report-coverage-gaps.mjs', async (t) => {
         mock.module('node:fs/promises', {
             get namedExports() { return this.defaultExport; }, defaultExport: {
                 readFile: async () => JSON.stringify({
-                    total: { lines: { pct: 50 }, branches: { pct: 50 }, branches: { pct: 50 } },
+                    total: { lines: { pct: 50 }, branches: { pct: 50 } },
                     '/mock/file1.js': { lines: { pct: 90, skipped: 1 }, branches: { pct: 100 } },
                     '/mock/file2.js': { lines: { pct: 100 }, branches: { pct: 80 } },
                     '/mock/file3.js': { lines: { pct: 100 }, branches: { pct: 100 } },
@@ -47,7 +47,7 @@ test('report-coverage-gaps.mjs', async (t) => {
         mock.module('node:fs/promises', {
             get namedExports() { return this.defaultExport; }, defaultExport: {
                 readFile: async () => JSON.stringify({
-                    total: { lines: { pct: 100 }, branches: { pct: 100 }, branches: { pct: 100 } },
+                    total: { lines: { pct: 100 }, branches: { pct: 100 } },
                     '/mock/file1.js': { lines: { pct: 100 }, branches: { pct: 100 } }
                 }),
                 writeFile: async (file, data) => { writtenFiles[file] = data; },

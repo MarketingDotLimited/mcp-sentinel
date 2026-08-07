@@ -37,7 +37,7 @@ test('verify-coverage.js', async (t) => {
             get namedExports() { return this.defaultExport; }, defaultExport: {
                 existsSync: () => true,
                 readFileSync: () => JSON.stringify({
-                    total: { lines: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 } },
+                    total: { lines: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 } },
                     'file.js': { lines: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 } }
                 })
             }
@@ -52,7 +52,7 @@ test('verify-coverage.js', async (t) => {
             get namedExports() { return this.defaultExport; }, defaultExport: {
                 existsSync: () => true,
                 readFileSync: () => JSON.stringify({
-                    total: { lines: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 } },
+                    total: { lines: { pct: 100 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 } },
                     'file.js': { lines: { pct: 99 }, statements: { pct: 100 }, functions: { pct: 100 }, branches: { pct: 100 } }
                 })
             }

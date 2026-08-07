@@ -48,7 +48,7 @@ if (!runCommand) runCommand = (await import(SCRIPT_PATH)).runCommand;
         fsMock.lstatSync.mock.mockImplementation(() => ({ isFile: () => true, isDirectory: () => true, isSymbolicLink: () => false, size: 1024, mode: 0o600, uid: 0, gid: 0 }));
         fsMock.readFileSync.mock.mockImplementation((file) => {
             if (file.includes('.sha256')) return 'ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb *a.tar.gz\n';
-            if (file.includes('-key')) { secretCount++; const s = secretCount.toString().padStart(64, '0'); console.error('KEY:', file, s); return s; }
+            if (file.includes('-key')) { let secretCount = 0; secretCount++; const s = secretCount.toString().padStart(64, '0'); console.error('KEY:', file, s); return s; }
             if (file.includes('.json')) return JSON.stringify({ version: '1.0.0', commit: 'c'.repeat(40), rollbackId: '8ae3fe0f-0ada-4823-83bb-6475190e5f44', services: {}, paths: [], units: {}, previousLegacyActive: true });
             return 'a';
         });

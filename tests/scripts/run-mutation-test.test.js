@@ -32,15 +32,13 @@ test('run-mutation-test.mjs', async (t) => {
                 readFile: async () => { console.log('MOCKED_READ_FILE'); return 'const a === b; return true;'; },
                 writeFile: async (file, data) => { writtenFiles[file] = data; },
                 mkdir: async () => {},
-                writeFile: async (file, data) => { writtenFiles[file] = data; },
-                mkdir: async () => {}
+
             },
             defaultExport: {
                 readFile: async () => { console.log('MOCKED_READ_FILE'); return 'const a === b; return true;'; },
                 writeFile: async (file, data) => { writtenFiles[file] = data; },
                 mkdir: async () => {},
-                writeFile: async (file, data) => { writtenFiles[file] = data; },
-                mkdir: async () => {}
+
             }
         });
         
@@ -72,13 +70,13 @@ test('run-mutation-test.mjs', async (t) => {
                 readFile: async () => 'no match',
                 writeFile: async (file, data) => { writtenFiles[file] = data; },
                 mkdir: async () => {},
-                mkdir: async () => {}
+
             },
             defaultExport: {
                 readFile: async () => 'no match',
                 writeFile: async (file, data) => { writtenFiles[file] = data; },
                 mkdir: async () => {},
-                mkdir: async () => {}
+
             }
         });
         
@@ -108,13 +106,13 @@ test('run-mutation-test.mjs', async (t) => {
                 readFile: async () => 'const a === b; return true;',
                 writeFile: async (file, data) => { writtenFiles[file] = data; },
                 mkdir: async () => {},
-                mkdir: async () => {}
+
             },
             defaultExport: {
                 readFile: async () => 'const a === b; return true;',
                 writeFile: async (file, data) => { writtenFiles[file] = data; },
                 mkdir: async () => {},
-                mkdir: async () => {}
+
             }
         });
         
