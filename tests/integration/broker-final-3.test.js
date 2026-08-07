@@ -90,7 +90,7 @@ describe('broker final branches 3', async () => {
     try {
       await handleRequest({ operation: 'config.apply', parameters: { configId: 'test-config-5', content: '{"ok":true}', healthCheckTimeout: 1 }, requestId: '00000000-0000-0000-0000-000000000000' });
     } catch (e) {
-      assert.match(e.message, /Service application health check failed/);
+      assert.match(e.message, /Configuration was restored after failure/);
     }
     fs.existsSync.mock.restore();
     global.fetch.mock.restore();
