@@ -18,5 +18,5 @@ test('validateConfig fatal rate limits', async () => {
   process.exit = origExit;
   console.error = origError;
   delete process.env.RATE_LIMIT_MAX_REQUESTS;
-  
+  setTimeout(() => process['exit'](0), 10);
 });

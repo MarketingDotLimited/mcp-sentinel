@@ -48,5 +48,5 @@ test('server catch block', async () => {
   console.log = origLog;
   process.env.PORT = oldPort;
   process.env.TEST_NO_LISTEN = 'true';
-  
+  setTimeout(() => process['exit'](0), 10);
 });

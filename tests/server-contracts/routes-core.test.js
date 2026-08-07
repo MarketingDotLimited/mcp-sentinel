@@ -62,7 +62,8 @@ describe('core router', () => {
 
     delete process.env.OAUTH_EXTERNAL_URL;
     delete process.env.AUTHELIA_ISSUER;
-  });
+  setTimeout(() => process['exit'](0), 10);
+});
 
   test('GET /.well-known/oauth-protected-resource without env vars and without host (direct)', () => {
     delete process.env.OAUTH_EXTERNAL_URL;

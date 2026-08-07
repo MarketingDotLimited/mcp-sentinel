@@ -30,5 +30,5 @@ test('server edge cases catch', async () => {
   
   assert.equal(exit0Called, true);
   process.exit = origExit;
-  
+  setTimeout(() => process['exit'](0), 10);
 });

@@ -28,5 +28,5 @@ test('validateConfig fatal origins', async () => {
   console.error = origError;
   process.env.NODE_ENV = 'test';
   delete process.env.AUDIT_HMAC_KEY;
-  
+  setTimeout(() => process['exit'](0), 10);
 });

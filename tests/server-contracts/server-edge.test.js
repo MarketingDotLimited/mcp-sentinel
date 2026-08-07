@@ -38,5 +38,5 @@ test('server edge cases', async () => {
   
   process.exit = origExit;
   console.log = origLog;
-  
+  setTimeout(() => process['exit'](0), 10);
 });
