@@ -72,6 +72,7 @@ if (!process.env.MCP_ISOLATED_TEST_ENV) {
     MCP_ISOLATED_TEST_ENV: 'true',
     AUTHELIA_USERS_FILE: path.join(tmpDir, 'users.yml'),
     AUTHELIA_CONFIG_FILE: path.join(tmpDir, 'configuration.yml'),
+    BROKER_FIREWALL_SNAPSHOT_ROOT: path.join(tmpDir, 'firewall-snapshots'),
   };
 
   fs.mkdirSync(env.MCP_STATE_DIR, { recursive: true });

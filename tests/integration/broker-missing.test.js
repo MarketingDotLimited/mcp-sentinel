@@ -60,10 +60,10 @@ if (name === 'ufw' && args.includes('fail')) {
   process.exit(1);
 }
 if (name === 'getent' && args[0] === 'passwd' && args[1] === 'testuser') {
-  console.log('testuser:x:1001:1001::/home/testuser:/bin/bash');
+  console.log('testuser:x:1001:1001::/tmp/testuser:/bin/bash');
 }
 if (name === 'getent' && args[0] === 'passwd' && args[1] === 'testuser99') {
-  console.log('testuser99:x:1002:1002::/home/testuser99:/bin/bash');
+  console.log('testuser99:x:1002:1002::/tmp/testuser99:/bin/bash');
 }
 if (name === 'useradd') {
   // Mocked useradd, no longer modifies real /etc/passwd
@@ -798,7 +798,7 @@ describe('process.signal', () => {
 
 describe('user.ssh operations', () => {
   it('covers valid add and remove', async () => {
-    await fs.mkdir('/home/testuser/.ssh', { recursive: true });
+    await fs.mkdir('/tmp/testuser/.ssh', { recursive: true });
 
     // Test add
     await handleRequest({
@@ -830,7 +830,7 @@ describe('user.ssh operations', () => {
       parameters: { username: 'testuser', action: 'remove', keyIndex: 0 },
     });
     // List valid
-    await fs.writeFile('/home/testuser/.ssh/authorized_keys', 'ssh-rsa AAAAB3NzaC1yc2E=');
+    await fs.writeFile('/tmp/testuser/.ssh/authorized_keys', 'ssh-rsa AAAAB3NzaC1yc2E=');
     await handleRequest({
       requestId: '11111111-1111-4111-8111-111111111111',
       operation: 'user.ssh',
@@ -838,8 +838,8 @@ describe('user.ssh operations', () => {
     });
 
     // List invalid file (EISDIR)
-    await fs.rm('/home/testuser/.ssh/authorized_keys', { force: true });
-    await fs.mkdir('/home/testuser/.ssh/authorized_keys');
+    await fs.rm('/tmp/testuser/.ssh/authorized_keys', { force: true });
+    await fs.mkdir('/tmp/testuser/.ssh/authorized_keys');
     try {
       await handleRequest({
         requestId: '11111111-1111-4111-8111-111111111111',
@@ -849,7 +849,7 @@ describe('user.ssh operations', () => {
     } catch (e) {
       console.log('DEBUG:', e.message);
     }
-    await fs.rm('/home/testuser/.ssh/authorized_keys', { recursive: true, force: true });
+    await fs.rm('/tmp/testuser/.ssh/authorized_keys', { recursive: true, force: true });
   });
 });
 
