@@ -31,29 +31,26 @@ describe('policy.js full coverage', () => {
     await assert.rejects(evaluatePolicy({ tool: 't', identity: { role: 'r' } }), /Policy configuration is invalid/);
   });
 
-  it('getPolicyStatus with and without policy', async () => {
+  it('cache invalidation when policy file mtime changes', async () => {
     await fs.writeFile(policyFile, JSON.stringify({ rules: [{ effect: 'deny', tools: ['a'] }] }));
-    const { getPolicyStatus, evaluatePolicy } = await import(`../lib/policy.js?t=${Date.now()}`);
+    const { evaluatePolicy } = await import(`../lib/policy.js?t=${Date.now()}`);
 
-    const status1 = await getPolicyStatus();
-    assert.equal(status1.enabled, true);
+    // Call 1: loads policy into cache
+    const res1 = await evaluatePolicy({ tool: 'a', identity: { role: 'r' } });
+    assert.equal(res1.allowed, false);
 
-    // hit cache line 24
-    await evaluatePolicy({ tool: 't', identity: { role: 'r' } });
+    // Call 2: file has NOT changed (mtime == cachedMtime), should return cached policy
+    const res2 = await evaluatePolicy({ tool: 'a', identity: { role: 'r' } });
+    assert.equal(res2.allowed, false);
 
-    const orig = process.env.MCP_POLICY_FILE;
-    delete process.env.MCP_POLICY_FILE;
-    const { getPolicyStatus: getPolicyStatusEmpty, evaluatePolicy: evalEmpty } = await import(
-      `../lib/policy.js?t=${Date.now()}`
-    );
+    // Update file content AND mtime
+    await new Promise(r => setTimeout(r, 50));
+    await fs.writeFile(policyFile, JSON.stringify({ rules: [{ effect: 'require_approval', tools: ['a'] }] }));
 
-    const status2 = await getPolicyStatusEmpty();
-    assert.equal(status2.enabled, false);
-
-    const res = await evalEmpty({ tool: 't', identity: { role: 'r' } });
-    assert.equal(res.allowed, true);
-
-    process.env.MCP_POLICY_FILE = orig;
+    // Call 3: file HAS changed (mtime != cachedMtime), should reload new policy
+    const res3 = await evaluatePolicy({ tool: 'a', identity: { role: 'r' } });
+    assert.equal(res3.allowed, true);
+    assert.equal(res3.requireApproval, true);
   });
 
   it('evaluatePolicy deny branch', async () => {
