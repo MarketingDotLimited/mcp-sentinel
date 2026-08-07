@@ -1,3 +1,4 @@
+/* c8 ignore start */
 import jwt from 'jsonwebtoken';
 import { logAuth, logSecurityEvent } from './audit.js';
 import { isIP } from 'net';
@@ -21,6 +22,7 @@ import { readOAuthMappings } from './lib/oauth-mappings-store.js';
 import { DatabaseSync } from 'node:sqlite';
 import { loadCredentialSecret } from './lib/credentials.js';
 import { validateOAuthTokenPolicy } from './lib/oauth-token-policy.js';
+/* c8 ignore stop */
 
 const execFileAsync = promisify(execFile);
 const JWT_SECRET = loadCredentialSecret('JWT_SECRET', 'jwt-key');

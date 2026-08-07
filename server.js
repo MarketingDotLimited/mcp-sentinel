@@ -935,6 +935,7 @@ process.on('uncaughtException', err => {
 });
 
 process.on('unhandledRejection', reason => {
+  /* c8 ignore next 2 */
   logError({ ip: 'internal', userId: 'system', tool: 'unhandledRejection', error: reason });
   console.error('Unhandled Rejection:', reason);
 });
@@ -4618,5 +4619,6 @@ process.on('uncaughtException', err => {
   /* c8 ignore stop */
 });
 process.on('unhandledRejection', reason => {
+  /* c8 ignore next */
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });
 });

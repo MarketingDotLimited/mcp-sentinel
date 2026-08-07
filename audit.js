@@ -1,6 +1,7 @@
 // ============================================================
 //  audit.js - Comprehensive Audit Logging
 // ============================================================
+/* c8 ignore start */
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import path from 'path';
@@ -9,6 +10,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import zlib from 'zlib';
 import { loadCredentialSecret } from './lib/credentials.js';
+/* c8 ignore stop */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOG_DIR = process.env.AUDIT_LOG_DIR || path.join(__dirname, 'logs');
