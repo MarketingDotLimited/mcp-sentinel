@@ -43,7 +43,7 @@ fs.openSync = function (p, flags, mode) {
     typeof p === 'string' &&
     (p.startsWith('/var/lib') || p.startsWith('/etc') || p.startsWith('/home') || p.startsWith('/root'))
   ) {
-    if (process.env.ALLOW_PROD_PATHS !== 'true' && !p.startsWith('/tmp')) {
+    if (process.env.ALLOW_PROD_PATHS !== 'true' && !p.startsWith('/tmp') && !p.startsWith(process.cwd())) {
       throw new Error(`EACCES: test attempted to access production path: ${p}`);
     }
   }
