@@ -38,7 +38,7 @@ async function auditTests() {
           rule: 'NO_PROCESS_EXIT_IN_TEST_RUNNER',
           severity: 'HIGH',
           snippet: line.trim(),
-          reason: 'Test runners must terminate naturally; forcing process.exit hides open handles.'
+          reason: 'Test runners must terminate naturally; forcing process.exit hides open handles.',
         });
       }
 
@@ -50,7 +50,7 @@ async function auditTests() {
           rule: 'NO_SKIPPED_TESTS',
           severity: 'HIGH',
           snippet: line.trim(),
-          reason: 'All tests must be active and passing.'
+          reason: 'All tests must be active and passing.',
         });
       }
 
@@ -61,14 +61,20 @@ async function auditTests() {
           rule: 'NO_ONLY_TESTS',
           severity: 'HIGH',
           snippet: line.trim(),
-          reason: 'Focused .only tests are not permitted in committed code.'
+          reason: 'Focused .only tests are not permitted in committed code.',
         });
       }
 
       // Check for swallowed errors without assertion (excluding setup/teardown fs cleanup)
       if (/catch\s*\([^)]*\)\s*\{\s*\}/.test(line) || /catch\s*\{\s*\}/.test(line)) {
-        const isFsCleanup = /(mkdir|unlink|rm|chmod|close|symlink|write|unlinkSync|rmSync|chmodSync|mkdirSync|symlinkSync|writeFileSync)/.test(line) ||
-          (idx > 0 && /(mkdir|unlink|rm|chmod|close|symlink|write|unlinkSync|rmSync|chmodSync|mkdirSync|symlinkSync|writeFileSync)/.test(lines[idx - 1]));
+        const isFsCleanup =
+          /(mkdir|unlink|rm|chmod|close|symlink|write|unlinkSync|rmSync|chmodSync|mkdirSync|symlinkSync|writeFileSync)/.test(
+            line
+          ) ||
+          (idx > 0 &&
+            /(mkdir|unlink|rm|chmod|close|symlink|write|unlinkSync|rmSync|chmodSync|mkdirSync|symlinkSync|writeFileSync)/.test(
+              lines[idx - 1]
+            ));
         if (!isFsCleanup) {
           findings.push({
             file: relPath,
@@ -76,7 +82,7 @@ async function auditTests() {
             rule: 'NO_EMPTY_CATCH',
             severity: 'HIGH',
             snippet: line.trim(),
-            reason: 'Swallowing errors without exact assertions masks contract failures.'
+            reason: 'Swallowing errors without exact assertions masks contract failures.',
           });
         }
       }

@@ -17,26 +17,31 @@ Phase 2 of the MCP Sentinel Exhaustive Testing and Product Validation program ha
 ## Key Achievements & Recovery Proofs
 
 ### 1. CI Pipeline & Lint Recovery
+
 - **ESLint**: Fixed `no-useless-assignment` error in `tests/security-oidc-branches.test.js`. `npm run lint` and `npm run format:check` now pass clean with 0 errors.
 - **Coverage Configuration**: Updated `.c8rc` to set `"per-file": true` and expanded scope to include `scripts/**` and `public/js/**`.
 
 ### 2. Test Integrity Audit & Removal of Forced Exits
+
 - Audit script [`scripts/detect-unsafe-tests.mjs`](file:///root/mcp-server/scripts/detect-unsafe-tests.mjs) created to statically enforce rules:
   - Removed all direct `process.exit(0)` calls from `server-routes.test.js`, `server-mcp-tools.test.js`, `server.test.js`, `broker-protected.test.js`, and `server-coverage.test.js`.
   - Replaced probe `try/catch` swallows with explicit contract assertions.
   - Zero skipped tests remain across the test suite.
 
 ### 3. Mandatory Real-Browser Testing
+
 - `npm run test:browser` script added to `package.json`.
 - Integrated Playwright browser testing into CI workflow (`.github/workflows/ci.yml`).
 - Validated UI experience, accessibility selectors, and admin capability packs.
 
 ### 4. User-Needs Reconciliation
+
 - Canonical machine-readable source of truth established in [`reports/testing/user-needs-coverage.json`](file:///root/mcp-server/reports/testing/user-needs-coverage.json).
 - Automatic document generation via [`scripts/generate-user-needs-docs.mjs`](file:///root/mcp-server/scripts/generate-user-needs-docs.mjs) rendering [`USER_NEEDS_COVERAGE.md`](file:///root/mcp-server/docs/testing/USER_NEEDS_COVERAGE.md).
 - Automated CI validation via [`scripts/validate-user-needs.mjs`](file:///root/mcp-server/scripts/validate-user-needs.mjs).
 
 ### 5. Mutation Analysis
+
 - Security & authorization policies (`lib/remote-operation-policy.js`, `lib/ssh-policy.js`, `lib/policy.js`, `lib/oauth-token-policy.js`) subjected to operator and logical mutation testing via [`scripts/run-mutation-test.mjs`](file:///root/mcp-server/scripts/run-mutation-test.mjs).
 - **100% mutation score** achieved (all security policy mutants killed).
 

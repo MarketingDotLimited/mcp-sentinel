@@ -107,7 +107,9 @@ describe('server-helpers-explicit', () => {
       },
     };
 
-    await __TEST_EXPORTS__.ensurePrivilegeBrokerAvailable({ identity: { role: 'admin' } }, dummyRes, () => {}).catch(() => {});
+    await __TEST_EXPORTS__
+      .ensurePrivilegeBrokerAvailable({ identity: { role: 'admin' } }, dummyRes, () => {})
+      .catch(() => {});
     assert.ok(typeof statusCode === 'number');
 
     assert.equal(typeof __TEST_EXPORTS__.isRecoverableDependencyError(new Error('ENOENT')), 'boolean');
@@ -160,7 +162,10 @@ describe('server-helpers-extract', () => {
     };
 
     assert.equal(typeof __TEST_EXPORTS__.extractDependencyErrorText(new Error('test')), 'string');
-    assert.equal(typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', error: { detail: 'nested' } }), 'string');
+    assert.equal(
+      typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', error: { detail: 'nested' } }),
+      'string'
+    );
 
     assert.equal(typeof __TEST_EXPORTS__.isDependencyText('test'), 'boolean');
     assert.equal(typeof __TEST_EXPORTS__.isDependencyError(new Error('test')), 'boolean');

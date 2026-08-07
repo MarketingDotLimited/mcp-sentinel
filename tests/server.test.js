@@ -102,16 +102,20 @@ describe('server integration tests', () => {
         get: () => 'mcp.example.test',
       };
 
-      await r.handler(reqAdmin, res, () => {}).catch(err => {
-        assert.ok(err instanceof Error, 'Route handler thrown error must be Error instance');
-      });
+      await r
+        .handler(reqAdmin, res, () => {})
+        .catch(err => {
+          assert.ok(err instanceof Error, 'Route handler thrown error must be Error instance');
+        });
 
       assert.ok(statusCode >= 100 && statusCode <= 599, `Handler for ${r.path} returned valid status code`);
 
       const reqNonAdmin = { ...reqAdmin, identity: { role: 'user', userId: 'test-user' } };
-      await r.handler(reqNonAdmin, res, () => {}).catch(err => {
-        assert.ok(err instanceof Error, 'Non-admin route handler thrown error must be Error instance');
-      });
+      await r
+        .handler(reqNonAdmin, res, () => {})
+        .catch(err => {
+          assert.ok(err instanceof Error, 'Non-admin route handler thrown error must be Error instance');
+        });
     }
   });
 

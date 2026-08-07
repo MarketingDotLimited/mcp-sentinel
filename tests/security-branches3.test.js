@@ -19,9 +19,11 @@ test('security.js branches', async () => {
   process.env.OAUTH_RESOURCE_URL = 'https://resource/';
   const req = { headers: {} };
   const mockRes = { status: code => ({ json: err => ({ code, err }) }) };
-  await sec.authenticate(req, mockRes, () => {}).catch(err => {
-    assert.ok(err instanceof Error);
-  });
+  await sec
+    .authenticate(req, mockRes, () => {})
+    .catch(err => {
+      assert.ok(err instanceof Error);
+    });
 
   process.env.AUTHELIA_JWKS_URL = originalJwks;
 });

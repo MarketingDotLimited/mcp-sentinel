@@ -7,7 +7,7 @@ const TARGET_FILES = [
   'lib/remote-operation-policy.js',
   'lib/ssh-policy.js',
   'lib/policy.js',
-  'lib/oauth-token-policy.js'
+  'lib/oauth-token-policy.js',
 ];
 
 async function runMutationTests() {
@@ -25,7 +25,7 @@ async function runMutationTests() {
       { search: '===', replace: '!==', name: 'invert equality' },
       { search: '&&', replace: '||', name: 'invert logical AND' },
       { search: 'return true;', replace: 'return false;', name: 'invert boolean return true' },
-      { search: 'return false;', replace: 'return true;', name: 'invert boolean return false' }
+      { search: 'return false;', replace: 'return true;', name: 'invert boolean return false' },
     ];
 
     for (const m of mutationOps) {
@@ -37,7 +37,10 @@ async function runMutationTests() {
 
       let testFailed = false;
       try {
-        execSync('node --experimental-test-module-mocks --test tests/security*.test.js tests/policy*.test.js tests/ssh-policy.test.js tests/remote-operation-policy.test.js tests/oauth-token-policy.test.js', { stdio: 'pipe' });
+        execSync(
+          'node --experimental-test-module-mocks --test tests/security*.test.js tests/policy*.test.js tests/ssh-policy.test.js tests/remote-operation-policy.test.js tests/oauth-token-policy.test.js',
+          { stdio: 'pipe' }
+        );
       } catch (err) {
         testFailed = true; // Mutant killed!
       }
@@ -52,7 +55,7 @@ async function runMutationTests() {
           mutation: m.name,
           search: m.search,
           replace: m.replace,
-          survived: true
+          survived: true,
         });
       }
     }

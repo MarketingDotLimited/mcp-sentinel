@@ -30,12 +30,12 @@ async function verifyScope() {
       statements: c8Config.statements,
       branches: c8Config.branches,
       functions: c8Config.functions,
-      lines: c8Config.lines
+      lines: c8Config.lines,
     },
     includePatterns: c8Config.include,
     excludePatterns: c8Config.exclude,
     missingPatterns: missingFromInclude,
-    scopeComplete: missingFromInclude.length === 0 && c8Config['per-file'] === true
+    scopeComplete: missingFromInclude.length === 0 && c8Config['per-file'] === true,
   };
 
   const scopeReportPath = path.join(process.cwd(), 'reports', 'testing', 'coverage-scope.json');

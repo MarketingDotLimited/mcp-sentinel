@@ -21,4 +21,3 @@ describe('protected services', () => {
     srv.close();
   });
 });
-

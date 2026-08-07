@@ -29,9 +29,14 @@ async function generate() {
       else if (need.status === 'not_met') notMet++;
       else if (need.status === 'cannot_be_automatically_validated') cannotValidate++;
 
-      const statusText = need.status === 'fully_met' ? 'Fully met' :
-                         need.status === 'partially_met' ? 'Partially met' :
-                         need.status === 'not_met' ? 'Not met' : 'Cannot be validated automatically';
+      const statusText =
+        need.status === 'fully_met'
+          ? 'Fully met'
+          : need.status === 'partially_met'
+            ? 'Partially met'
+            : need.status === 'not_met'
+              ? 'Not met'
+              : 'Cannot be validated automatically';
       const gapText = need.gap || '—';
 
       md += `| ${need.id} | ${need.goal} | ${need.capability} | ${statusText} | ${gapText} |\n`;
@@ -67,13 +72,15 @@ async function generate() {
     fullyMet,
     partiallyMet,
     notMet,
-    cannotValidateAutomatically: cannotValidate
+    cannotValidateAutomatically: cannotValidate,
   };
 
   await fs.writeFile(JSON_FILE, JSON.stringify(data, null, 2) + '\n');
   await fs.writeFile(MD_FILE, md);
 
-  console.log(`Generated ${MD_FILE} from ${JSON_FILE}. Total needs: ${totalNeeds}, Fully met: ${fullyMet} (${fullyMetPct}%).`);
+  console.log(
+    `Generated ${MD_FILE} from ${JSON_FILE}. Total needs: ${totalNeeds}, Fully met: ${fullyMet} (${fullyMetPct}%).`
+  );
 }
 
 generate().catch(err => {

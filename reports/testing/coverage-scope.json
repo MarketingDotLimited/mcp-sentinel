@@ -20,13 +20,7 @@
     "keystore.js",
     "security.js"
   ],
-  "excludePatterns": [
-    "tests/**",
-    "scratch/**",
-    "node_modules/**",
-    "coverage/**",
-    "eslint.config.js"
-  ],
+  "excludePatterns": ["tests/**", "scratch/**", "node_modules/**", "coverage/**", "eslint.config.js"],
   "missingPatterns": [],
   "scopeComplete": true
 }

@@ -22,7 +22,7 @@ async function reportGaps() {
           file: relPath,
           linesPct: linePct,
           branchesPct: branchPct,
-          uncoveredLines: metrics.lines ? metrics.lines.skipped : 0
+          uncoveredLines: metrics.lines ? metrics.lines.skipped : 0,
         });
       }
     }

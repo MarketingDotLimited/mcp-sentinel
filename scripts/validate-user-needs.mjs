@@ -19,7 +19,7 @@ async function validate() {
 
   // Verify total needs count
   let totalNeeds = 0;
-  json.personas.forEach(p => totalNeeds += p.needs.length);
+  json.personas.forEach(p => (totalNeeds += p.needs.length));
 
   if (!mdContent.includes(`Total user needs identified**: ${totalNeeds}`)) {
     console.error(`❌ Markdown summary out of sync with user-needs-coverage.json!`);

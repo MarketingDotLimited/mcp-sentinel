@@ -81,4 +81,3 @@ describe('Server internal functions', async () => {
     safeLogError(new Error('test error'), 'context'); // should not throw
   });
 });
-

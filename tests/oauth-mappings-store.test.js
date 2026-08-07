@@ -45,12 +45,18 @@ describe('oauth-mappings-store.js coverage', () => {
     const { readOAuthMappings: r1 } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
     // Should be ENOENT from KS file path which doesn't exist? Wait, readOAuthMappings uses MAPPINGS_FILE!
     // But USE_LEGACY_JSON is true! So it tries to read MAPPINGS_FILE which is undefined/empty and throws ENOENT or fails.
-    await r1().then(val => assert.ok(typeof val === 'object'), err => assert.ok(err instanceof Error));
+    await r1().then(
+      val => assert.ok(typeof val === 'object'),
+      err => assert.ok(err instanceof Error)
+    );
 
     delete process.env.KEYSTORE_FILE;
     process.env.CONTROL_PLANE_STATE_FILE = path.join(directory, 'cp.json');
     const { readOAuthMappings: r2 } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
-    await r2().then(val => assert.ok(typeof val === 'object'), err => assert.ok(err instanceof Error));
+    await r2().then(
+      val => assert.ok(typeof val === 'object'),
+      err => assert.ok(err instanceof Error)
+    );
   });
 
   it('covers USE_LEGACY_JSON false', async () => {
@@ -60,7 +66,10 @@ describe('oauth-mappings-store.js coverage', () => {
     delete process.env.CONTROL_PLANE_STATE_FILE;
     // all false -> USE_LEGACY_JSON = false
     const { readOAuthMappings: r3 } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
-    await r3().then(val => assert.ok(typeof val === 'object'), err => assert.ok(err instanceof Error));
+    await r3().then(
+      val => assert.ok(typeof val === 'object'),
+      err => assert.ok(err instanceof Error)
+    );
   });
 
   it('covers writeRows rollback on invalid username', async () => {
