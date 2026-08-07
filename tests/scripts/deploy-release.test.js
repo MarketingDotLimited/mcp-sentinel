@@ -156,7 +156,7 @@ test('deploy-release.js suite', async t => {
           throw new Error('fail');
         }
       }
-      return '';
+      return '0\n';
     });
   };
 

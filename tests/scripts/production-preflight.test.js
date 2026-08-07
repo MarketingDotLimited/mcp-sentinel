@@ -8,6 +8,20 @@ import { fileURLToPath } from 'url';
 
 const SCRIPT_PATH = fileURLToPath(new URL('../../scripts/production-preflight.js', import.meta.url));
 
+const origLstatSync = fs.lstatSync;
+fs.lstatSync = (p, options) => {
+  const stat = origLstatSync(p, options);
+  if (process.env.MCP_PREFLIGHT_ROOT && typeof p === 'string' && p.startsWith(process.env.MCP_PREFLIGHT_ROOT)) {
+    if (process.getuid && process.getuid() !== 0) {
+      const isMcpUser =
+        p.includes('/var/lib/mcp-sentinel') || p.includes('/var/log/mcp-sentinel') || p.includes('broker.sock');
+      Object.defineProperty(stat, 'uid', { value: isMcpUser ? 999 : 0 });
+      Object.defineProperty(stat, 'gid', { value: isMcpUser ? 999 : 0 });
+    }
+  }
+  return stat;
+};
+
 async function runPreflight(tmp) {
   const originalEnv = { ...process.env };
   process.env.MCP_PREFLIGHT_ROOT = tmp;
