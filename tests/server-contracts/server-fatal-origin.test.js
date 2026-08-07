@@ -30,7 +30,12 @@ test('validateConfig fatal origins', async () => {
   process.env.NODE_ENV = 'production';
   process.env.ALLOWED_ORIGINS = '  ';
 
-  await import('../../server.js');
+  let mod;
+  try {
+    mod = await import('../../server.js');
+  } catch (e) {
+    if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e;
+  }
 
   assert.equal(exitCode, 1);
 
@@ -38,5 +43,9 @@ test('validateConfig fatal origins', async () => {
   console.error = origError;
   process.env.NODE_ENV = 'test';
   delete process.env.AUDIT_HMAC_KEY;
-  setTimeout(() => process['exit'](0), 10);
+  
+  if (mod && mod.__TEST_EXPORTS__ && mod.__TEST_EXPORTS__.getIdleCheckInterval) {
+    const id = mod.__TEST_EXPORTS__.getIdleCheckInterval();
+    if (id) clearInterval(id);
+  }
 });
