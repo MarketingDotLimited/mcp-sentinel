@@ -16,8 +16,8 @@ test('backup-state.js credentials directory coverage', async t => {
     delete process.env.MCP_STATE_BACKUP_KEY;
     process.env.MCP_STATE_DB = '/tmp/fake-test-db-' + Date.now() + '.sqlite3';
     import('fs').then(fs => fs.writeFileSync(process.env.MCP_STATE_DB, ''));
-    process.env.MCP_BACKUP_ROOT = '/tmp/fake-backup-' + Date.now();
-    import('fs').then(fs => fs.mkdirSync(process.env.MCP_BACKUP_ROOT, { recursive: true }));
+    process.env.MCP_STATE_BACKUP_DIR = '/tmp/fake-backup-' + Date.now();
+    import('fs').then(fs => fs.mkdirSync(process.env.MCP_STATE_BACKUP_DIR, { recursive: true }));
     process.env.CREDENTIALS_DIRECTORY = (await import('os')).tmpdir() + '/creds-' + Date.now() + Math.random();
     (await import('fs')).mkdirSync(process.env.CREDENTIALS_DIRECTORY, { recursive: true });
     (await import('fs')).writeFileSync(process.env.CREDENTIALS_DIRECTORY + '/state-backup-key', 'a'.repeat(64) + '\n');
@@ -31,8 +31,8 @@ test('backup-state.js credentials directory coverage', async t => {
     delete process.env.MCP_STATE_BACKUP_KEY;
     process.env.MCP_STATE_DB = '/tmp/fake-test-db-' + Date.now() + '.sqlite3';
     import('fs').then(fs => fs.writeFileSync(process.env.MCP_STATE_DB, ''));
-    process.env.MCP_BACKUP_ROOT = '/tmp/fake-backup-' + Date.now();
-    import('fs').then(fs => fs.mkdirSync(process.env.MCP_BACKUP_ROOT, { recursive: true }));
+    process.env.MCP_STATE_BACKUP_DIR = '/tmp/fake-backup-' + Date.now();
+    import('fs').then(fs => fs.mkdirSync(process.env.MCP_STATE_BACKUP_DIR, { recursive: true }));
     process.env.CREDENTIALS_DIRECTORY = (await import('os')).tmpdir() + '/creds-' + Date.now() + Math.random();
     (await import('fs')).mkdirSync(process.env.CREDENTIALS_DIRECTORY, { recursive: true });
 
