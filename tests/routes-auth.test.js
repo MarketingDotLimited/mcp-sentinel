@@ -3,6 +3,11 @@ import assert from 'node:assert';
 import express from 'express';
 import http from 'node:http';
 
+process.env.MCP_STATE_DB = '/tmp/mcp_state_db_mock.sqlite';
+process.env.JWT_REVOCATION_FILE = '/tmp/jwt_mock.json';
+process.env.KEYSTORE_FILE = '/tmp/keys_mock.json';
+process.env.AUDIT_LOG_DIR = '/tmp/audit_logs';
+
 mock.module('../security.js', {
   namedExports: {
     // Return 401 to ensure rate limiter counts it as an unsuccessful request
@@ -20,8 +25,9 @@ mock.module('../audit.js', {
   },
 });
 
-import authRouter from '../routes/auth.js';
-import { logSecurityEvent } from '../audit.js';
+let authRouter;
+let logSecurityEvent;
+
 
 describe('auth router', () => {
   let app;
@@ -29,6 +35,9 @@ describe('auth router', () => {
   let baseUrl;
 
   before(async () => {
+    authRouter = (await import('../routes/auth.js')).default;
+    logSecurityEvent = (await import('../audit.js')).logSecurityEvent;
+
     app = express();
     // trust proxy to ensure IP is read properly if needed
     app.set('trust proxy', 1);
