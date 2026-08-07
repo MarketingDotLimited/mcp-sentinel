@@ -5,7 +5,11 @@ import fs from 'fs';
 import path from 'path';
 
 describe('admin-state', () => {
-  it('covers branch where env var is not set', async () => {
+  it('covers branch where env var is not set', async (t) => {
+    if (process.getuid && process.getuid() === 0) {
+      t.skip('Cannot test EACCES as root user');
+      return;
+    }
     const original = process.env.MCP_STATE_DB;
     delete process.env.MCP_STATE_DB;
     const adminState = await import(`../../lib/admin-state.js?test=${Date.now()}`);

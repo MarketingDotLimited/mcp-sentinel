@@ -61,7 +61,7 @@ test.describe('dashboard UX', () => {
     // Test: Login Success
     await page.locator('input[type="password"]').fill(key);
     await page.getByRole('button', { name: 'Sign In' }).click();
-    await expect(page.locator('h1')).toContainText('Server Care');
+    await expect(page.locator('.brand-name')).toContainText('MCP Sentinel');
 
     // Test: Navigation
     await page.locator('a[href="#/workflows"]').click();
@@ -105,6 +105,7 @@ test.describe('dashboard UX', () => {
     await page.goto('/');
     await page.locator('input[type="password"]').fill(key);
     await page.getByRole('button', { name: 'Sign In' }).click();
+    await expect(page.locator('.brand-name')).toContainText('MCP Sentinel');
 
     // Trigger RTL / Arabic layout if supported via a lang switch or localstorage
     await page.evaluate(() => {
