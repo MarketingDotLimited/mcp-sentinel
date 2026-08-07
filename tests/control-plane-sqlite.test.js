@@ -18,6 +18,6 @@ test('control-plane.js sqlite branches', () => {
       await cp.persistTaskRun({ id: 'test-run-1', status: 'running' }).catch(() => {});
       const admin = { userId: 'admin', role: 'admin' };
       await cp.adminSetSshAccess({ targetType: 'global', sshAllowed: true, confirm: true }, admin);
-    `
+    `,
   ]);
 });

@@ -40,7 +40,7 @@ test('security.js branches - separate processes for env vars', () => {
       Date.now = () => orig() + 86400000;
       sec.revokeSessionToken({ identity: { authType: 'apiKey', jti: 'test3' } }, { json: () => {} });
       Date.now = orig;
-    `
+    `,
   ]);
 
   // Test USE_LEGACY_REVOCATIONS = true with ENOENT and empty JSON
@@ -56,7 +56,7 @@ test('security.js branches - separate processes for env vars', () => {
       fs.writeFileSync('/tmp/empty-revoc.json', '{}');
       process.env.JWT_REVOCATION_FILE = '/tmp/empty-revoc.json';
       await import(${JSON.stringify('file://' + SECURITY_JS + '?test=1')});
-    `
+    `,
   ]);
 
   // Test AUTHELIA_JWKS_URL empty actually calling getAutheliaJWKS
@@ -68,6 +68,6 @@ test('security.js branches - separate processes for env vars', () => {
       process.env.AUTHELIA_ISSUER = 'https://auth';
       const sec = await import(${JSON.stringify('file://' + SECURITY_JS)});
       await sec.authenticateJWT({ headers: { authorization: 'Bearer authelia-token' } }, { status: () => ({ json: () => {} }) }, () => {});
-    `
+    `,
   ]);
 });

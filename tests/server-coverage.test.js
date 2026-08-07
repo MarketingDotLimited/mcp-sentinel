@@ -76,7 +76,7 @@ describe('Server internal functions', async () => {
   test('summarizeHealth', () => {
     assert.equal(summarizeHealth({ cpu: 90, memory: 50, disk: 50 }).status, 'needs-attention');
   });
-  
+
   test('safeLogError', () => {
     safeLogError(new Error('test error'), 'context'); // should not throw
   });

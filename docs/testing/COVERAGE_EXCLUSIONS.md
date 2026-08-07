@@ -12,34 +12,34 @@ The previously conflicting `.c8rc.json` has been **removed**.
 
 ### Test Infrastructure
 
-| File/Glob | Reason | Executes in Production | Risk |
-| --------- | ------ | ---------------------- | ---- |
-| `tests/**` | Test files, not production code | No | None |
-| `scratch/**` | Temporary scratch files | No | None |
-| `node_modules/**` | Third-party dependencies | Yes (indirectly) | Covered by upstream |
-| `coverage/**` | Generated coverage output | No | None |
+| File/Glob         | Reason                          | Executes in Production | Risk                |
+| ----------------- | ------------------------------- | ---------------------- | ------------------- |
+| `tests/**`        | Test files, not production code | No                     | None                |
+| `scratch/**`      | Temporary scratch files         | No                     | None                |
+| `node_modules/**` | Third-party dependencies        | Yes (indirectly)       | Covered by upstream |
+| `coverage/**`     | Generated coverage output       | No                     | None                |
 
 ### Configuration
 
-| File/Glob | Reason | Executes in Production | Risk |
-| --------- | ------ | ---------------------- | ---- |
-| `eslint.config.js` | Linting configuration, not runtime code | No | None |
+| File/Glob          | Reason                                  | Executes in Production | Risk |
+| ------------------ | --------------------------------------- | ---------------------- | ---- |
+| `eslint.config.js` | Linting configuration, not runtime code | No                     | None |
 
 ## Files NOT Excluded (Previously Were)
 
 The following files were previously excluded or ignored but are now
 **included** in coverage measurement:
 
-| File | Previous Status | Current Status | Reason for Change |
-| ---- | --------------- | -------------- | ----------------- |
-| `server.js` | Excluded in `.c8rc.json` | **Included** | Core production code |
-| `broker.js` | Excluded in `.c8rc.json` | **Included** | Core production code |
-| `node-gateway.js` | Excluded in `.c8rc.json` | **Included** | Core production code |
-| `lib/acme.js` | Excluded in `.c8rc.json` | **Included** | Production code |
-| `lib/monitor.js` | Excluded in `.c8rc.json` | **Included** | Production code |
-| `tools/git.js` | Excluded in `.c8rc.json` | **Included** | Production code |
-| `tools/rollback.js` | Excluded in `.c8rc.json` | **Included** | Production code |
-| `tools/services.js` | Excluded in `.c8rc.json` | **Included** | Production code |
+| File                | Previous Status          | Current Status | Reason for Change    |
+| ------------------- | ------------------------ | -------------- | -------------------- |
+| `server.js`         | Excluded in `.c8rc.json` | **Included**   | Core production code |
+| `broker.js`         | Excluded in `.c8rc.json` | **Included**   | Core production code |
+| `node-gateway.js`   | Excluded in `.c8rc.json` | **Included**   | Core production code |
+| `lib/acme.js`       | Excluded in `.c8rc.json` | **Included**   | Production code      |
+| `lib/monitor.js`    | Excluded in `.c8rc.json` | **Included**   | Production code      |
+| `tools/git.js`      | Excluded in `.c8rc.json` | **Included**   | Production code      |
+| `tools/rollback.js` | Excluded in `.c8rc.json` | **Included**   | Production code      |
+| `tools/services.js` | Excluded in `.c8rc.json` | **Included**   | Production code      |
 
 ## Known Gaps Requiring Future Work
 
@@ -72,10 +72,10 @@ imported modules. Testing them requires spawning child processes.
 
 **Target**: Zero `c8 ignore` comments in production code.
 
-| File | Previous Count | Current Count | Status |
-| ---- | -------------- | ------------- | ------ |
-| `server.js` | 415 | 0 | ✅ Resolved |
-| `broker.js` | 6 | 0 | ✅ Resolved |
-| `security.js` | 8 | 0 | ✅ Resolved |
-| `audit.js` | 2 | 0 | ✅ Resolved |
-| `lib/*.js` | ~35 | 0 | ✅ Resolved |
+| File          | Previous Count | Current Count | Status      |
+| ------------- | -------------- | ------------- | ----------- |
+| `server.js`   | 415            | 0             | ✅ Resolved |
+| `broker.js`   | 6              | 0             | ✅ Resolved |
+| `security.js` | 8              | 0             | ✅ Resolved |
+| `audit.js`    | 2              | 0             | ✅ Resolved |
+| `lib/*.js`    | ~35            | 0             | ✅ Resolved |

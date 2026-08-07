@@ -142,7 +142,6 @@ const PORT = parseInt(process.env.PORT || '4444');
 const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
-
 async function ensurePrivilegeBrokerAvailable(req, res, next) {
   if (!req?.identity) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -162,27 +161,26 @@ async function ensurePrivilegeBrokerAvailable(req, res, next) {
   }
 }
 
-
 function isBrokerUnavailable(error, visited = new Set()) {
   if (!error || visited.has(error)) return false;
-  
+
   if (typeof error === 'string') return /broker unavailable|connect ENOENT|ENOENT|no socket available/i.test(error);
-  
+
   if (typeof error !== 'object') return false;
   visited.add(error);
 
   const code = String(error.code || '');
-  
+
   const message = String(error.message || '');
   const additionalMessages = [
     String(error.error || ''),
-    
+
     String(error.cause?.message || ''),
-    
+
     String(error.error?.message || ''),
     String(error.details || ''),
     String(error.detail || ''),
-    
+
     String(error.response?.message || ''),
     String(error.data || ''),
   ];
@@ -196,13 +194,11 @@ function isBrokerUnavailable(error, visited = new Set()) {
     /Privilege broker unavailable|broker unavailable|connect ENOENT|ENOENT|no socket available/i.test(errorText) ||
     /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(errorText)
   )
-    
     return true;
 
   const nested = [error.cause, error.error, error.err, error.response, error.body, error.details, error.data];
   return nested.some(item => isBrokerUnavailable(item, visited));
 }
-
 
 function respondServiceDependencyUnavailable(res, error) {
   if (isBrokerUnavailable(error)) return respondBrokerUnavailable(res, error);
@@ -212,21 +208,18 @@ function respondServiceDependencyUnavailable(res, error) {
     .json({ error: String(error?.message || 'Internal server error'), code: 'SERVICE_DEPENDENCY_FAILED' });
 }
 
-
 function respondDependencyAwareError(
   res,
   error,
   fallback = { status: 500, code: 'INTERNAL_ERROR', label: 'Internal server error' }
 ) {
   if (isBrokerUnavailable(error) || isStateStoreUnavailable(error))
-    
     return respondServiceDependencyUnavailable(res, error);
-  
+
   return res.status(fallback.status).json({ error: String(error?.message || fallback.label), code: fallback.code });
 }
 
 function isStateStoreUnavailable(error) {
-  
   const message = String(error?.message || '');
   const combined = `${String(error?.code || '')} ${message}`;
   const code = String(error?.code || '');
@@ -245,7 +238,6 @@ function isStateStoreUnavailable(error) {
     )
   );
 }
-
 
 function isRecoverableDependencyError(error) {
   const directText =
@@ -304,8 +296,6 @@ function isRecoverableDependencyError(error) {
   return false;
 }
 
-
-
 function extractDependencyErrorText(error, seen = new Set()) {
   if (error == null || seen.has(error)) return '';
   if (typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean') return String(error);
@@ -349,16 +339,12 @@ function extractDependencyErrorText(error, seen = new Set()) {
   return entries.join(' ');
 }
 
-
-
 function isDependencyText(error) {
   const text = extractDependencyErrorText(error);
   return /connect\s+ENOENT|ENOENT|no such file|no such file or directory|no\s+socket\s+available|socket\s+unavailable|privilege\s+broker\s+unavailable|broker\s+is\s+unavailable|broker\.sock|state\s+store\s+unavailable/i.test(
     text
   );
 }
-
-
 
 function isDependencyError(error) {
   return (
@@ -369,8 +355,6 @@ function isDependencyError(error) {
     isDependencyText(error)
   );
 }
-
-
 
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
@@ -432,14 +416,11 @@ function isOAuthDependencyError(error) {
   return false;
 }
 
-
-
 function safeLogError(error, context) {
   try {
     logError(error, context);
   } catch {}
 }
-
 
 const CLIENT_OVERRIDE_FIELDS = new Set([
   'linuxUser',
@@ -454,7 +435,7 @@ const CLIENT_OVERRIDE_FIELDS = new Set([
 
 function sanitizeClientOverrides(rawOverrides = {}) {
   if (!rawOverrides || Array.isArray(rawOverrides) || typeof rawOverrides !== 'object') return {};
-  
+
   return Object.fromEntries(
     Object.entries(rawOverrides).flatMap(([clientId, rawOverride]) => {
       if (!clientId || typeof clientId !== 'string') return [];
@@ -468,16 +449,13 @@ function sanitizeClientOverrides(rawOverrides = {}) {
       return [[clientId, sanitized]];
     })
   );
-  
 }
 
 function sanitizeOAuthUserPayload(payload = {}) {
-  
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
   if (payload.clients === undefined) return { ...payload };
   return { ...payload, clients: sanitizeClientOverrides(payload.clients) };
 }
-
 
 function normalizeAdminReadPath(pathname = '') {
   let candidate = String(pathname || '').trim();
@@ -504,8 +482,6 @@ function normalizeAdminReadPath(pathname = '') {
   }
   return normalized.toLowerCase();
 }
-
-
 
 function adminDependencyFallbackResponse(pathname, error) {
   const path = normalizeAdminReadPath(pathname);
@@ -576,8 +552,6 @@ function adminDependencyFallbackResponse(pathname, error) {
   return null;
 }
 
-
-
 function isBrokerUnavailableError(error) {
   const message = String(error?.message || error || '');
   return (
@@ -586,8 +560,6 @@ function isBrokerUnavailableError(error) {
     ) || /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(message)
   );
 }
-
-
 
 function respondBrokerUnavailable(res, error) {
   return res.status(503).json({
@@ -598,8 +570,6 @@ function respondBrokerUnavailable(res, error) {
   });
 }
 
-
-
 function respondStateUnavailable(res, error) {
   return res.status(503).json({
     error: String(error?.message || 'State store unavailable'),
@@ -608,7 +578,6 @@ function respondStateUnavailable(res, error) {
       'Verify MCP state directory permissions and ownership, ensure the service can read/write /var/lib/mcp-sentinel, and restart the service.',
   });
 }
-
 
 function summarizeHealth(stats) {
   const checks = [
@@ -622,18 +591,16 @@ function summarizeHealth(stats) {
   const warnings = checks
     .filter(([, value]) => value >= 70 && value < 85)
     .map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
-  
+
   if (concerns.length) return { status: 'needs-attention', message: concerns.join('. '), concerns, warnings };
   if (warnings.length)
-    
     return {
-      
       status: 'watch',
       message: `${warnings.join('. ')}. Your server is working, but keep an eye on it.`,
       concerns,
       warnings,
     };
-  
+
   return {
     status: 'healthy',
     message: 'Your server is healthy. CPU, memory, and disk usage are within normal limits.',
@@ -641,7 +608,6 @@ function summarizeHealth(stats) {
     warnings,
   };
 }
-
 
 function adminReadFallbackHandler(req, res, reader, options = {}) {
   const {
@@ -667,8 +633,6 @@ function adminReadFallbackHandler(req, res, reader, options = {}) {
     }
   })();
 }
-
-
 
 async function readAdminCollectionFallback(
   req,
@@ -705,7 +669,6 @@ async function readAdminCollectionFallback(
   }
 }
 
-
 async function buildSecurityPosture() {
   const checks = [];
   const add = (id, status, message) => checks.push({ id, status, message });
@@ -713,133 +676,116 @@ async function buildSecurityPosture() {
     const profile = validateDeploymentProfile(process.env);
     add(
       'deployment-profile',
-      
+
       profile.ready ? 'pass' : 'warning',
       profile.warning ||
         `${profile.profile} profile uses ${profile.stateProvider} state and ${profile.leaseProvider} leases.`
     );
-    
   } catch (error) {
-    
     add('deployment-profile', 'fail', error.message);
   }
-  
+
   add(
     'transport',
-    
+
     USE_HTTPS ? 'pass' : 'warning',
-    
+
     USE_HTTPS ? 'HTTPS is enabled.' : 'HTTPS is disabled. Do not expose this server publicly until TLS is enabled.'
   );
   add(
     'jwt-secret',
-    
+
     jwtSecretIsConfigured() ? 'pass' : 'fail',
     jwtSecretIsConfigured()
       ? 'JWT signing secret meets the minimum length.'
-      : 
-        'JWT signing secret is missing or too short.'
+      : 'JWT signing secret is missing or too short.'
   );
   const allowedIps = (process.env.ALLOWED_IPS || '').trim();
   add(
     'ip-access',
-    
+
     allowedIps ? 'pass' : 'warning',
     allowedIps
-      ? 
-        'A global IP allow-list is configured.'
+      ? 'A global IP allow-list is configured.'
       : 'No global IP allow-list is configured; use per-key restrictions or configure ALLOWED_IPS.'
   );
   const trustProxy = process.env.TRUST_PROXY === 'true';
   const trustedProxies = (process.env.TRUSTED_PROXIES || '').trim();
   add(
     'proxy',
-    
+
     !trustProxy || trustedProxies ? 'pass' : 'warning',
-    
+
     trustProxy && !trustedProxies
-      ? 
-        'Proxy trust is enabled without a trusted-proxy allow-list; forwarded headers will be ignored.'
+      ? 'Proxy trust is enabled without a trusted-proxy allow-list; forwarded headers will be ignored.'
       : 'Proxy trust configuration is explicit.'
   );
   const policy = await getPolicyStatus().catch(err => ({ enabled: false, error: err.message }));
   add(
     'policy',
-    
+
     policy.error ? 'fail' : policy.enabled ? 'pass' : 'warning',
     policy.error
-      ? 
-        `Policy configuration error: ${policy.error}`
+      ? `Policy configuration error: ${policy.error}`
       : policy.enabled
-        ? 
-          `Policy-as-code is active with ${policy.rules} rules.`
+        ? `Policy-as-code is active with ${policy.rules} rules.`
         : 'No policy-as-code file is configured.'
   );
   const keys = listApiKeys();
   const approvalKeys = keys.filter(key => key.requireApproval).length;
   add(
     'approvals',
-    
+
     approvalKeys > 0 ? 'pass' : 'warning',
     approvalKeys > 0
       ? `${approvalKeys} API key(s) require approval for risky actions.`
-      : 
-        'No API keys currently require approval for risky actions.'
+      : 'No API keys currently require approval for risky actions.'
   );
-  
+
   const oauthResource = (process.env.OAUTH_RESOURCE_URL || '').replace(/\/$/, '');
   add(
     'oauth-resource',
-    
+
     oauthResource.startsWith('https://') ? 'pass' : 'fail',
     oauthResource.startsWith('https://')
       ? `OAuth access tokens must target the canonical resource ${oauthResource}.`
-      : 
-        'OAUTH_RESOURCE_URL must be an explicit HTTPS URL.'
+      : 'OAUTH_RESOURCE_URL must be an explicit HTTPS URL.'
   );
   const audit = getAuditChainStatus();
   add(
     'audit-chain',
-    
+
     audit.protection === 'hmac-checkpointed' ? 'pass' : 'warning',
     audit.protection === 'hmac-checkpointed'
       ? 'Audit entries use a persistent HMAC chain. No external append-only anchor is configured.'
-      : 
-        'Audit entries are chained only for this process lifetime; configure AUDIT_HMAC_KEY and a protected checkpoint path.'
+      : 'Audit entries are chained only for this process lifetime; configure AUDIT_HMAC_KEY and a protected checkpoint path.'
   );
   const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
-  
+
   add(
     'privilege-broker',
-    
-    
+
     broker.error || !broker.healthy ? 'fail' : 'pass',
     broker.error
-      ? 
-        `Typed privilege broker is unavailable: ${broker.error}`
+      ? `Typed privilege broker is unavailable: ${broker.error}`
       : broker.healthy
-        ? 
-          `Broker is healthy; SQLite schema and ${broker.projectCount} project execution identity record(s) passed.`
+        ? `Broker is healthy; SQLite schema and ${broker.projectCount} project execution identity record(s) passed.`
         : `Broker reported invalid project users or migrations: ${broker.invalidProjectUsers?.join(', ') || 'unknown'}`
-    
   );
   const protectedPermissions = broker.protectedFilePermissions;
   add(
     'protected-file-permissions',
-    
+
     protectedPermissions?.safe ? 'pass' : 'fail',
-    
+
     protectedPermissions?.safe
-      ? 
-        `${protectedPermissions.checked} protected state/configuration files are mode 0600.`
-      : 
-        `The privilege broker found missing or over-permissive protected files: ${protectedPermissions?.unsafeFiles?.join(', ') || 'broker result unavailable'}`
+      ? `${protectedPermissions.checked} protected state/configuration files are mode 0600.`
+      : `The privilege broker found missing or over-permissive protected files: ${protectedPermissions?.unsafeFiles?.join(', ') || 'broker result unavailable'}`
   );
-  
+
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
   let discovery = null;
   if (issuer) {
-    
     discovery = await fetch(`${issuer}/.well-known/openid-configuration`, {
       redirect: 'error',
       signal: AbortSignal.timeout(5000),
@@ -847,30 +793,26 @@ async function buildSecurityPosture() {
   }
   add(
     'oauth-discovery',
-    
-    
+
     discovery?.ok ? 'pass' : 'fail',
-    
+
     discovery?.ok ? 'OAuth discovery is reachable over the configured issuer.' : 'OAuth discovery is unavailable.'
   );
   const manifests = [...manifestSnapshots.values()];
   const manifestComplete = manifests.some(snapshot =>
-    
     snapshot.tools?.every(tool => tool.title && tool.inputSchema && tool.outputSchema && tool.annotations)
   );
   add(
     'action-manifest',
-    
+
     manifestComplete ? 'pass' : 'warning',
     manifestComplete
       ? 'The live action manifest contains titles, schemas, and annotations.'
-      : 
-        'Generate the live action manifest and complete the ChatGPT refresh.'
+      : 'Generate the live action manifest and complete the ChatGPT refresh.'
   );
   const failed = checks.filter(check => check.status === 'fail').length;
   const warnings = checks.filter(check => check.status === 'warning').length;
   return {
-    
     status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong',
     checks,
     generatedAt: new Date().toISOString(),
@@ -879,7 +821,6 @@ async function buildSecurityPosture() {
 
 // ── Active SSE connections ─────────────────────────────────
 const activeTransports = new Map(); // sessionId -> { transport, identity, ip }
-
 
 function alertOwnerKey(identity) {
   if (identity.oauthSubject && identity.oauthClient)
@@ -893,7 +834,6 @@ function alertOwnerKey(identity) {
 const oauthDiagnostics = new Map();
 const manifestSnapshots = new Map();
 
-
 async function invalidateOAuthSessions(username) {
   for (const [sessionId, session] of activeTransports) {
     if (session.identity?.authType !== 'oauth' || session.identity.oauthUser !== username) continue;
@@ -902,13 +842,11 @@ async function invalidateOAuthSessions(username) {
   }
 }
 
-
 function manifestIdentityKey(identity) {
   return [identity.authType, identity.oauthSubject || identity.userId, identity.oauthClient || identity.keyId].join(
     ':'
   );
 }
-
 
 async function refreshActiveToolLists() {
   for (const session of activeTransports.values()) {
@@ -924,18 +862,14 @@ async function refreshActiveToolLists() {
   }
 }
 
-
 // ── Express App ───────────────────────────────────────────
 
 process.on('uncaughtException', err => {
-  
   logError({ ip: 'internal', userId: 'system', tool: 'uncaughtException', error: err });
   console.error('Uncaught Exception:', err);
-  
 });
 
 process.on('unhandledRejection', reason => {
-  
   logError({ ip: 'internal', userId: 'system', tool: 'unhandledRejection', error: reason });
   console.error('Unhandled Rejection:', reason);
 });
@@ -947,8 +881,7 @@ const asyncToNext = fn =>
     ? function asyncHandler(req, res, next) {
         Promise.resolve(fn(req, res, next)).catch(next);
       }
-    : 
-      fn;
+    : fn;
 
 for (const method of routeHandlers) {
   const original = app[method].bind(app);
@@ -961,12 +894,10 @@ app.use(telemetryMiddleware);
 
 // Redirect legacy port 2053 to the new subdomain
 app.use((req, res, next) => {
-  
   if (req.get('host') === 'begin.shopping:2053') {
     return res.redirect(301, 'https://mcp.begin.shopping' + req.originalUrl);
   }
   next();
-  
 });
 
 // Security headers
@@ -982,7 +913,7 @@ app.use(
         connectSrc: ["'self'", 'https://cloudflareinsights.com'],
       },
     },
-    
+
     hsts: USE_HTTPS ? { maxAge: 31536000, includeSubDomains: true } : false,
   })
 );
@@ -992,7 +923,6 @@ import compression from 'compression';
 // Streaming MCP responses must not be buffered by compression middleware.
 app.use(
   compression({
-    
     filter: (req, res) => !['/mcp', '/mcp/message'].includes(req.path) && compression.filter(req, res),
   })
 );
@@ -1002,31 +932,26 @@ app.use(
 app.use(
   express.static(path.join(import.meta.dirname, 'public'), {
     maxAge: '1d',
-    
+
     setHeaders: (res, filePath) => {
-      
       if (/\.(?:html|js|css)$/.test(filePath)) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       }
-      
     },
   })
 );
 // Prevent Cloudflare from aggressively caching CORS preflight responses
 app.use((req, res, next) => {
-  
   if (req.method === 'OPTIONS') {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   }
   next();
-  
 });
 
 // CORS - origin policy (this is NOT IP access control)
 app.use(
   cors({
     origin: (origin, callback) => {
-      
       // Allow requests with no origin (direct API calls) or from trusted origins
       const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
         .split(',')
@@ -1041,7 +966,6 @@ app.use(
       } else {
         callback(new Error('Not allowed by CORS'));
       }
-      
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID', 'Mcp-Session-Id'],
@@ -1057,31 +981,26 @@ app.use(ipWhitelist);
 // under /api/admin (or /admin/api). This keeps legacy clients and proxies
 // working without changing existing tool callers.
 app.use((req, _res, next) => {
-  
   if (req.path === '/api/admin' || req.path.startsWith('/api/admin/')) {
     req.url = req.url.replace(/^\/api\/admin/, '/admin');
   } else if (req.path === '/admin/api' || req.path.startsWith('/admin/api/')) {
     req.url = req.url.replace(/^\/admin\/api/, '/admin');
   }
   next();
-  
 });
 
 // ── Rate Limiting ──────────────────────────────────────────
 
 const globalLimiter = rateLimit({
-  
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
-  
+
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60'),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => getClientIP(req),
   handler: (req, res) => {
-    
     logSecurityEvent({ ip: getClientIP(req), event: 'RATE_LIMIT_EXCEEDED', detail: {} });
     res.status(429).json({ error: 'Too many requests. Please slow down.' });
-    
   },
 });
 
@@ -1093,12 +1012,10 @@ const authenticatedLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req =>
-    
     [
       req.identity?.authType || 'unknown',
       req.identity?.oauthSubject || req.identity?.userId || 'unknown',
       req.identity?.oauthClient || req.identity?.keyId || 'unknown',
-      
     ].join(':'),
 });
 
@@ -1110,7 +1027,6 @@ app.use(express.json({ limit: '5mb' }));
 
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER || '5', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.IDLE_TIMEOUT_MS || '1800000', 10); // 30 min default
-
 
 async function makeSessionRoom(identity, ip) {
   const owner = alertOwnerKey(identity);
@@ -1132,25 +1048,23 @@ async function makeSessionRoom(identity, ip) {
   return true;
 }
 
-
-if (process.env.TEST_NO_LISTEN !== 'true') setInterval(() => {
-  
-  const now = Date.now();
-  for (const [id, session] of activeTransports.entries()) {
-    if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
-      logSecurityEvent({
-        ip: session.ip,
-        event: 'SESSION_IDLE_TIMEOUT',
-        detail: { sessionId: id, userId: session.identity?.userId },
-      });
-      if (session.mcpServer) {
-        session.mcpServer.close().catch(() => {});
+if (process.env.TEST_NO_LISTEN !== 'true')
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, session] of activeTransports.entries()) {
+      if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
+        logSecurityEvent({
+          ip: session.ip,
+          event: 'SESSION_IDLE_TIMEOUT',
+          detail: { sessionId: id, userId: session.identity?.userId },
+        });
+        if (session.mcpServer) {
+          session.mcpServer.close().catch(() => {});
+        }
+        activeTransports.delete(id);
       }
-      activeTransports.delete(id);
     }
-  }
-  
-}, 60000);
+  }, 60000);
 
 // ── Health Check (unauthenticated) ─────────────────────────
 app.use('/', coreRouter);
@@ -1158,7 +1072,6 @@ app.use('/', coreRouter);
 // ── Auth Endpoints ─────────────────────────────────────────
 
 app.use('/auth', authRouter);
-
 
 function requireAdminStepUp(req, res, next) {
   if (
@@ -1170,30 +1083,23 @@ function requireAdminStepUp(req, res, next) {
   return next();
 }
 
-
 app.post('/admin/webauthn/register/options', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
-    
     const userId = String(req.body?.userId || req.identity.userId);
-    
+
     return res.json(await registrationOptions({ userId, userName: req.body?.userName || userId }));
-    
   } catch (error) {
-    
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_OPTIONS_INVALID' });
   }
-  
 });
 
 app.post('/admin/webauthn/register/verify', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
-    
     const userId = String(req.body?.userId || req.identity.userId);
     return res.json(
       await finishRegistration({ userId, challengeId: req.body?.challengeId, response: req.body?.response })
-      
     );
   } catch (error) {
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_REGISTRATION_FAILED' });
@@ -1204,19 +1110,14 @@ app.get('/admin/webauthn/credentials', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
     return res.status(403).json({ error: 'Admin or auditor role required' });
   try {
-    
     return res.json({ credentials: listCredentials(String(req.query.userId || req.identity.userId)) });
-    
   } catch (error) {
-    
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_CREDENTIALS_INVALID' });
   }
-  
 });
 
 app.post('/auth/webauthn/options', authenticateJWT, async (req, res) => {
   try {
-    
     return res.json(await authenticationOptions({ userId: req.identity.userId }));
   } catch (error) {
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_AUTH_OPTIONS_FAILED' });
@@ -1230,7 +1131,7 @@ app.post('/auth/webauthn/verify', authenticateJWT, async (req, res) => {
       challengeId: req.body?.challengeId,
       response: req.body?.response,
     });
-    
+
     return res.json({ ...result, stepUpToken: issueStepUpToken(req.identity), expiresIn: 300 });
   } catch (error) {
     return res.status(401).json({ error: error.message, code: 'WEBAUTHN_AUTH_FAILED' });
@@ -1239,7 +1140,7 @@ app.post('/auth/webauthn/verify', authenticateJWT, async (req, res) => {
 
 app.get('/metrics', (req, res) => {
   if (process.env.METRICS_PUBLIC !== 'true') return res.status(404).end();
-  
+
   res.type('text/plain').send(metricsText());
 });
 
@@ -1260,16 +1161,15 @@ app.get('/admin/policy/simulate', authenticateJWT, async (req, res) => {
     return res.status(403).json({ error: 'Admin or auditor role required' });
   try {
     const identity = {
-      
       userId: String(req.query.userId || req.identity.userId),
-      
+
       role: String(req.query.role || req.identity.role),
-      
+
       oauthClient: req.query.oauthClient ? String(req.query.oauthClient) : undefined,
-      
+
       oauthSubject: req.query.oauthSubject ? String(req.query.oauthSubject) : undefined,
     };
-    
+
     return res.json(await simulatePolicy({ tool: String(req.query.tool || ''), identity }));
   } catch (error) {
     return res.status(400).json({ error: error.message, code: 'POLICY_SIMULATION_INVALID' });
@@ -1280,10 +1180,8 @@ app.get('/admin/jobs', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
     return res.status(403).json({ error: 'Admin or auditor role required' });
   try {
-    
     const states = req.query.states ? String(req.query.states).split(',').filter(Boolean) : null;
     return res.json({
-      
       jobs: getJobQueue().list({ owner: req.query.owner || null, states, limit: Number(req.query.limit || 100) }),
     });
   } catch (error) {
@@ -1300,41 +1198,36 @@ app.post('/admin/jobs', authenticateJWT, requireAdminStepUp, async (req, res) =>
     return res.status(403).json({ error: 'Admin or operator role required' });
   const allowedTypes = new Set(['project_test', 'deployment', 'ssh_operation', 'backup']);
   try {
-    
     const type = String(req.body?.type || '');
     if (!allowedTypes.has(type)) return res.status(400).json({ error: 'Job type is not registered' });
-    
+
     const payload = req.body?.payload ?? {};
-    
+
     const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey || null;
     const job = getJobQueue().enqueue({
       type,
       owner: req.identity.userId,
       payload,
       idempotencyKey,
-      
+
       maxAttempts: req.body?.maxAttempts ?? 3,
     });
     return res.status(201).json(job);
-    
   } catch (error) {
-    
     return respondDependencyAwareError(res, error, {
       status: 400,
       code: 'JOB_CREATE_INVALID',
       label: 'Invalid job request',
     });
   }
-  
 });
 
 app.post('/admin/jobs/claim', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    
     const workerId = String(req.body?.workerId || `${req.identity.userId}:worker`);
-    
+
     return res.json({ job: getJobQueue().claim({ workerId, leaseMs: req.body?.leaseMs ?? 60000 }) });
   } catch (error) {
     return respondDependencyAwareError(res, error, {
@@ -1350,7 +1243,7 @@ app.get('/admin/jobs/:id', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin or auditor role required' });
   const job = getJobQueue().get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
-  
+
   return res.json(job);
 });
 
@@ -1358,7 +1251,6 @@ app.post('/admin/jobs/:id/cancel', authenticateJWT, requireAdminStepUp, (req, re
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    
     return res.json(getJobQueue().cancel(req.params.id, req.body?.reason || 'Cancelled by administrator'));
   } catch (error) {
     return respondDependencyAwareError(res, error, {
@@ -1373,7 +1265,6 @@ app.post('/admin/jobs/:id/complete', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    
     return res.json(getJobQueue().complete(req.params.id, req.body?.result ?? {}, { workerId: req.body?.workerId }));
   } catch (error) {
     return respondDependencyAwareError(res, error, {
@@ -1389,7 +1280,6 @@ app.post('/admin/jobs/:id/fail', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
     return res.json(
-      
       getJobQueue().fail(req.params.id, req.body?.error || 'Job failed', {
         retry: req.body?.retry !== false,
         workerId: req.body?.workerId,
@@ -1412,12 +1302,12 @@ app.post('/admin/keys', authenticateJWT, requireAdminStepUp, async (req, res) =>
   }
   const { key, userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId } =
     req.body;
-  
+
   if (!key || !userId) return res.status(400).json({ error: 'key and userId required' });
 
   try {
     await validateKeyAssignment({ organizationId, teamId });
-    
+
     await addApiKey(key, {
       userId,
       role,
@@ -1433,7 +1323,6 @@ app.post('/admin/keys', authenticateJWT, requireAdminStepUp, async (req, res) =>
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
-  
 });
 
 app.post('/admin/keys/revoke', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -1441,12 +1330,11 @@ app.post('/admin/keys/revoke', authenticateJWT, requireAdminStepUp, async (req, 
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { key, keyId } = req.body;
-  
+
   if (!key && !keyId) return res.status(400).json({ error: 'keyId required in body' });
 
-  
   const revoked = keyId ? await revokeApiKeyById(keyId) : await revokeApiKey(key);
-  
+
   return res.json({ success: revoked, message: revoked ? 'Key revoked' : 'Key not found' });
 });
 
@@ -1461,7 +1349,7 @@ app.put('/admin/keys/:id', authenticateJWT, requireAdminStepUp, async (req, res)
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const updated = await updateApiKey(req.params.id, req.body);
-    
+
     res.json({ success: true, key: updated });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -1493,7 +1381,6 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    
     adminReadFallbackHandler(
       req,
       res,
@@ -1510,32 +1397,29 @@ app.get(
         fallbackOnAnyError: true,
       }
     )
-  
 );
 
 app.put('/admin/capabilities/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const capabilities = await setCapability(req.params.id, req.body?.enabled);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'CAPABILITY_UPDATED',
-      
+
       detail: { capability: req.params.id, enabled: req.body?.enabled, by: req.identity.userId },
     });
     await refreshActiveToolLists();
-    
+
     return res.json({ capabilities });
   } catch (err) {
-    
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(400).json({ error: err.message, code: 'CAPABILITY_UPDATE_FAILED' });
   }
 });
 
 app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
-  
   const baseUrl = process.env.PUBLIC_URL || `${USE_HTTPS ? 'https' : 'http'}://${req.get('host')}`;
   const publicUrl = baseUrl.replace(/\/$/, '');
   const publicHttps = publicUrl.startsWith('https://');
@@ -1547,17 +1431,16 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
       authorization:
         'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
       capabilities: await getCapabilities(),
-      
+
       readiness: {
         publicHttps,
         oidcEnabled,
-        
+
         cloudConnectorReady: publicHttps && oidcEnabled,
         cloudConnectorMessage:
           publicHttps && oidcEnabled
             ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
-            : 
-              'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
+            : 'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
       },
       platforms: [
         {
@@ -1604,23 +1487,17 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
         },
       ],
     });
-    
   } catch (err) {
-    
     if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CONNECTION_INFO_FAILED' });
   }
-  
 });
-
 
 function normalizeFlowHint(value) {
   const normalized = String(value || '').trim();
   return normalized.length ? normalized.slice(0, 128) : null;
 }
-
-
 
 function getFlowHint(req) {
   return (
@@ -1629,8 +1506,6 @@ function getFlowHint(req) {
     normalizeFlowHint(req.headers['x-cli-flow-id'])
   );
 }
-
-
 
 function getFlowStepHint(req) {
   return (
@@ -1641,45 +1516,34 @@ function getFlowStepHint(req) {
   );
 }
 
-
-
 function resolveFlowHint(req) {
   const headerHint = getFlowHint(req);
   return headerHint || null;
 }
 
-
-
 function resolveFlowStepHint(req) {
   return getFlowStepHint(req) || null;
 }
-
 
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     return res.json(await getPolicyStatus());
-    
   } catch (err) {
-    
     return res.status(500).json({ error: err.message });
   }
-  
 });
 
 app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     return res.json(await buildSecurityPosture());
-    
   } catch (err) {
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'SECURITY_POSTURE_FAILED' });
   }
-  
 });
-
 
 async function handleActionManifest(req, res) {
   try {
@@ -1730,7 +1594,6 @@ async function handleActionManifest(req, res) {
   }
 }
 
-
 app.get(
   [
     '/admin/action-manifest',
@@ -1752,74 +1615,62 @@ app.get('/admin/broker-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const broker = await brokerCall('broker.health', {});
-    
+
     return res.json({
       available: true,
-      
-      
+
       socket: (process.env.MCP_BROKER_SOCKET || '/run/mcp-sentinel/broker.sock').trim(),
       socketExists:
-        
         fs.existsSync(process.env.MCP_BROKER_SOCKET || '/run/mcp-sentinel/broker.sock') ||
-        
         fs.existsSync('/run/mcp-sentinel/broker.sock') ||
         fs.existsSync('/var/run/mcp-sentinel/broker.sock'),
       broker,
     });
-    
   } catch (error) {
-    
     return respondDependencyAwareError(res, error, {
       status: 503,
       code: 'BROKER_UNAVAILABLE',
       label: 'Broker socket is unavailable',
     });
   }
-  
 });
 
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({
-      
       error: error.message,
     }));
-    
+
     let auditVerification = null;
     try {
       auditVerification = JSON.parse(
         fs.readFileSync(
-          
           process.env.AUDIT_VERIFICATION_STATUS_FILE || '/var/lib/mcp-sentinel/audit-verification.json',
           'utf8'
         )
       );
-      
     } catch {}
-    
+
     return res.json({
       broker,
-      
+
       migrations: broker.migrations || [],
       audit: { ...getAuditChainStatus(), lastVerification: auditVerification },
       credentialRotation: getAdminState('credential_rotation_status'),
-      
+
       stateKeyRotation: broker.stateKeyRotation ? JSON.parse(broker.stateKeyRotation) : null,
       actionRefresh: getAdminState('action_refresh_status'),
-      
+
       manifest: manifestSnapshots.get(manifestIdentityKey(req.identity)) || null,
     });
-    
   } catch (e) {
-    
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'REMEDIATION_STATUS_FAILED',
       label: 'Failed to load remediation status',
     });
   }
-  
 });
 
 app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepUp, (req, res) => {
@@ -1837,15 +1688,12 @@ app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepU
     'backup-encryption-key',
   ]);
   if (
-    
     req.body?.confirm !== true ||
-    
     !Array.isArray(req.body.components) ||
-    
     !req.body.components.every(item => allowed.has(item))
   )
     return res.status(400).json({ error: 'confirm=true and a valid components array are required' });
-  
+
   const status = setAdminState('credential_rotation_status', {
     components: [...new Set(req.body.components)],
     recordedAt: new Date().toISOString(),
@@ -1853,7 +1701,6 @@ app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepU
   });
   logSecurityEvent({ ip: req.clientIP, event: 'CREDENTIAL_ROTATION_RECORDED', detail: status });
   return res.json(status);
-  
 });
 
 app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -1868,24 +1715,18 @@ app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, as
     'cancel_project_test_run',
   ];
   if (
-    
     req.body?.confirm !== true ||
-    
     req.body.manifestHash !== manifest.hash ||
-    
     req.body.oauthReauthorized !== true ||
-    
     req.body.newChatTested !== true ||
-    
     !Array.isArray(req.body.enabledTools) ||
-    
     !requiredActions.every(tool => req.body.enabledTools.includes(tool))
   )
     return res.status(400).json({
       error:
         'Manifest hash, OAuth reauthorization, enabled SSH and project-test actions, and new-chat test must be confirmed',
     });
-  
+
   const status = setAdminState('action_refresh_status', {
     manifestHash: manifest.hash,
     enabledTools: requiredActions,
@@ -1895,7 +1736,6 @@ app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, as
     recordedBy: req.identity.userId,
   });
   return res.json(status);
-  
 });
 
 app.get(
@@ -1911,7 +1751,6 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    
     adminReadFallbackHandler(
       req,
       res,
@@ -1941,7 +1780,6 @@ app.get(
         fallbackOnAnyError: true,
       }
     )
-  
 );
 
 // ── Admin Web UI API Endpoints ─────────────────────────────
@@ -1971,18 +1809,15 @@ app.get('/admin/workflows', authenticateJWT, (req, res) => {
 app.get('/admin/approvals', authenticateJWT, async (req, res) => {
   try {
     const approvals = await listApprovals(req.identity, { includeResolved: req.query.includeResolved === 'true' });
-    
+
     return res.json({ approvals, count: approvals.length });
-    
   } catch (err) {
-    
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'APPROVALS_LOAD_FAILED',
       label: 'Failed to load approvals',
     });
   }
-  
 });
 
 app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -1993,14 +1828,13 @@ app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req
       note: req.body?.note,
       identity: req.identity,
     });
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'APPROVAL_DECIDED',
       detail: { approvalId: approval.id, decision: approval.status, by: req.identity.userId },
     });
     return res.json({ approval });
-    
   } catch (err) {
     return respondDependencyAwareError(
       res,
@@ -2015,7 +1849,6 @@ app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req
 app.get('/admin/projects', authenticateJWT, async (req, res) => {
   try {
     return res.json({ projects: await listProjects(req.identity) });
-    
   } catch (err) {
     return respondDependencyAwareError(res, err, {
       status: 500,
@@ -2023,21 +1856,18 @@ app.get('/admin/projects', authenticateJWT, async (req, res) => {
       label: 'Failed to load projects',
     });
   }
-  
 });
 
 app.post('/admin/projects', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    
     const project = await createProject(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'PROJECT_CREATED',
       detail: { projectId: project.id, name: project.name, by: req.identity.userId },
     });
     return res.status(201).json({ project });
-    
   } catch (err) {
     return respondDependencyAwareError(
       res,
@@ -2051,7 +1881,6 @@ app.post('/admin/projects', authenticateJWT, requireAdminStepUp, async (req, res
 
 app.get('/me/ssh-access', authenticateJWT, async (req, res) => {
   try {
-    
     return res.json(await getMySshAccess(req.identity, { projectId: req.query.projectId }));
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -2060,16 +1889,14 @@ app.get('/me/ssh-access', authenticateJWT, async (req, res) => {
 
 app.put('/me/ssh-access', authenticateJWT, async (req, res) => {
   try {
-    
     const result = await setMySshAccess(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_SELF_PREFERENCE_UPDATED',
       detail: { scope: result.scope, enabled: result.sshEnabled, by: req.identity.userId },
     });
     return res.json(result);
-    
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
@@ -2079,23 +1906,20 @@ app.get('/admin/ssh-access', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listSshAccessPolicies(req.identity));
   } catch (err) {
-    
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
 });
 
 app.put('/admin/ssh-access', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    
     const result = await adminSetSshAccess(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_POLICY_UPDATED',
       detail: { targetType: result.targetType, targetId: result.targetId, by: req.identity.userId },
     });
     return res.json(result);
-    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2103,16 +1927,14 @@ app.put('/admin/ssh-access', authenticateJWT, requireAdminStepUp, async (req, re
 
 app.post('/admin/ssh-hosts', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    
     const result = await createSshHost(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_HOST_REGISTERED',
       detail: { hostId: result.host.id, by: req.identity.userId },
     });
     return res.status(201).json(result);
-    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2120,16 +1942,14 @@ app.post('/admin/ssh-hosts', authenticateJWT, requireAdminStepUp, async (req, re
 
 app.post('/admin/ssh-connections', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    
     const result = await createSshConnection(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_CONNECTION_REGISTERED',
       detail: { connectionId: result.connection.id, hostId: result.connection.hostId, by: req.identity.userId },
     });
     return res.status(201).json(result);
-    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2138,14 +1958,13 @@ app.post('/admin/ssh-connections', authenticateJWT, requireAdminStepUp, async (r
 app.put('/admin/projects/:id/transport', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const result = await setProjectTransport({ ...req.body, projectId: req.params.id }, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'PROJECT_TRANSPORT_UPDATED',
       detail: { projectId: result.project.id, transportKind: result.project.transportKind, by: req.identity.userId },
     });
     return res.json(result);
-    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2154,25 +1973,21 @@ app.put('/admin/projects/:id/transport', authenticateJWT, requireAdminStepUp, as
 app.get('/admin/organizations', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listOrganizations(req.identity));
-    
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-  
 });
 
 app.post('/admin/organizations', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    
     const organization = await createOrganization(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'ORGANIZATION_CREATED',
       detail: { organizationId: organization.id, by: req.identity.userId },
     });
     return res.status(201).json({ organization });
-    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2180,16 +1995,14 @@ app.post('/admin/organizations', authenticateJWT, requireAdminStepUp, async (req
 
 app.post('/admin/teams', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    
     const team = await createTeam(req.body || {}, req.identity);
-    
+
     logSecurityEvent({
       ip: req.clientIP,
       event: 'TEAM_CREATED',
       detail: { teamId: team.id, organizationId: team.organizationId, by: req.identity.userId },
     });
     return res.status(201).json({ team });
-    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2202,31 +2015,30 @@ app.get('/admin/os-users', authenticateJWT, async (req, res) => {
   try {
     const { listUsers } = await import('./tools/users.js');
     const result = await listUsers({ includeSystem: false }, req.identity);
-    
+
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-  
 });
 
 app.get('/admin/logs', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  
+
   const limit = Math.min(parseInt(req.query.limit || '200', 10), 1000);
-  
+
   const logDir = process.env.AUDIT_LOG_DIR || path.join(import.meta.dirname, 'logs');
   try {
     const files = (await fsPromises.readdir(logDir))
       .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
       .sort()
       .reverse();
-    
+
     if (files.length === 0) return res.json({ logs: [] });
     const content = await fsPromises.readFile(path.join(logDir, files[0]), 'utf8');
-    
+
     const lines = content.trim().split('\n').filter(Boolean).reverse().slice(0, limit);
     const logs = lines.map(line => {
       try {
@@ -2239,7 +2051,6 @@ app.get('/admin/logs', authenticateJWT, async (req, res) => {
   } catch (e) {
     return res.json({ logs: [], error: e.message });
   }
-  
 });
 
 app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
@@ -2254,47 +2065,46 @@ app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
   });
   res.write('data: {"type":"connected"}\n\n');
 
-  
   const logDir = process.env.AUDIT_LOG_DIR || path.join(import.meta.dirname, 'logs');
   let lastSize = 0;
   let currentFile = null;
 
-  const pollInterval = process.env.TEST_NO_LISTEN !== 'true' ? setInterval(async () => {
-    
-    try {
-      const files = (await fsPromises.readdir(logDir))
-        .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
-        .sort()
-        .reverse();
-      if (files.length === 0) return;
-      const filePath = path.join(logDir, files[0]);
-      if (currentFile !== filePath) {
-        currentFile = filePath;
-        const stat = await fsPromises.stat(filePath);
-        lastSize = stat.size;
-        return;
-      }
-      const stat = await fsPromises.stat(filePath);
-      if (stat.size > lastSize) {
-        const fd = await fsPromises.open(filePath, 'r');
-        const buf = Buffer.alloc(stat.size - lastSize);
-        await fd.read(buf, 0, buf.length, lastSize);
-        await fd.close();
-        const newLines = buf.toString('utf8').trim().split('\n').filter(Boolean);
-        for (const line of newLines) {
+  const pollInterval =
+    process.env.TEST_NO_LISTEN !== 'true'
+      ? setInterval(async () => {
           try {
-            const parsed = JSON.parse(line);
-            res.write(`data: ${JSON.stringify(parsed)}\n\n`);
+            const files = (await fsPromises.readdir(logDir))
+              .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
+              .sort()
+              .reverse();
+            if (files.length === 0) return;
+            const filePath = path.join(logDir, files[0]);
+            if (currentFile !== filePath) {
+              currentFile = filePath;
+              const stat = await fsPromises.stat(filePath);
+              lastSize = stat.size;
+              return;
+            }
+            const stat = await fsPromises.stat(filePath);
+            if (stat.size > lastSize) {
+              const fd = await fsPromises.open(filePath, 'r');
+              const buf = Buffer.alloc(stat.size - lastSize);
+              await fd.read(buf, 0, buf.length, lastSize);
+              await fd.close();
+              const newLines = buf.toString('utf8').trim().split('\n').filter(Boolean);
+              for (const line of newLines) {
+                try {
+                  const parsed = JSON.parse(line);
+                  res.write(`data: ${JSON.stringify(parsed)}\n\n`);
+                } catch {}
+              }
+              lastSize = stat.size;
+            }
           } catch {}
-        }
-        lastSize = stat.size;
-      }
-    } catch {}
-    
-  }, 2000) : null;
+        }, 2000)
+      : null;
 
   req.on('close', () => {
-    
     clearInterval(pollInterval);
   });
 });
@@ -2308,7 +2118,7 @@ app.delete('/admin/sessions/:id', authenticateJWT, requireAdminStepUp, (req, res
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
-  
+
   try {
     if (session.mcpServer) session.mcpServer.close().catch(() => {});
     monitor.unsubscribeAll(sessionId);
@@ -2322,7 +2132,6 @@ app.delete('/admin/sessions/:id', authenticateJWT, requireAdminStepUp, (req, res
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
-  
 });
 
 app.delete(
@@ -2336,7 +2145,6 @@ app.delete(
   ],
   authenticateJWT,
   async (req, res) => {
-    
     if (req.identity.role !== 'admin') {
       return res.status(403).json({ error: 'Admin role required' });
     }
@@ -2360,7 +2168,6 @@ app.delete(
     });
     return res.json({ success: true, disconnected: count });
   }
-  
 );
 
 app.get('/admin/backups', authenticateJWT, async (req, res) => {
@@ -2368,11 +2175,11 @@ app.get('/admin/backups', authenticateJWT, async (req, res) => {
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { configId } = req.query;
-  
+
   if (!configId) return res.status(400).json({ error: 'configId query param required' });
   try {
     const result = await listConfigBackups({ configId }, req.identity);
-    
+
     return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -2384,11 +2191,11 @@ app.post('/admin/backups/restore', authenticateJWT, requireAdminStepUp, async (r
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { configId, timestamp, confirm } = req.body;
-  
+
   if (!confirm) return res.status(400).json({ error: 'confirm: true required' });
   try {
     const result = await restoreConfig({ configId, timestamp }, req.identity);
-    
+
     return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -2398,12 +2205,11 @@ app.post('/admin/backups/restore', authenticateJWT, requireAdminStepUp, async (r
 // ── OAuth Metadata (RFC 9728) ──────────────────────────────
 
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
-  
   const resource = process.env.OAUTH_RESOURCE_URL || `${req.protocol}://${req.get('host')}`;
   const authorizationServer = process.env.AUTHELIA_ISSUER;
   res.json({
     resource,
-    
+
     ...(authorizationServer ? { authorization_servers: [authorizationServer] } : {}),
     // Authelia advertises offline_access and refresh_token support. Include it
     // here so cloud MCP clients such as ChatGPT can request a renewable grant
@@ -2415,7 +2221,6 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 });
 
 // ── OAuth User Management ──────────────────────────────────
-
 
 function safeJsonDependencyFallback(res, reader, operationName, fallbackData = null, options = {}) {
   const { fallbackOnAnyError = false } = options;
@@ -2460,7 +2265,6 @@ function safeJsonDependencyFallback(res, reader, operationName, fallbackData = n
   }
 }
 
-
 app.get(
   [
     '/admin/oauth-users',
@@ -2474,14 +2278,12 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    
     readAdminCollectionFallback(req, res, () => listOAuthUsersFromState(), {
       pathHint: '/admin/oauth-users',
       fallbackData: [],
       code: 'OAUTH_USERS_LIST_FAILED',
       label: 'OAuth users list',
     })
-  
 );
 
 app.post(
@@ -2493,13 +2295,10 @@ app.post(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       const user = await addOAuthUser(sanitizeOAuthUserPayload(req.body));
-      
+
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
       res.json(user);
-      
-      
     } catch (e) {
-      
       respondDependencyAwareError(
         res,
         e,
@@ -2508,7 +2307,6 @@ app.post(
           : { status: 400, code: 'OAUTH_USER_CREATE_FAILED', label: 'Failed to create OAuth user' }
       );
     }
-    
   }
 );
 
@@ -2520,20 +2318,15 @@ app.put(
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
-      
       const { username: bodyUsername, ...updates } = req.body || {};
       if (bodyUsername && bodyUsername !== req.params.username)
-        
         return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
       await updateOAuthUser(req.params.username, sanitizeOAuthUserPayload(updates));
-      
+
       await invalidateOAuthSessions(req.params.username);
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
       res.json({ success: true });
-      
-      
     } catch (e) {
-      
       respondDependencyAwareError(
         res,
         e,
@@ -2544,7 +2337,6 @@ app.put(
             : { status: 400, code: 'OAUTH_USER_UPDATE_FAILED', label: 'Failed to update OAuth user' }
       );
     }
-    
   }
 );
 
@@ -2557,7 +2349,7 @@ app.delete(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       await deleteOAuthUser(req.params.username);
-      
+
       await invalidateOAuthSessions(req.params.username);
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
       res.json({ success: true });
@@ -2570,7 +2362,6 @@ app.delete(
           : { status: 400, code: 'OAUTH_USER_DELETE_FAILED', label: 'Failed to delete OAuth user' }
       );
     }
-    
   }
 );
 
@@ -2589,14 +2380,12 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    
     readAdminCollectionFallback(req, res, () => listOAuthClientsFromState(), {
       pathHint: '/admin/oauth-clients',
       fallbackData: [],
       code: 'OAUTH_CLIENTS_LIST_FAILED',
       label: 'OAuth clients list',
     })
-  
 );
 
 app.post(
@@ -2608,7 +2397,7 @@ app.post(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       const client = await addOAuthClient(req.body);
-      
+
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
       res.json(client);
     } catch (e) {
@@ -2618,7 +2407,6 @@ app.post(
         label: 'Failed to create OAuth client',
       });
     }
-    
   }
 );
 
@@ -2631,7 +2419,7 @@ app.delete(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       await deleteOAuthClient(req.params.clientId);
-      
+
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
       res.json({ success: true });
     } catch (e) {
@@ -2641,7 +2429,6 @@ app.delete(
         label: 'Failed to delete OAuth client',
       });
     }
-    
   }
 );
 
@@ -2650,18 +2437,14 @@ app.delete(
 // OAuth client as soon as the callback completes.
 app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  
+
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
-  const resource =
-    
-    (
-      process.env.OAUTH_RESOURCE_URL ||
-      
-      process.env.PUBLIC_URL ||
-      
-      `${req.protocol}://${req.get('host')}`
-    ).replace(/\/$/, '');
-  
+  const resource = (
+    process.env.OAUTH_RESOURCE_URL ||
+    process.env.PUBLIC_URL ||
+    `${req.protocol}://${req.get('host')}`
+  ).replace(/\/$/, '');
+
   if (!issuer) return res.status(400).json({ error: 'Authelia issuer is not configured' });
   const state = randomUUID();
   const codeVerifier = Buffer.from(`${randomUUID()}${randomUUID()}`).toString('base64url');
@@ -2674,7 +2457,7 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, a
       clientName: 'Temporary MCP OAuth diagnostic',
       redirectUris: [redirectUri],
     });
-    
+
     const expiresAt = Date.now() + 10 * 60 * 1000;
     oauthDiagnostics.set(state, {
       clientId: client.client_id,
@@ -2712,31 +2495,29 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, a
     if (isBrokerUnavailable(error)) return respondServiceDependencyUnavailable(res, error);
     res.status(400).json({ error: error.message });
   }
-  
 });
 
 app.get('/oauth-diagnostic/callback', async (req, res) => {
-  
   const state = typeof req.query.state === 'string' ? req.query.state : '';
-  
+
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   const diagnostic = oauthDiagnostics.get(state);
   oauthDiagnostics.delete(state);
   const render = (title, message, passed = false) =>
     res
-      
+
       .status(passed ? 200 : 400)
       .type('html')
       .send(
         `<!doctype html><meta charset="utf-8"><title>${title}</title><main style="font:16px system-ui;max-width:640px;margin:4rem auto;padding:2rem"><h1>${title}</h1><p>${message}</p><p>You may close this window.</p></main>`
       );
-  
+
   if (!diagnostic || diagnostic.expiresAt < Date.now() || !code)
     return render(
       'OAuth diagnostic failed',
       'The test expired or no authorization code was returned. Start a new test from the OAuth screen.'
     );
-  
+
   try {
     const tokenResponse = await fetch(`${process.env.AUTHELIA_ISSUER.replace(/\/$/, '')}/api/oidc/token`, {
       method: 'POST',
@@ -2753,11 +2534,9 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
       }),
     });
     const tokenBody = await tokenResponse.json().catch(() => ({}));
-    
+
     if (!tokenResponse.ok || typeof tokenBody.access_token !== 'string')
-      
       throw new Error(
-        
         `Token exchange failed (${tokenResponse.status}${tokenBody.error ? `: ${tokenBody.error}` : ''})`
       );
     if (typeof tokenBody.refresh_token !== 'string')
@@ -2822,7 +2601,6 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
       logError({ ip: req.clientIP, userId: 'system', tool: 'OAUTH_DIAGNOSTIC_CLEANUP', error })
     );
   }
-  
 });
 
 // ── Authelia Health & Control ──────────────────────────────
@@ -2831,13 +2609,12 @@ app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const health = await getAutheliaHealth();
-    
+
     res.json(health);
   } catch (e) {
     if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
-  
 });
 
 app.post('/admin/oauth-restart', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -2850,7 +2627,6 @@ app.post('/admin/oauth-restart', authenticateJWT, requireAdminStepUp, async (req
 // MCP SSE endpoint. A session is created by a GET request to /mcp;
 // subsequent POST requests to /mcp/message must present the session id.
 app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (req, res) => {
-  
   const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'] || req.query.sessionId;
   let session = activeTransports.get(sessionId);
 
@@ -3044,9 +2820,7 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     session.inFlight = false;
     session.lastActivity = Date.now();
   }
-  
 });
-
 
 function sendAdminSpaFallback(req, res, next) {
   if (req.method !== 'GET') return next();
@@ -3060,7 +2834,6 @@ function sendAdminSpaFallback(req, res, next) {
   return res.sendFile(path.join(import.meta.dirname, 'public', 'index.html'));
 }
 
-
 app.get(['/admin', '/admin/*'], sendAdminSpaFallback);
 
 // Compatibility fallback for stale frontend caches or reverse-proxy rewrites that
@@ -3068,7 +2841,6 @@ app.get(['/admin', '/admin/*'], sendAdminSpaFallback);
 // deployment. These endpoints are intentionally dependency-safe and should never
 // be 404-fatal for the dashboard; instead, return a local fallback shape.
 app.use((req, res, next) => {
-  
   if (req.method !== 'GET') return next();
 
   const fallback = adminDependencyFallbackResponse(req.path);
@@ -3084,13 +2856,11 @@ app.use((req, res, next) => {
   if (!hasAuthHeader) return next();
 
   return res.status(fallback.status).json(fallback.body);
-  
 });
 
 // ── Centralized Error Handler ──────────────────────────────
 
 app.use((err, req, res, next) => {
-  
   const errorId = randomUUID();
   logError({
     ip: req.clientIP || 'unknown',
@@ -3109,7 +2879,6 @@ app.use((err, req, res, next) => {
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
   }
-  
 });
 
 // ── MCP Server Factory ─────────────────────────────────────
@@ -3118,14 +2887,11 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
   const server = new McpServer({
     name: 'server-control',
     version:
-      
       process.env.npm_package_version ||
       JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8')).version,
   });
 
-  
   server.onerror = err => {
-    
     logError({ ip, userId: identity.userId, tool: 'MCP_SERVER_ERROR', error: err });
   };
 
@@ -3134,7 +2900,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'mcp-sentinel://alerts/current',
     { title: 'Current MCP Sentinel alerts', description: 'Alert subscriptions for this exact MCP session' },
     async uri => ({
-      
       contents: [
         {
           uri: uri.href,
@@ -3146,7 +2911,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         },
       ],
     })
-    
   );
 
   // ── Helper: wrap tool calls with audit logging ───────────
@@ -3165,18 +2929,16 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     forceReplay: z.boolean().optional().describe('Force re-execution even when resumeFromPassed has a cached success.'),
   });
   const normalizeFlowArgs = args => {
-    
     if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
     const { flowId, resumeFromPassed, forceReplay, flowStep, ...rest } = args;
     return rest;
-    
   };
 
   function tool(name, description, schema, handler, resultSchema = null) {
     // Tools outside the authenticated identity's scope are never advertised.
     // Invocation checks below remain as defense in depth for stale sessions.
     if (!scopeAllows(identity.scopes || [], name)) return;
-    
+
     const readOnlyTools = new Set([
       'get_system_info',
       'get_processes',
@@ -3269,9 +3031,8 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       return null;
     };
 
-    
     const fullDescription = `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`;
-    
+
     const resolvedSchema = schema instanceof z.ZodObject ? schema.extend(FLOW_CONTROL_SCHEMA.shape) : schema;
     const inputJsonSchema = zodToJsonSchema(z.object(resolvedSchema), { target: 'openApi3', $refStrategy: 'none' });
     const errorResultSchema = z
@@ -3299,7 +3060,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         annotations,
       },
       async args => {
-        
         const start = Date.now();
         const normalizedArgs = normalizeFlowArgs(args);
         const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
@@ -3556,7 +3316,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
           };
         }
       }
-      
     );
     registrations.push({
       name,
@@ -4098,10 +3857,8 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'List safe, plain-language workflows for server care and developer work.',
     {},
     async () => {
-      
       return { workflows: getWorkflowCatalog() };
     }
-    
   );
 
   tool(
@@ -4109,12 +3866,10 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'Review the server security posture in plain language. This read-only tool reports TLS, access controls, approvals, and policy configuration.',
     {},
     async (_, toolIdentity) => {
-      
       if (toolIdentity.role !== 'admin' && toolIdentity.role !== 'auditor')
         throw new Error('Security posture requires an administrator or auditor role');
       return buildSecurityPosture();
     }
-    
   );
 
   tool(
@@ -4127,7 +3882,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       risk: z.enum(['medium', 'high', 'critical']).optional().describe('Impact level for the reviewer'),
     },
     async ({ tool: requestedTool, arguments: requestedArgs, summary, risk }, toolIdentity) => {
-      
       if (requestedTool === 'request_change_approval' || requestedTool === 'list_guided_workflows') {
         throw new Error('Approval requests must target an operational tool');
       }
@@ -4146,7 +3900,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
           : 'An identical approval request is already pending.',
       };
     }
-    
   );
 
   tool(
@@ -4154,10 +3907,8 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'List the software projects this identity is allowed to inspect and deploy.',
     {},
     async (_, toolIdentity) => {
-      
       return { projects: await listProjects(toolIdentity) };
     }
-    
   );
 
   tool(
@@ -4234,11 +3985,9 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       projectId: z.string().uuid().describe('Registered project identifier'),
     },
     async ({ projectId }, toolIdentity) => {
-      
       const project = await getProject(projectId, toolIdentity);
       return getDeploymentPlan(project);
     }
-    
   );
 
   tool(
@@ -4249,7 +3998,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       confirm: z.literal(true).describe('Must be true to deploy'),
     },
     async ({ projectId }, toolIdentity) => {
-      
       if (toolIdentity.role !== 'admin') throw new Error('Deploying a project requires an administrator role');
       const project = await getProject(projectId, toolIdentity);
       if (!project.serviceName)
@@ -4282,7 +4030,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         rollback: 'Use the project’s previous Git revision and restart its registered service if verification fails.',
       };
     }
-    
   );
 
   tool(
@@ -4300,7 +4047,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       persistent: z.boolean().optional().describe('Restore this subscription for later sessions of the same identity'),
     },
     async ({ alertType, threshold, cooldownSeconds, persistent }, identity) => {
-      
       if (!identity.sessionId || !activeTransports.has(identity.sessionId)) throw new Error('Exact session not found');
       const id = monitor.subscribe(
         identity.sessionId,
@@ -4312,7 +4058,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       );
       return { id, alertType, threshold, persistent: persistent === true };
     }
-    
   );
 
   tool(
@@ -4322,36 +4067,31 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       alertId: z.string().max(4096).describe('Alert ID returned from subscribe_to_alert'),
     },
     async ({ alertId }, identity) => {
-      
       if (!identity.sessionId || !activeTransports.has(identity.sessionId)) throw new Error('Exact session not found');
       monitor.unsubscribe(identity.sessionId, alertOwnerKey(identity), alertId);
       return { alertId, unsubscribed: true };
     }
-    
   );
 
   tool('list_active_alerts', 'List alert subscriptions for this exact MCP session.', {}, async (_, identity) => {
-    
     return { alerts: monitor.getActiveAlerts(identity.sessionId) };
   });
 
   // Disabled packs are absent from tools/list, so an AI cannot casually discover
   // or invoke specialist operations.
   for (const { name, registration } of registrations) {
-    
     const availability = await toolAvailability(name);
     const policyDecision = await evaluatePolicy({ tool: name, identity }).catch(() => ({ allowed: false }));
     if (!availability.available || !policyDecision.allowed) registration.disable();
   }
-  
+
   const visibleTools = [];
   for (const item of registrations) {
-    
     const availability = await toolAvailability(item.name);
     const policyDecision = await evaluatePolicy({ tool: item.name, identity }).catch(() => ({ allowed: false }));
     if (availability.available && policyDecision.allowed) visibleTools.push(item.definition);
   }
-  
+
   const manifestBody = JSON.stringify(visibleTools);
   manifestSnapshots.set(manifestIdentityKey(identity), {
     // Increment whenever the public action contract changes. Version 3 adds
@@ -4367,7 +4107,6 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
 }
 
 // ── TLS Setup ─────────────────────────────────────────────
-
 
 function createHttpsServer() {
   const certPath = process.env.TLS_CERT_PATH || path.join(import.meta.dirname, 'certs', 'server.crt');
@@ -4395,37 +4134,29 @@ function createHttpsServer() {
   );
 }
 
-
 // ── Start Server ───────────────────────────────────────────
 
 function validateConfig() {
-  
   if (!jwtSecretIsConfigured()) {
-    
     console.error('FATAL: JWT signing credential must be at least 64 characters and not a placeholder.');
     process.exit(1);
   }
-  
-  
+
   const adminKey = process.env.ADMIN_API_KEY || '';
   const hasStoredAdmin = listApiKeys().some(key => key.active !== false && key.role === 'admin');
-  
+
   if ((!adminKey || adminKey.includes('CHANGE_ME')) && !hasStoredAdmin) {
-    
     console.error('FATAL: configure an ADMIN_API_KEY bootstrap credential or retain an active stored admin key.');
     process.exit(1);
   }
-  
-  
+
   const port = parseInt(process.env.PORT || '4444', 10);
-  
+
   if (isNaN(port) || port < 1 || port > 65535) {
-    
     console.error('FATAL: PORT must be a valid integer between 1 and 65535.');
     process.exit(1);
   }
-  
-  
+
   const jwtExpiry = process.env.JWT_EXPIRY || '8h';
   const expiryMatch = jwtExpiry.match(/^(\d+)([hmd])$/);
   if (expiryMatch) {
@@ -4433,42 +4164,33 @@ function validateConfig() {
     const unit = expiryMatch[2];
     const maxHours = 24;
     let hours = val;
-    
+
     if (unit === 'd') hours = val * 24;
-    
+
     if (unit === 'm') hours = val / 60;
-    
+
     if (hours > maxHours) {
-      
       console.error('FATAL: JWT_EXPIRY cannot exceed 24 hours.');
       process.exit(1);
     }
-    
-    
   } else {
-    
     console.error('FATAL: Invalid JWT_EXPIRY format. Use formats like 8h, 30m.');
     process.exit(1);
   }
-  
-  
+
   const rlMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60', 10);
-  
+
   const rlWindow = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
-  
+
   if (isNaN(rlMax) || rlMax <= 0 || isNaN(rlWindow) || rlWindow <= 0) {
-    
     console.error('FATAL: Rate limit values must be positive integers.');
     process.exit(1);
   }
-  
-  
+
   if (process.env.NODE_ENV === 'production' && !(process.env.ALLOWED_ORIGINS || '').trim()) {
-    
     console.error('FATAL: ALLOWED_ORIGINS must list explicit dashboard origins in production.');
     process.exit(1);
   }
-  
 }
 
 validateConfig();
@@ -4477,9 +4199,7 @@ let acmeManager = null;
 let server;
 
 async function startServer() {
-  
   if (USE_HTTPS && process.env.ACME_DOMAIN && process.env.ACME_EMAIL) {
-    
     console.log(`[ACME] Initializing Let's Encrypt for ${process.env.ACME_DOMAIN}...`);
     acmeManager = new AcmeManager(process.env.ACME_DOMAIN, process.env.ACME_EMAIL);
     await acmeManager.init();
@@ -4495,49 +4215,49 @@ async function startServer() {
       res.redirect(`https://${process.env.ACME_DOMAIN}${req.url}`);
     });
 
-    if (process.env.TEST_NO_LISTEN !== 'true') if (process.env.TEST_NO_LISTEN !== 'true') http.createServer(acmeApp).listen(acmePort, HOST, () => {
-      console.log(`[ACME] Challenge server listening on port ${acmePort}`);
-    });
+    if (process.env.TEST_NO_LISTEN !== 'true')
+      if (process.env.TEST_NO_LISTEN !== 'true')
+        http.createServer(acmeApp).listen(acmePort, HOST, () => {
+          console.log(`[ACME] Challenge server listening on port ${acmePort}`);
+        });
 
     try {
       await acmeManager.checkAndRenew();
       process.env.TLS_CERT_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.crt');
       process.env.TLS_KEY_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.key');
 
-      if (process.env.TEST_NO_LISTEN !== 'true') setInterval(async () => {
-        try {
-          await acmeManager.checkAndRenew();
-          if (server && typeof server.setSecureContext === 'function') {
-            server.setSecureContext({
-              cert: fs.readFileSync(process.env.TLS_CERT_PATH),
-              key: fs.readFileSync(process.env.TLS_KEY_PATH),
-              minVersion: 'TLSv1.2',
-            });
-            console.log('[ACME] TLS context hot-reloaded');
+      if (process.env.TEST_NO_LISTEN !== 'true')
+        setInterval(async () => {
+          try {
+            await acmeManager.checkAndRenew();
+            if (server && typeof server.setSecureContext === 'function') {
+              server.setSecureContext({
+                cert: fs.readFileSync(process.env.TLS_CERT_PATH),
+                key: fs.readFileSync(process.env.TLS_KEY_PATH),
+                minVersion: 'TLSv1.2',
+              });
+              console.log('[ACME] TLS context hot-reloaded');
+            }
+          } catch (err) {
+            console.error('[ACME] Auto-renew failed:', err);
           }
-        } catch (err) {
-          console.error('[ACME] Auto-renew failed:', err);
-        }
-      }, 86400000);
+        }, 86400000);
     } catch (err) {
       console.error('[ACME] Provisioning failed, falling back to self-signed certs:', err);
     }
   }
-  
 
-  
   server = USE_HTTPS ? createHttpsServer() : http.createServer(app);
-if (process.env.TEST_NO_LISTEN !== 'true') server.listen(PORT, HOST, () => {
-    
-    const protocol = USE_HTTPS ? 'https' : 'http';
-    logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
+  if (process.env.TEST_NO_LISTEN !== 'true')
+    server.listen(PORT, HOST, () => {
+      const protocol = USE_HTTPS ? 'https' : 'http';
+      logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
 
-    const currentVersion =
-      
-      process.env.npm_package_version ||
-      JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8')).version;
+      const currentVersion =
+        process.env.npm_package_version ||
+        JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8')).version;
 
-    console.log(`
+      console.log(`
 ╔══════════════════════════════════════════════════════╗
 ║           MCP Sentinel - v${currentVersion.padEnd(27)}║
 ╠══════════════════════════════════════════════════════╣
@@ -4551,11 +4271,10 @@ if (process.env.TEST_NO_LISTEN !== 'true') server.listen(PORT, HOST, () => {
 ║  Logs    : ./logs/                                   ║
 ╚══════════════════════════════════════════════════════╝
     `);
-  });
+    });
 
   // Start the background monitor
   monitor.start((sessionId, notification) => {
-    
     const session = activeTransports.get(sessionId);
     if (session && session.mcpServer && typeof session.mcpServer.server.notification === 'function') {
       try {
@@ -4564,21 +4283,17 @@ if (process.env.TEST_NO_LISTEN !== 'true') server.listen(PORT, HOST, () => {
         console.error('[Monitor] Failed to send notification', e);
       }
     }
-    
   });
 }
 
 startServer().catch(err => {
-  
   console.error('Failed to start server:', err);
   process.exit(1);
-  
 });
 
 // ── Graceful Shutdown ──────────────────────────────────────
 
 const MAX_SSE_CONNECTIONS = parseInt(process.env.MAX_SSE_CONNECTIONS || '100');
-
 
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutting down gracefully...`);
@@ -4607,18 +4322,14 @@ function gracefulShutdown(signal) {
   setTimeout(() => process.exit(1), 10000);
 }
 
-
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('uncaughtException', err => {
-  
   logError({ tool: 'UNCAUGHT_EXCEPTION', error: err });
   console.error('Uncaught exception:', err);
   process.exit(1);
-  
 });
 process.on('unhandledRejection', reason => {
-  
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });
 });
 export const __TEST_EXPORTS__ = {
@@ -4649,5 +4360,5 @@ export const __TEST_EXPORTS__ = {
   manifestIdentityKey,
   refreshActiveToolLists,
   makeSessionRoom,
-  requireAdminStepUp
+  requireAdminStepUp,
 };

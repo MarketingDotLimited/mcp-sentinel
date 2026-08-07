@@ -12,9 +12,9 @@ describe('broker.js final coverage', () => {
     // Note: since the broker is already started by previous tests, we can just connect to it!
     const socketPath = process.env.MCP_BROKER_SOCKET || '/var/run/mcp-broker.sock';
     if (!fs.existsSync(socketPath)) return; // skip if no broker
-    
+
     // 1. Invalid JSON
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       const socket = net.createConnection(socketPath, () => {
         socket.write('invalid json\n');
       });
@@ -24,7 +24,7 @@ describe('broker.js final coverage', () => {
     });
 
     // 2. Too large request (exceeds MAX_REQUEST_BYTES = 64 * 1024)
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       const socket = net.createConnection(socketPath, () => {
         socket.write(Buffer.alloc(65 * 1024, 'a'));
       });
@@ -32,9 +32,9 @@ describe('broker.js final coverage', () => {
       socket.on('close', () => resolve());
       socket.on('error', () => resolve());
     });
-    
+
     // 3. Incomplete request ending with close
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       const socket = net.createConnection(socketPath, () => {
         socket.write('{"operation":"ping"');
         socket.end();
@@ -55,13 +55,17 @@ describe('broker.js final coverage', () => {
           socket.write(JSON.stringify(request) + '\n');
         });
         let data = '';
-        socket.on('data', chunk => { data += chunk.toString(); });
+        socket.on('data', chunk => {
+          data += chunk.toString();
+        });
         socket.on('close', () => {
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) return reject(new Error(parsed.error.message));
             resolve(parsed.result);
-          } catch (e) { reject(e); }
+          } catch (e) {
+            reject(e);
+          }
         });
       });
     }
@@ -70,27 +74,36 @@ describe('broker.js final coverage', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-broker-test-'));
     fs.chmodSync(tmp, 0o777);
     await handleRequest({
-      requestId: '1', operation: 'execute',
-      parameters: { command: 'echo', args: [], networkCredentials: { sshDirectory: tmp }, mappedUser: { uid: 0, gid: 0 } }
+      requestId: '1',
+      operation: 'execute',
+      parameters: {
+        command: 'echo',
+        args: [],
+        networkCredentials: { sshDirectory: tmp },
+        mappedUser: { uid: 0, gid: 0 },
+      },
     }).catch(() => {});
     fs.rmSync(tmp, { recursive: true, force: true });
 
     // user.create with invalid shell
     await handleRequest({
-      requestId: '2', operation: 'user.create',
-      parameters: { username: 'testuser99', shell: '/invalid' }
+      requestId: '2',
+      operation: 'user.create',
+      parameters: { username: 'testuser99', shell: '/invalid' },
     }).catch(() => {});
 
     // user.create with invalid comment
     await handleRequest({
-      requestId: '3', operation: 'user.create',
-      parameters: { username: 'testuser99', comment: 'invalid:' }
+      requestId: '3',
+      operation: 'user.create',
+      parameters: { username: 'testuser99', comment: 'invalid:' },
     }).catch(() => {});
 
     // user.create success with createHome false
     await handleRequest({
-      requestId: '4', operation: 'user.create',
-      parameters: { username: 'testuser99', createHome: false, comment: 'test', groups: ['testgroup'] }
+      requestId: '4',
+      operation: 'user.create',
+      parameters: { username: 'testuser99', createHome: false, comment: 'test', groups: ['testgroup'] },
     }).catch(() => {});
   });
 });

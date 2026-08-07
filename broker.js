@@ -1409,8 +1409,7 @@ export function startBroker() {
         let requestId = null;
         try {
           requestId = JSON.parse(request.trim()).requestId || null;
-        } catch {
-        }
+        } catch {}
         response = { requestId, ok: false, error: error.message };
       }
       socket.end(`${JSON.stringify(response)}\n`);

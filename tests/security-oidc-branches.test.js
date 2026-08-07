@@ -12,14 +12,14 @@ describe('security.js OIDC remaining branches', async () => {
     originalFetch = global.fetch;
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-security-oidc-branches-'));
     process.env.MCP_STATE_DB = path.join(tmpDir, 'state.sqlite3');
-    
+
     process.env.JWT_SECRET = 's'.repeat(64);
     process.env.AUTHELIA_ISSUER = 'https://auth.example.com';
     process.env.AUTHELIA_JWKS_URL = 'https://auth.example.com/jwks';
     process.env.OAUTH_RESOURCE_URL = 'https://resource.example.com';
 
     let fetchCall = 0;
-    global.fetch = async (url) => {
+    global.fetch = async url => {
       fetchCall++;
       if (fetchCall === 1) return { ok: false, status: 500 };
       if (fetchCall === 2) return { ok: true, json: async () => ({ sub: 'sub-id' }) };
@@ -62,9 +62,9 @@ describe('security.js OIDC remaining branches', async () => {
             role: 'viewer',
             scopes: ['*'],
             clients: { 'client-id': {} },
-          }
-        })
-      }
+          },
+        }),
+      },
     });
   });
 
@@ -83,40 +83,44 @@ describe('security.js OIDC remaining branches', async () => {
       protocol: 'http',
       get: () => 'localhost',
     };
-    
-    let err = null;
+
+    let capturedErr = null;
     let resolveTest;
     const res = {
       status: () => res,
-      json: body => { err = body?.error; if(resolveTest) resolveTest(); return res; },
+      json: body => {
+        capturedErr = body?.error;
+        if (resolveTest) resolveTest();
+        return res;
+      },
       set: () => res,
       type: () => res,
     };
-    
-    const runTest = () => new Promise(resolve => {
-       resolveTest = resolve;
-       security.authenticateJWT(req, res, () => { resolve(); });
-    });
+
+    const runTest = () =>
+      new Promise(resolve => {
+        capturedErr = null;
+        resolveTest = resolve;
+        security.authenticateJWT(req, res, () => {
+          resolve();
+        });
+      });
 
     // 1. fetch ok is false
-    err = null;
     await runTest();
-    assert.equal(err, 'Invalid or expired token');
+    assert.equal(capturedErr, 'Invalid or expired token');
 
     // 2. preferred_username missing, email missing
-    err = null;
     await runTest();
-    assert.equal(err, 'Invalid or expired token');
+    assert.equal(capturedErr, 'Invalid or expired token');
 
     // 3. User mapping root
-    err = null;
     await runTest();
-    assert.equal(err, 'Invalid or expired token');
+    assert.equal(capturedErr, 'Invalid or expired token');
 
     // 4. clientMapping.linuxUser vs userMapping.linuxUser (line 598)
-    err = null;
     await runTest();
-    assert.equal(err, null);
+    assert.equal(capturedErr, null);
     assert.equal(req.identity.userId, 'user2');
   });
 });

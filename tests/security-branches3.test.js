@@ -8,15 +8,19 @@ test('security.js branches', async () => {
   const originalJwks = process.env.AUTHELIA_JWKS_URL;
   process.env.AUTHELIA_JWKS_URL = '';
   process.env.AUTHELIA_ISSUER = 'https://auth';
-  
-  await sec.authenticateJWT({ headers: { authorization: 'Bearer authelia-token' } }, { status: () => ({ json: () => {} }) }, () => {});
-  
+
+  await sec.authenticateJWT(
+    { headers: { authorization: 'Bearer authelia-token' } },
+    { status: () => ({ json: () => {} }) },
+    () => {}
+  );
+
   // Test 555: process.env.OAUTH_RESOURCE_URL
   process.env.OAUTH_RESOURCE_URL = 'https://resource/';
   const res = { locals: { authenticateOptions: {} } };
   try {
     await sec.authenticate(null, res, () => {});
-  } catch(e) {}
-  
+  } catch (e) {}
+
   process.env.AUTHELIA_JWKS_URL = originalJwks;
 });

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 
 const brokerCallMock = mock.fn(() => Promise.resolve('mocked_result'));
 mock.module('../lib/broker-client.js', {
-  namedExports: { brokerCall: brokerCallMock }
+  namedExports: { brokerCall: brokerCallMock },
 });
 
 const autheliaClient = await import('../lib/authelia-client.js');
 
-test('authelia-client tests', async (t) => {
+test('authelia-client tests', async t => {
   t.afterEach(() => {
     brokerCallMock.mock.resetCalls();
   });
@@ -31,7 +31,10 @@ test('authelia-client tests', async (t) => {
     const result = await autheliaClient.updateOAuthUser('testuser', { field: 'val' });
     assert.equal(result, 'mocked_result');
     assert.equal(brokerCallMock.mock.calls.length, 1);
-    assert.deepEqual(brokerCallMock.mock.calls[0].arguments, ['oauth.user.update', { username: 'testuser', updates: { field: 'val' } }]);
+    assert.deepEqual(brokerCallMock.mock.calls[0].arguments, [
+      'oauth.user.update',
+      { username: 'testuser', updates: { field: 'val' } },
+    ]);
   });
 
   await t.test('deleteOAuthUser calls brokerCall with correct arguments', async () => {

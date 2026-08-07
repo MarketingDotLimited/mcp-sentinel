@@ -29,6 +29,6 @@ test('control-plane.js loadState EACCES', () => {
       }
       fs.chmodSync(file, 0o644);
       fs.unlinkSync(file);
-    `
+    `,
   ]);
 });

@@ -88,11 +88,13 @@ for (const name of ['getent', 'userdel', 'ufw', 'chpasswd', 'usermod', 'useradd'
 const originalReadFileSync = fsSync.readFileSync;
 fsSync.readFileSync = function (path, options) {
   if (path === '/etc/passwd') {
-    return 'root:x:0:0:root:/root:/bin/bash\n' +
-           'nobody:x:65534:65534:nobody:/tmp:/usr/sbin/nologin\n' +
-           'testuser:x:1001:1001:testuser,,,:/tmp:/bin/bash\n' +
-           'failuser:x:1002:1002:failuser,,,:/tmp:/bin/bash\n' +
-           'testuser99:x:1003:1003:testuser99,testuser98,,,:/tmp:/bin/bash\n';
+    return (
+      'root:x:0:0:root:/root:/bin/bash\n' +
+      'nobody:x:65534:65534:nobody:/tmp:/usr/sbin/nologin\n' +
+      'testuser:x:1001:1001:testuser,,,:/tmp:/bin/bash\n' +
+      'failuser:x:1002:1002:failuser,,,:/tmp:/bin/bash\n' +
+      'testuser99:x:1003:1003:testuser99,testuser98,,,:/tmp:/bin/bash\n'
+    );
   }
   return originalReadFileSync.apply(this, arguments);
 };
@@ -795,7 +797,6 @@ describe('process.signal', () => {
 
 describe('user.ssh operations', () => {
   it('covers valid add and remove', async () => {
-    
     await fs.mkdir('/home/testuser/.ssh', { recursive: true });
 
     // Test add
@@ -870,35 +871,39 @@ describe('protected services', () => {
 describe('more user operations', () => {
   it('covers list action and expire date', async () => {
     const assert = await import('assert/strict');
-    
+
     // execute with unsafe sshDirectory
-    
+
     const os = await import('os');
     const path = await import('path');
     const tmp = fsSync.mkdtempSync(path.join(os.tmpdir(), 'mcp-broker-test-'));
     fsSync.chmodSync(tmp, 0o777);
     await handleRequest({
-      requestId: '11111111-1111-4111-8111-111111111111', operation: 'project.git',
-      parameters: { projectId: '22222222-2222-4222-8222-222222222222', action: 'pull' }
+      requestId: '11111111-1111-4111-8111-111111111111',
+      operation: 'project.git',
+      parameters: { projectId: '22222222-2222-4222-8222-222222222222', action: 'pull' },
     }).catch(e => console.log('EXECUTE ERROR', e));
     fsSync.rmSync(tmp, { recursive: true, force: true });
 
     // user.create with invalid shell
     await handleRequest({
-      requestId: '22222222-2222-4222-8222-222222222222', operation: 'user.create',
-      parameters: { username: 'testuser98', shell: '/invalid' }
+      requestId: '22222222-2222-4222-8222-222222222222',
+      operation: 'user.create',
+      parameters: { username: 'testuser98', shell: '/invalid' },
     }).catch(e => console.log('USER CREATE 1 ERROR', e));
 
     // user.create with invalid comment
     await handleRequest({
-      requestId: '33333333-3333-4333-8333-333333333333', operation: 'user.create',
-      parameters: { username: 'testuser98', comment: 'invalid:' }
+      requestId: '33333333-3333-4333-8333-333333333333',
+      operation: 'user.create',
+      parameters: { username: 'testuser98', comment: 'invalid:' },
     }).catch(e => console.log('USER CREATE 2 ERROR', e));
 
     // user.create success with createHome false
     await handleRequest({
-      requestId: '44444444-4444-4444-8444-444444444444', operation: 'user.create',
-      parameters: { username: 'testuser98', createHome: false, comment: 'test', groups: ['testgroup'] }
+      requestId: '44444444-4444-4444-8444-444444444444',
+      operation: 'user.create',
+      parameters: { username: 'testuser98', createHome: false, comment: 'test', groups: ['testgroup'] },
     }).catch(e => console.log('USER CREATE 3 ERROR', e));
 
     // user.update with expireDate
@@ -1113,10 +1118,8 @@ after(async () => {
 
 it('runs this', () => {
   console.log('RUNS THIS');
-  console.log("EXIT REMOVED");
+  console.log('EXIT REMOVED');
 });
 console.log('EVALUATING BOTTOM');
 
-after(() => console.log("EXIT REMOVED"));
-
-
+after(() => console.log('EXIT REMOVED'));

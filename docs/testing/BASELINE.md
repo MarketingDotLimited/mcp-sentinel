@@ -7,29 +7,29 @@
 
 ## Starting Coverage Metrics
 
-| Metric      | Value   | Target |
-| ----------- | ------- | ------ |
-| Statements  | 98.04%  | 100%   |
-| Branches    | 94.93%  | 100%   |
-| Functions   | 97.65%  | 100%   |
-| Lines       | 98.04%  | 100%   |
+| Metric     | Value  | Target |
+| ---------- | ------ | ------ |
+| Statements | 98.04% | 100%   |
+| Branches   | 94.93% | 100%   |
+| Functions  | 97.65% | 100%   |
+| Lines      | 98.04% | 100%   |
 
 ### Coverage by Directory
 
-| Directory      | Statements | Branches | Functions | Lines   |
-| -------------- | ---------- | -------- | --------- | ------- |
-| Root files     | 97.17%     | 93.44%   | 94.62%    | 97.17%  |
-| `lib/`         | 98.82%     | 94.57%   | 99.18%    | 98.82%  |
-| `routes/`      | 100%       | 100%     | 100%      | 100%    |
-| `tools/`       | 100%       | 100%     | 100%      | 100%    |
-| `public/js/`   | **NOT MEASURED** | — | — | — |
-| `scripts/`     | **EXCLUDED** | — | — | — |
+| Directory    | Statements       | Branches | Functions | Lines  |
+| ------------ | ---------------- | -------- | --------- | ------ |
+| Root files   | 97.17%           | 93.44%   | 94.62%    | 97.17% |
+| `lib/`       | 98.82%           | 94.57%   | 99.18%    | 98.82% |
+| `routes/`    | 100%             | 100%     | 100%      | 100%   |
+| `tools/`     | 100%             | 100%     | 100%      | 100%   |
+| `public/js/` | **NOT MEASURED** | —        | —         | —      |
+| `scripts/`   | **EXCLUDED**     | —        | —         | —      |
 
 ### Lowest Coverage Files
 
-| File        | Statements | Branches | Notes |
-| ----------- | ---------- | -------- | ----- |
-| `broker.js` | 85.62%     | 84.08%   | Lowest in project |
+| File        | Statements | Branches | Notes                  |
+| ----------- | ---------- | -------- | ---------------------- |
+| `broker.js` | 85.62%     | 84.08%   | Lowest in project      |
 | `server.js` | ~97%       | ~93%     | 415 c8 ignore comments |
 
 ## Starting Test Infrastructure
@@ -63,11 +63,11 @@
 
 ## Modules Without Dedicated Tests
 
-| Module | Lines | Status |
-| ------ | ----- | ------ |
-| `lib/authelia-client.js` | 11 | Indirect only |
-| `lib/deployment.js` | 106 | Indirect only |
-| `lib/remote-operation-policy.js` | 21 | Indirect only |
-| `lib/tool-result-schemas.js` | 176 | Indirect only |
-| `tools/docker.js` | 211 | Indirect only |
-| `tools/users.js` | 104 | Indirect only |
+| Module                           | Lines | Status        |
+| -------------------------------- | ----- | ------------- |
+| `lib/authelia-client.js`         | 11    | Indirect only |
+| `lib/deployment.js`              | 106   | Indirect only |
+| `lib/remote-operation-policy.js` | 21    | Indirect only |
+| `lib/tool-result-schemas.js`     | 176   | Indirect only |
+| `tools/docker.js`                | 211   | Indirect only |
+| `tools/users.js`                 | 104   | Indirect only |
