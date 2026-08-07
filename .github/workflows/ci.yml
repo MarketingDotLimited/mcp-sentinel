@@ -95,10 +95,10 @@ jobs:
         run: npm run test:coverage:node
 
       - name: Run Privileged Tests
-        run: sudo env "PATH=$PATH" npx c8 --clean=false npm run test:privileged
+        run: sudo env "PATH=$PATH" npx c8 --clean=false --temp-directory coverage-tmp npm run test:privileged
 
       - name: Fix Coverage Permissions
-        run: sudo chown -R $USER:$USER coverage/ || true
+        run: sudo chown -R $USER:$USER coverage/ coverage-tmp/ || true
 
       - name: Run Browser Tests
         run: npm run test:browser
