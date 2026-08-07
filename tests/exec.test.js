@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-const { secureExec } = await import(`../lib/exec.js?test=${Date.now()}`);
+import { secureExec } from '../lib/exec.js';
 
 test('secureExec validation', async () => {
   // Test invalid commands

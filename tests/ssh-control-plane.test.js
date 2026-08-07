@@ -104,6 +104,8 @@ describe('SSH access controls', () => {
         issuer: developer.oauthIssuer,
         subject: developer.oauthSubject,
       },
+      { targetType: 'identity', authType: 'apiKey', keyId: apiIdentity.keyId },
+      { targetType: 'identity', authType: 'local', userId: 'user-1' },
       { targetType: 'identity-key', keyId: apiIdentity.keyId },
       { targetType: 'oauth-client', issuer: developer.oauthIssuer, clientId: developer.oauthClient },
       {
@@ -180,6 +182,10 @@ describe('SSH access controls', () => {
     await assert.rejects(
       controlPlane.adminSetSshAccess({ targetType: 'unsupported-target', sshAllowed: true, confirm: true }, admin),
       /Unsupported SSH policy target type/
+    );
+    await assert.rejects(
+      controlPlane.adminSetSshAccess({ targetType: 'identity', authType: 'invalid-auth', sshAllowed: true, confirm: true }, admin),
+      /Unsupported authType invalid-auth/
     );
   });
 
@@ -282,5 +288,16 @@ describe('SSH access controls', () => {
     assert.equal(resolved.connection.host, 'node-2.example.test');
     assert.equal(resolved.connection.port, 2222);
     assert.equal(resolved.connection.credentialId, 'node-2');
+    
+    // Coverage for getMySshAccess with an owned connection
+    const finalAccess = await controlPlane.getMySshAccess(developer);
+    assert.ok(finalAccess.ownedConnections.length > 0);
+    assert.equal(finalAccess.ownedConnections[0].id, registeredConnection.connection.id);
+    
+    // Coverage for invalid scope in setMySshAccess
+    await assert.rejects(
+      controlPlane.setMySshAccess({ scope: 'invalid-scope', enabled: true, confirm: true }, developer),
+      /scope must be identity, connection, or current-client/
+    );
   });
 });
