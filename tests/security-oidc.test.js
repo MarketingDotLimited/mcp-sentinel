@@ -120,7 +120,12 @@ describe('security.js OIDC validation', async () => {
   });
 
   async function checkToken(token) {
-    const req = { headers: { authorization: `Bearer ${token}` }, socket: { remoteAddress: '127.0.0.1' } };
+    const req = {
+      headers: { authorization: `Bearer ${token}` },
+      socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
     let statusCalled = 0,
       nextCalled = false;
     const res = {
@@ -130,6 +135,7 @@ describe('security.js OIDC validation', async () => {
       },
       json: () => res,
       set: () => res,
+      type: () => res,
     };
     await new Promise(resolve => {
       security.authenticateJWT(req, res, () => {

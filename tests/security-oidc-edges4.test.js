@@ -58,7 +58,12 @@ describe('security.js OIDC edges 4', async () => {
   it('OIDC PUBLIC_URL fallback', async () => {
     const security = await import(`../security.js?test=${Date.now()}`);
 
-    const req = { headers: { authorization: 'Bearer token' }, socket: { remoteAddress: '127.0.0.1' } };
+    const req = {
+      headers: { authorization: 'Bearer token' },
+      socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
     let nextCalled = false;
     const res = {
       status: () => res,
@@ -67,6 +72,7 @@ describe('security.js OIDC edges 4', async () => {
         return res;
       },
       set: () => res,
+      type: () => res,
     };
     await new Promise(resolve => {
       security.authenticateJWT(req, res, () => {
