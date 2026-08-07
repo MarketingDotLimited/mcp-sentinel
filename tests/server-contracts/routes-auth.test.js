@@ -52,6 +52,7 @@ describe('auth router', () => {
   });
 
   after(async () => {
+    try { const { __TEST_EXPORTS__ } = await import('../../server.js'); if (__TEST_EXPORTS__.getIdleCheckInterval()) clearInterval(__TEST_EXPORTS__.getIdleCheckInterval()); } catch(e) {}
     await new Promise(resolve => server.close(resolve));
   });
 

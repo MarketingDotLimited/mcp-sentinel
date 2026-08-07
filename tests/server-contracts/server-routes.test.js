@@ -133,9 +133,10 @@ describe('server-helpers-explicit', () => {
       },
     };
 
-    await __TEST_EXPORTS__
+    const brokerRes = await __TEST_EXPORTS__
       .ensurePrivilegeBrokerAvailable({ identity: { role: 'admin' } }, dummyRes, () => {})
-      .catch(() => {});
+      .catch((e) => { console.log('Broker throw:', e); });
+    console.log('BrokerRes:', brokerRes, 'StatusCode:', statusCode);
     assert.ok(typeof statusCode === 'number');
 
     await __TEST_EXPORTS__

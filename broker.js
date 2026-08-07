@@ -1423,8 +1423,14 @@ export function startBroker() {
   });
 
   server.listen(SOCKET_PATH, () => {
-    fs.chownSync(SOCKET_PATH, process.getuid(), process.getgid());
-    fs.chmodSync(SOCKET_PATH, 0o660);
+    try {
+      fs.chownSync(SOCKET_PATH, process.getuid(), process.getgid());
+      fs.chmodSync(SOCKET_PATH, 0o660);
+    } catch (e) {
+      if (e.code !== 'ENOENT') {
+        console.error('Failed to set permissions on broker socket:', e.message);
+      }
+    }
   });
   return server;
 }

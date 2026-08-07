@@ -164,8 +164,8 @@ const DashboardPage = (() => {
       }
     } catch (err) {
       console.error('Failed to fetch stats:', err);
-      if (typeof Toast !== 'undefined' && Toast.error) {
-        Toast.error('Failed to fetch dashboard stats');
+      if (window.Toast && window.Toast.error) {
+        window.Toast.error('Failed to fetch dashboard stats');
       }
     }
   }

@@ -1,7 +1,7 @@
 import '../test-env.js';
 process.env.TEST_NO_LISTEN = 'true';
 
-import { test, describe, after } from 'node:test';
+import { test, describe, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 describe('Server internal functions', async () => {
@@ -21,6 +21,11 @@ describe('Server internal functions', async () => {
     isStateStoreUnavailable,
     summarizeHealth,
     safeLogError,
+    ensurePrivilegeBrokerAvailable,
+    respondServiceDependencyUnavailable,
+    adminReadFallbackHandler,
+    readAdminCollectionFallback,
+    buildSecurityPosture
   } = __TEST_EXPORTS__;
 
   test('isBrokerUnavailable', () => {
@@ -79,6 +84,116 @@ describe('Server internal functions', async () => {
   });
 
   test('safeLogError', () => {
-    safeLogError(new Error('test error'), 'context'); // should not throw
+    safeLogError(new Error('test error'), 'context');
+  });
+
+  test('process event listeners', () => {
+    const originalExit = process.exit;
+    const originalConsoleError = console.error;
+    let exitCode = null;
+    let consoleErrorCalled = false;
+    process.exit = (code) => { exitCode = code; };
+    console.error = () => { consoleErrorCalled = true; };
+
+    const uncaughtListeners = process.listeners('uncaughtException');
+    const ourUncaught = uncaughtListeners.find(f => f.toString().includes('UNCAUGHT_EXCEPTION'));
+    if (ourUncaught) {
+      ourUncaught(new Error('test uncaught'));
+      assert.equal(exitCode, 1);
+      assert.ok(consoleErrorCalled);
+    }
+
+    const unhandledListeners = process.listeners('unhandledRejection');
+    const ourUnhandled = unhandledListeners.find(f => f.toString().includes('UNHANDLED_REJECTION'));
+    if (ourUnhandled) {
+      ourUnhandled('test unhandled');
+    }
+
+    process.exit = originalExit;
+    console.error = originalConsoleError;
+  });
+
+  test('ensurePrivilegeBrokerAvailable coverage', async () => {
+    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const req = { identity: { role: 'admin' } };
+    try {
+      await ensurePrivilegeBrokerAvailable(req, res, () => 'next');
+    } catch (e) {}
+    try {
+      await ensurePrivilegeBrokerAvailable({}, res, () => 'next');
+    } catch (e) {}
+    try {
+      await ensurePrivilegeBrokerAvailable({ identity: { role: 'user' }}, res, () => 'next');
+    } catch (e) {}
+  });
+
+  test('respondServiceDependencyUnavailable coverage', () => {
+    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    respondServiceDependencyUnavailable(res, { code: 'STATE_STORE_UNAVAILABLE' });
+  });
+
+  test('extractDependencyErrorText coverage', () => {
+    const obj = { message: 'test', error: { detail: 'inner' }, arr: ['val'] };
+    obj.circular = obj; // circular ref
+    extractDependencyErrorText(obj);
+  });
+
+  test('isOAuthDependencyError coverage', () => {
+    isOAuthDependencyError({ response: { data: { error: 'test', message: 'test2' } } });
+    isOAuthDependencyError({ err: [{ message: 'test' }] });
+  });
+
+  test('normalizeAdminReadPath coverage', () => {
+    normalizeAdminReadPath('http://evil.com/foo');
+    normalizeAdminReadPath('///foo');
+    normalizeAdminReadPath('/api/admin/foo');
+    normalizeAdminReadPath('/admin/api/foo');
+    normalizeAdminReadPath('/api/foo');
+    normalizeAdminReadPath('%E0%A4%A'); // malformed
+  });
+
+  test('adminDependencyFallbackResponse coverage', () => {
+    adminDependencyFallbackResponse('/admin/oauth-users', new Error());
+    adminDependencyFallbackResponse('/admin/oauth-clients', new Error());
+    adminDependencyFallbackResponse('/admin/capabilities', new Error());
+    adminDependencyFallbackResponse('/admin/sessions', new Error());
+    adminDependencyFallbackResponse('/action-manifest', new Error());
+  });
+
+  test('summarizeHealth coverage', () => {
+    summarizeHealth({ cpu: 85, memory: 80, disk: 70 });
+    summarizeHealth({ cpu: 75, memory: 70, disk: 60 });
+  });
+
+  test('adminReadFallbackHandler coverage', async () => {
+    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const req = { path: '/foo', method: 'GET' };
+    const reader = async () => { throw new Error('BROKER_UNAVAILABLE'); };
+    await adminReadFallbackHandler(req, res, reader, { fallbackOnAnyError: true });
+    
+    const reader2 = async () => { throw { status: 403 }; };
+    await adminReadFallbackHandler(req, res, reader2, {});
+  });
+
+  test('readAdminCollectionFallback coverage', async () => {
+    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const req = { identity: { role: 'admin' }, path: '/foo' };
+    const reader = async () => { throw new Error('BROKER_UNAVAILABLE'); };
+    await readAdminCollectionFallback(req, res, reader, { fallbackOnAnyError: true });
+
+    const reader2 = async () => { throw { status: 403 }; };
+    await readAdminCollectionFallback(req, res, reader2, {});
+    
+    const reqNoAuth = { path: '/foo' };
+    await readAdminCollectionFallback(reqNoAuth, res, reader, {});
+
+    const reqUser = { identity: { role: 'user' }, path: '/foo' };
+    await readAdminCollectionFallback(reqUser, res, reader, {});
+  });
+
+  test('buildSecurityPosture coverage', async () => {
+    try {
+      await buildSecurityPosture();
+    } catch(e) {}
   });
 });

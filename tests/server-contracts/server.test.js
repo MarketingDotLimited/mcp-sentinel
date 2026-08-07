@@ -139,11 +139,13 @@ describe('server integration tests', () => {
   });
 
   after(async () => {
+    try { const { __TEST_EXPORTS__ } = await import('../../server.js'); if (__TEST_EXPORTS__.getIdleCheckInterval()) clearInterval(__TEST_EXPORTS__.getIdleCheckInterval()); } catch(e) {}
     process.removeAllListeners();
     for (const socket of sockets) {
       socket.destroy();
     }
     if (brokerServer) brokerServer.close();
+    
     const {
       __TEST_EXPORTS__: { getServer },
     } = await import('../../server.js');

@@ -65,6 +65,7 @@ import { Router } from '../router.js';
   }
 
   function renderTable(sessions) {
+    if (!rootContainer) return;
     const tableBody = rootContainer.querySelector('#sessions-tbody');
     if (!tableBody) return;
     tableBody.innerHTML = '';
