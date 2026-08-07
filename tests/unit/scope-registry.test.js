@@ -21,21 +21,26 @@ describe('scope-registry.js', () => {
     delete global.fetch;
   });
 
-  test('scope registry functions', async (t) => {
+  test('scope registry functions', async t => {
     const { API } = await import(`../../public/js/api.js?t=${Date.now()}`);
-    const { loadScopeRegistry, renderScopeSelector, getSelectedScopes, applyRoleTemplate } = await import(`../../public/js/scope-registry.js?t=${Date.now()}`);
+    const { loadScopeRegistry, renderScopeSelector, getSelectedScopes, applyRoleTemplate } = await import(
+      `../../public/js/scope-registry.js?t=${Date.now()}`
+    );
 
-    global.fetch = t.mock.fn(async () => ({ ok: true, json: async () => ({
-      groups: {
-        read: { label: 'Read', tools: ['t1', 't2'] },
-        write: { label: 'Write', tools: ['t3'] }
-      },
-      templates: [
-        { id: 'admin', scopes: ['*'] },
-        { id: 'reader', scopes: ['read', 't3'] },
-        { id: 'none', scopes: [] }
-      ]
-    })}));
+    global.fetch = t.mock.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        groups: {
+          read: { label: 'Read', tools: ['t1', 't2'] },
+          write: { label: 'Write', tools: ['t3'] },
+        },
+        templates: [
+          { id: 'admin', scopes: ['*'] },
+          { id: 'reader', scopes: ['read', 't3'] },
+          { id: 'none', scopes: [] },
+        ],
+      }),
+    }));
 
     await loadScopeRegistry();
 
@@ -43,15 +48,15 @@ describe('scope-registry.js', () => {
     renderScopeSelector(container, ['read', 't3'], 'hybrid');
 
     assert.ok(container.innerHTML.includes('Read'));
-    
+
     // Check all functionality
     const chkAll = container.querySelector('.scope-chk-all');
     chkAll.checked = true;
     chkAll.dispatchEvent(new Event('change'));
-    
+
     let scopes = getSelectedScopes(container);
     assert.deepEqual(scopes, ['*']);
-    
+
     chkAll.checked = false;
     chkAll.dispatchEvent(new Event('change'));
 
@@ -78,12 +83,12 @@ describe('scope-registry.js', () => {
     applyRoleTemplate(container, 'reader');
     scopes = getSelectedScopes(container);
     assert.deepEqual(scopes, ['read', 't3']);
-    
+
     applyRoleTemplate(container, 'unknown'); // nothing happens
     applyRoleTemplate(container, null); // nothing happens
 
     // test load error
-    global.fetch = t.mock.fn(async () => ({ ok: false, json: async () => ({ error: 'bad' })}));
+    global.fetch = t.mock.fn(async () => ({ ok: false, json: async () => ({ error: 'bad' }) }));
     await loadScopeRegistry();
   });
 });

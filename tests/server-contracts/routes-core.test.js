@@ -23,7 +23,12 @@ describe('core router', () => {
   });
 
   after(async () => {
-    try { const { __TEST_EXPORTS__ } = await import('../../server.js'); if (__TEST_EXPORTS__.getIdleCheckInterval()) clearInterval(__TEST_EXPORTS__.getIdleCheckInterval()); } catch(e) { void e; }
+    try {
+      const { __TEST_EXPORTS__ } = await import('../../server.js');
+      if (__TEST_EXPORTS__.getIdleCheckInterval()) clearInterval(__TEST_EXPORTS__.getIdleCheckInterval());
+    } catch (e) {
+      void e;
+    }
     await new Promise(resolve => server.close(resolve));
   });
 
@@ -62,8 +67,8 @@ describe('core router', () => {
 
     delete process.env.OAUTH_EXTERNAL_URL;
     delete process.env.AUTHELIA_ISSUER;
-  setTimeout(() => process['exit'](0), 10);
-});
+    setTimeout(() => process['exit'](0), 10);
+  });
 
   test('GET /.well-known/oauth-protected-resource without env vars and without host (direct)', () => {
     delete process.env.OAUTH_EXTERNAL_URL;

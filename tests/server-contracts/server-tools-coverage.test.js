@@ -20,12 +20,12 @@ test('server tools error branches', async () => {
 
   const { __TEST_EXPORTS__ } = await import('../../server.js');
   await new Promise(r => setTimeout(r, 1000));
-  
+
   await security.addApiKey('limited-key-12345678901234567890123', {
     userId: 'admin',
     role: 'user',
     allowedIPs: [],
-    scopes: ['some_other_tool']
+    scopes: ['some_other_tool'],
   });
 
   const transportLimited = new SSEClientTransport(new URL('/mcp', `http://127.0.0.1:${port}`), {
@@ -34,7 +34,9 @@ test('server tools error branches', async () => {
   });
   const clientLimited = new Client({ name: 'cov', version: '1.0' }, { capabilities: { tools: { listChanged: true } } });
   await clientLimited.connect(transportLimited);
-  try { await clientLimited.callTool({ name: 'get_system_info', arguments: {} }); } catch (e) {
+  try {
+    await clientLimited.callTool({ name: 'get_system_info', arguments: {} });
+  } catch (e) {
     console.log('LIMITED ERROR:', e.message);
   }
   await clientLimited.close();
@@ -46,17 +48,26 @@ test('server tools error branches', async () => {
   const client = new Client({ name: 'cov', version: '1.0' }, { capabilities: { tools: { listChanged: true } } });
   await client.connect(transport);
 
-  try { await client.callTool({ name: 'request_change_approval', arguments: { tool: 'request_change_approval', arguments: {}, summary: 'x' } }); } catch (e) {
+  try {
+    await client.callTool({
+      name: 'request_change_approval',
+      arguments: { tool: 'request_change_approval', arguments: {}, summary: 'x' },
+    });
+  } catch (e) {
     console.log('APPROVAL ERROR:', e.message);
   }
 
   // capability pack not enabled
-  try { await client.callTool({ name: 'run_sandboxed_code', arguments: { language: 'node', code: 'x' } }); } catch (e) {
+  try {
+    await client.callTool({ name: 'run_sandboxed_code', arguments: { language: 'node', code: 'x' } });
+  } catch (e) {
     console.log('SANDBOX ERROR:', e.message);
   }
 
   // trigger Zod Error inside
-  try { await client.callTool({ name: 'get_system_info', arguments: { forceReplay: 'not-a-boolean' } }); } catch (e) {
+  try {
+    await client.callTool({ name: 'get_system_info', arguments: { forceReplay: 'not-a-boolean' } });
+  } catch (e) {
     console.log('ZOD ERROR:', e.message);
   }
 

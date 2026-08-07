@@ -7,7 +7,9 @@ import path from 'node:path';
 describe('Specific Pages Test', () => {
   let dom;
   beforeEach(() => {
-    dom = new JSDOM('<!DOCTYPE html><html><head></head><body><div id="toast-container"></div></body></html>', { url: 'http://localhost' });
+    dom = new JSDOM('<!DOCTYPE html><html><head></head><body><div id="toast-container"></div></body></html>', {
+      url: 'http://localhost',
+    });
     global.window = dom.window;
     global.document = dom.window.document;
     global.sessionStorage = dom.window.sessionStorage;
@@ -28,10 +30,10 @@ describe('Specific Pages Test', () => {
     delete global.alert;
   });
 
-  test('Test pages specifics', async (t) => {
+  test('Test pages specifics', async t => {
     const { Toast } = await import(`../../public/js/toast.js?t=${Date.now()}`);
     Toast.init();
-    
+
     // We will test each page individually here
     assert.ok(true);
   });

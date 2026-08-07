@@ -42,7 +42,8 @@ function command(file, argv, options = {}) {
 }
 
 function requireRoot() {
-    if (process.argv.includes('--fake-not-root') || (process.getuid && process.getuid() !== 0)) throw new Error('Production deployment commands must run as root');
+  if (process.argv.includes('--fake-not-root') || (process.getuid && process.getuid() !== 0))
+    throw new Error('Production deployment commands must run as root');
 }
 
 function signatureFingerprint(signature, payload) {
@@ -469,4 +470,3 @@ export function runCommand(argv) {
     process.exitCode = 1;
   }
 }
-

@@ -1066,7 +1066,9 @@ describe('more user operations', () => {
     await fs.rm(backupDir2, { recursive: true, force: true });
     try {
       await fs.mkdir(path.dirname(backupDir2), { recursive: true });
-    } catch(e) { void e; }
+    } catch (e) {
+      void e;
+    }
     await fs.writeFile(backupDir2, 'not a dir');
     await handleRequest({
       requestId: '11111111-1111-4111-8111-111111111111',
@@ -1077,7 +1079,9 @@ describe('more user operations', () => {
     const backupDir = path.join(backupRoot, 'missing');
     try {
       await fs.mkdir(path.dirname(backupDir), { recursive: true });
-    } catch(e) { void e; }
+    } catch (e) {
+      void e;
+    }
     await fs.writeFile(backupDir, 'not a dir');
     await handleRequest({
       requestId: '11111111-1111-4111-8111-111111111111',

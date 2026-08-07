@@ -88,15 +88,20 @@ describe('server-mcp-tools fuzzer', () => {
       const res = await client.callTool({ name: t.name, arguments: args }).catch(err => ({ error: err }));
       assert.ok(res !== undefined, `Tool ${t.name} returned a valid response or error`);
     }
-    
+
     const { __TEST_EXPORTS__ } = await import('../../server.js');
-    await __TEST_EXPORTS__.refreshActiveToolLists().catch(()=>{});
+    await __TEST_EXPORTS__.refreshActiveToolLists().catch(() => {});
 
     await client.close();
   });
 
   after(async () => {
-    try { const { __TEST_EXPORTS__ } = await import('../../server.js'); if (__TEST_EXPORTS__.getIdleCheckInterval()) clearInterval(__TEST_EXPORTS__.getIdleCheckInterval()); } catch(e) { void e; }
+    try {
+      const { __TEST_EXPORTS__ } = await import('../../server.js');
+      if (__TEST_EXPORTS__.getIdleCheckInterval()) clearInterval(__TEST_EXPORTS__.getIdleCheckInterval());
+    } catch (e) {
+      void e;
+    }
     for (const socket of sockets) {
       socket.destroy();
     }

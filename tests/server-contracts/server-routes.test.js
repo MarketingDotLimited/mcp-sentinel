@@ -85,22 +85,44 @@ describe('server-routes-fuzzer', () => {
 
     for (const r of handlers) {
       if (typeof r.handler !== 'function') continue;
-      const validBody = { 
-        id: '123', q: 'test', key: 'dummy-key', userId: 'dummy-user', name: 'dummy-name',
-        components: ['api-keys'], enabledTools: ['test'], manifestHash: 'test', 
-        username: 'test', clientId: 'test', oauthReauthorized: true, newChatTested: true, 
-        type: 'test', hostname: 'test', port: 22, remote: 'test', provider: 'test', 
-        confirmationCode: '123', description: 'test', ip: '127.0.0.1', password: 'test', 
-        role: 'admin', confirm: true, address: '127.0.0.1', targetType: 'global',
-        sshAllowed: true, sshEnabled: true, enabled: true, scope: 'identity'
+      const validBody = {
+        id: '123',
+        q: 'test',
+        key: 'dummy-key',
+        userId: 'dummy-user',
+        name: 'dummy-name',
+        components: ['api-keys'],
+        enabledTools: ['test'],
+        manifestHash: 'test',
+        username: 'test',
+        clientId: 'test',
+        oauthReauthorized: true,
+        newChatTested: true,
+        type: 'test',
+        hostname: 'test',
+        port: 22,
+        remote: 'test',
+        provider: 'test',
+        confirmationCode: '123',
+        description: 'test',
+        ip: '127.0.0.1',
+        password: 'test',
+        role: 'admin',
+        confirm: true,
+        address: '127.0.0.1',
+        targetType: 'global',
+        sshAllowed: true,
+        sshEnabled: true,
+        enabled: true,
+        scope: 'identity',
       };
 
       // Ensure activeTransports has at least 6 entries to trigger idle cleanup in makeSessionRoom
       if (r.path === '/mcp' && r.method === 'get') {
-         for (let i=0; i<6; i++) {
-           await fuzzHandler(r.handler, 'admin', {}, {}, { transport: 'sse' });
-         }
-      } 
+        for (let i = 0; i < 6; i++) {
+          await fuzzHandler(r.handler, 'admin', {}, {}, { transport: 'sse' });
+        }
+      }
       await fuzzHandler(r.handler, 'admin', {}, {}, {});
       await fuzzHandler(r.handler, 'admin', validBody, validBody, validBody);
       await fuzzHandler(r.handler, 'user', validBody, validBody, validBody);
@@ -135,13 +157,13 @@ describe('server-helpers-explicit', () => {
 
     const brokerRes = await __TEST_EXPORTS__
       .ensurePrivilegeBrokerAvailable({ identity: { role: 'admin' } }, dummyRes, () => {})
-      .catch((e) => { console.log('Broker throw:', e); });
+      .catch(e => {
+        console.log('Broker throw:', e);
+      });
     console.log('BrokerRes:', brokerRes, 'StatusCode:', statusCode);
     assert.ok(typeof statusCode === 'number');
 
-    await __TEST_EXPORTS__
-      .ensurePrivilegeBrokerAvailable({}, dummyRes, () => {})
-      .catch(() => {});
+    await __TEST_EXPORTS__.ensurePrivilegeBrokerAvailable({}, dummyRes, () => {}).catch(() => {});
     assert.equal(statusCode, 401);
 
     await __TEST_EXPORTS__
@@ -162,7 +184,10 @@ describe('server-helpers-explicit', () => {
     const fallback = __TEST_EXPORTS__.adminDependencyFallbackResponse('/admin/oauth-users', new Error('test'));
     assert.ok(fallback.status >= 200);
 
-    const fallbackManifest = __TEST_EXPORTS__.adminDependencyFallbackResponse('/admin/action-manifest', new Error('test'));
+    const fallbackManifest = __TEST_EXPORTS__.adminDependencyFallbackResponse(
+      '/admin/action-manifest',
+      new Error('test')
+    );
     assert.ok(fallbackManifest.status >= 200);
 
     assert.equal(typeof __TEST_EXPORTS__.isBrokerUnavailable(new Error('broker unavailable')), 'boolean');
@@ -207,7 +232,7 @@ describe('server-helpers-extract', () => {
       'string'
     );
     assert.equal(
-      typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', cause: [ { detail: 'nested2' } ] }),
+      typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', cause: [{ detail: 'nested2' }] }),
       'string'
     );
 
@@ -219,7 +244,14 @@ describe('server-helpers-extract', () => {
     __TEST_EXPORTS__.readAdminCollectionFallback({}, dummyRes, () => {}, {});
     assert.ok(statusCode >= 100);
 
-    await __TEST_EXPORTS__.readAdminCollectionFallback({ originalUrl: '/admin/oauth-users' }, dummyRes, () => { throw new Error('test') }, []);
+    await __TEST_EXPORTS__.readAdminCollectionFallback(
+      { originalUrl: '/admin/oauth-users' },
+      dummyRes,
+      () => {
+        throw new Error('test');
+      },
+      []
+    );
     assert.ok(statusCode >= 200);
 
     __TEST_EXPORTS__.invalidateOAuthSessions('test');

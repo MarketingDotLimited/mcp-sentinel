@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as deployment from '../../lib/deployment.js';
 
 test('deployment utilities', async t => {
-  await t.test('parseEnvironment', async (t) => {
+  await t.test('parseEnvironment', async t => {
     await t.test('parses valid environment correctly', () => {
       const input = `
 # Comment line
@@ -18,13 +18,19 @@ WITH_NUM_1=val
     });
 
     await t.test('throws on missing separator', () => {
-      assert.throws(() => deployment.parseEnvironment('INVALID_LINE'), { message: 'Invalid environment entry on line 1' });
+      assert.throws(() => deployment.parseEnvironment('INVALID_LINE'), {
+        message: 'Invalid environment entry on line 1',
+      });
     });
 
     await t.test('throws on invalid key', () => {
-      assert.throws(() => deployment.parseEnvironment('1INVALID=value'), { message: 'Invalid environment key on line 1' });
+      assert.throws(() => deployment.parseEnvironment('1INVALID=value'), {
+        message: 'Invalid environment key on line 1',
+      });
       assert.throws(() => deployment.parseEnvironment('lower=value'), { message: 'Invalid environment key on line 1' });
-      assert.throws(() => deployment.parseEnvironment('_INVALID=value'), { message: 'Invalid environment key on line 1' });
+      assert.throws(() => deployment.parseEnvironment('_INVALID=value'), {
+        message: 'Invalid environment key on line 1',
+      });
       assert.throws(() => deployment.parseEnvironment('A-B=value'), { message: 'Invalid environment key on line 1' });
     });
 
@@ -35,16 +41,22 @@ WITH_NUM_1=val
     });
   });
 
-  await t.test('validateProjectWritePaths', async (t) => {
+  await t.test('validateProjectWritePaths', async t => {
     await t.test('returns normalized paths', () => {
       const result = deployment.validateProjectWritePaths('/app/project1, /app/project2, /app/project1');
       assert.deepEqual(result, ['/app/project1', '/app/project2']);
     });
 
     await t.test('throws if empty', () => {
-      assert.throws(() => deployment.validateProjectWritePaths(''), { message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository' });
-      assert.throws(() => deployment.validateProjectWritePaths(null), { message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository' });
-      assert.throws(() => deployment.validateProjectWritePaths(' ,  , '), { message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository' });
+      assert.throws(() => deployment.validateProjectWritePaths(''), {
+        message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository',
+      });
+      assert.throws(() => deployment.validateProjectWritePaths(null), {
+        message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository',
+      });
+      assert.throws(() => deployment.validateProjectWritePaths(' ,  , '), {
+        message: 'BROKER_GIT_ALLOWED_REPOS must contain at least one project repository',
+      });
     });
 
     await t.test('throws on non-absolute or not normalized paths or invalid chars', () => {

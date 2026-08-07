@@ -44,7 +44,9 @@ describe('SystemMonitor', () => {
     mock.restoreAll();
     try {
       if (sysMonitor.database) sysMonitor.database.close();
-    } catch(e) { void e; }
+    } catch (e) {
+      void e;
+    }
     try {
       await fsPromises.unlink(dbFile);
     } catch (e) {

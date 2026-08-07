@@ -7,7 +7,7 @@ process.on('unhandledRejection', () => {});
 
 test('router massive coverage', async () => {
   const { app } = __TEST_EXPORTS__;
-  
+
   const req = {
     method: 'GET',
     path: '/',
@@ -16,7 +16,7 @@ test('router massive coverage', async () => {
     body: {},
     query: {},
     identity: { role: 'admin', userId: 'test' },
-    clientIP: '127.0.0.1'
+    clientIP: '127.0.0.1',
   };
 
   const res = {
@@ -31,7 +31,7 @@ test('router massive coverage', async () => {
     write: () => res,
     flushHeaders: () => res,
     headersSent: false,
-    locals: {}
+    locals: {},
   };
 
   const next = () => {};
@@ -43,7 +43,11 @@ test('router massive coverage', async () => {
         req.method = method.toUpperCase();
         req.path = layer.route.path;
         for (const handler of layer.route.stack) {
-           try { await handler.handle(req, res, next); } catch(e) { void e; }
+          try {
+            await handler.handle(req, res, next);
+          } catch (e) {
+            void e;
+          }
         }
       }
     } else if (layer.name === 'router') {
@@ -54,13 +58,21 @@ test('router massive coverage', async () => {
             req.method = method.toUpperCase();
             req.path = subLayer.route.path;
             for (const handler of subLayer.route.stack) {
-               try { await handler.handle(req, res, next); } catch(e) { void e; }
+              try {
+                await handler.handle(req, res, next);
+              } catch (e) {
+                void e;
+              }
             }
           }
         }
       }
     } else if (layer.handle) {
-      try { await layer.handle(req, res, next); } catch(e) { void e; }
+      try {
+        await layer.handle(req, res, next);
+      } catch (e) {
+        void e;
+      }
     }
   }
 });

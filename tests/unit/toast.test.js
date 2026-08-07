@@ -15,10 +15,10 @@ describe('toast.js', () => {
     delete global.document;
   });
 
-  test('Toast.show and types', async (t) => {
+  test('Toast.show and types', async t => {
     const { Toast } = await import(`../../public/js/toast.js?t=${Date.now()}`);
     Toast.container = null; // reset state
-    
+
     t.mock.timers.enable({ apis: ['setTimeout'] });
 
     Toast.init();
@@ -45,7 +45,7 @@ describe('toast.js', () => {
     const closeBtn = toast.querySelector('.toast-close');
     closeBtn.click();
     assert.ok(toast.classList.contains('toast-exit'));
-    
+
     t.mock.timers.tick(350);
     assert.ok(!toast.parentNode); // should be removed
 
@@ -57,7 +57,7 @@ describe('toast.js', () => {
     assert.ok(autoToast.classList.contains('toast-exit'));
     t.mock.timers.tick(350);
     assert.ok(!autoToast.parentNode);
-    
+
     // Test duration auto close when already removed manually
     if (Toast.container) Toast.container.innerHTML = '';
     Toast.show('Auto close manual remove', 'info', 100);

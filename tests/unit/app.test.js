@@ -5,7 +5,8 @@ import { JSDOM } from 'jsdom';
 describe('app.js', () => {
   let dom;
   beforeEach(() => {
-    dom = new JSDOM(`<!DOCTYPE html><html><body>
+    dom = new JSDOM(
+      `<!DOCTYPE html><html><body>
       <div id="main-content"></div>
       <button id="logout-btn"></button>
       <button id="mobile-toggle"></button>
@@ -13,11 +14,13 @@ describe('app.js', () => {
         <a class="nav-link" href="#/dashboard"></a>
       </div>
       <div id="sidebar-backdrop"></div>
-    </body></html>`, { url: 'http://localhost' });
+    </body></html>`,
+      { url: 'http://localhost' }
+    );
     global.window = dom.window;
     global.document = dom.window.document;
     global.sessionStorage = dom.window.sessionStorage;
-    
+
     // Polyfill pages
     window.WorkflowsPage = { render: () => {} };
     window.ApprovalsPage = { render: () => {} };
@@ -41,12 +44,12 @@ describe('app.js', () => {
     }
   });
 
-  test('app.js UI interactions', async (t) => {
+  test('app.js UI interactions', async t => {
     try {
       const { Auth } = await import(`../../public/js/auth.js?t=${Date.now()}`);
       const { API } = await import(`../../public/js/api.js?t=${Date.now()}`);
       const { Router } = await import(`../../public/js/router.js?t=${Date.now()}`);
-      
+
       // Load app.js
       await import(`../../public/js/app.js?t=${Date.now()}`);
 
@@ -59,13 +62,13 @@ describe('app.js', () => {
       const toggle = document.getElementById('mobile-toggle');
       const sidebar = document.getElementById('sidebar');
       const backdrop = document.getElementById('sidebar-backdrop');
-      
+
       Object.defineProperty(window, 'innerWidth', { value: 500, configurable: true });
 
       toggle.click();
       assert.strictEqual(sidebar.classList.contains('sidebar-open'), true);
       assert.strictEqual(backdrop.classList.contains('visible'), true);
-      
+
       toggle.click();
       assert.strictEqual(sidebar.classList.contains('sidebar-open'), false);
 
@@ -93,15 +96,15 @@ describe('app.js', () => {
       // Test login page render
       window.location.hash = '#/login';
       Router.navigate();
-      
+
       const loginForm = document.querySelector('.login-form');
       assert.ok(loginForm);
-      
+
       global.fetch = t.mock.fn(async () => ({ ok: true, json: async () => ({ token: 'new-token' }) }));
-      
+
       // empty key
       loginForm.dispatchEvent(new dom.window.Event('submit'));
-      
+
       // bad key
       global.fetch = t.mock.fn(async () => ({ ok: false, json: async () => ({ error: 'Bad' }) }));
       document.querySelector('.input-field').value = 'bad-key';

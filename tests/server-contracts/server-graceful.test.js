@@ -9,12 +9,14 @@ test('graceful shutdown coverage', async () => {
   const origExit = process.exit;
   const origLog = console.log;
   let exitCode = null;
-  process.exit = (code) => { exitCode = code; };
+  process.exit = code => {
+    exitCode = code;
+  };
   console.log = () => {};
 
   // Mock setTimeout to not actually do anything for 10000ms
   const origSetTimeout = global.setTimeout;
-  global.setTimeout = function() {
+  global.setTimeout = function () {
     if (arguments[1] === 10000) return;
     return origSetTimeout.apply(this, arguments);
   };
@@ -24,7 +26,9 @@ test('graceful shutdown coverage', async () => {
   let origClose;
   if (server) {
     origClose = server.close;
-    server.close = (cb) => { if (cb) cb(); };
+    server.close = cb => {
+      if (cb) cb();
+    };
   }
 
   // Add a fake transport to cover the close loop
@@ -32,7 +36,7 @@ test('graceful shutdown coverage', async () => {
 
   // Call the listeners to cover the lines
   process.listeners('SIGTERM').find(f => f.toString().includes('gracefulShutdown'))?.();
-  
+
   // wait for the async exit from the audit.js import
   for (let i = 0; i < 20; i++) {
     if (exitCode === 0) break;

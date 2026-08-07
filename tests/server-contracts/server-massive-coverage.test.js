@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 test('massive coverage', async () => {
   const { __TEST_EXPORTS__ } = await import('../../server.js');
-  
+
   // 1. ensurePrivilegeBrokerAvailable (line 154)
   const req = { identity: { role: 'admin' } };
   const res = { status: () => ({ json: () => {} }) };
@@ -14,9 +14,18 @@ test('massive coverage', async () => {
   const complexObj = {
     message: 'test',
     error: { detail: 'inner', arr: ['a', 'b'] },
-    reason: 'r', code: 'c', statusText: 'st', status: 's',
-    socketPath: 'sp', name: 'n', cause: 'ca', err: 'e', response: 're', body: 'b', data: 'd',
-    nested: { cause: { name: 'nested name' } }
+    reason: 'r',
+    code: 'c',
+    statusText: 'st',
+    status: 's',
+    socketPath: 'sp',
+    name: 'n',
+    cause: 'ca',
+    err: 'e',
+    response: 're',
+    body: 'b',
+    data: 'd',
+    nested: { cause: { name: 'nested name' } },
   };
   complexObj.circular = complexObj;
   __TEST_EXPORTS__.extractDependencyErrorText(complexObj);
@@ -32,7 +41,7 @@ test('massive coverage', async () => {
 
   __TEST_EXPORTS__.safeLogError(null);
   __TEST_EXPORTS__.safeLogError(new Error('test'), { tool: 'test' });
-  
+
   __TEST_EXPORTS__.sanitizeClientOverrides(null);
   __TEST_EXPORTS__.sanitizeOAuthUserPayload(null);
 
@@ -51,8 +60,22 @@ test('massive coverage', async () => {
   __TEST_EXPORTS__.summarizeHealth({ cpu: 80, memory: 80, disk: 80 });
   __TEST_EXPORTS__.summarizeHealth({ cpu: 50, memory: 50, disk: 50 });
 
-  await __TEST_EXPORTS__.adminReadFallbackHandler({ method: 'GET', path: '/admin/sessions' }, res, async () => { throw new Error('BROKER_UNAVAILABLE'); }, { fallbackOnAnyError: true });
-  await __TEST_EXPORTS__.readAdminCollectionFallback({ identity: { role: 'admin' }, path: '/admin/sessions' }, res, async () => { throw new Error('BROKER_UNAVAILABLE'); }, { fallbackOnAnyError: true });
+  await __TEST_EXPORTS__.adminReadFallbackHandler(
+    { method: 'GET', path: '/admin/sessions' },
+    res,
+    async () => {
+      throw new Error('BROKER_UNAVAILABLE');
+    },
+    { fallbackOnAnyError: true }
+  );
+  await __TEST_EXPORTS__.readAdminCollectionFallback(
+    { identity: { role: 'admin' }, path: '/admin/sessions' },
+    res,
+    async () => {
+      throw new Error('BROKER_UNAVAILABLE');
+    },
+    { fallbackOnAnyError: true }
+  );
 
   await __TEST_EXPORTS__.buildSecurityPosture().catch(() => {});
 

@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 
 describe('admin-state', () => {
-  it('covers branch where env var is not set', async (t) => {
+  it('covers branch where env var is not set', async t => {
     if (process.getuid && process.getuid() === 0) {
       t.skip('Cannot test EACCES as root user');
       return;

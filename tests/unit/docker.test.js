@@ -205,16 +205,16 @@ test('docker tools', async t => {
     process.env.SANDBOX_ALLOW_NETWORK = 'true';
     process.env.SANDBOX_NETWORK = 'my-net';
     setupSpawnMock({ stdoutStr: 'hello world' });
-    
-    const result = await docker.runSandboxedCode({ 
-      language: 'node', 
-      code: 'console.log("hello world")', 
-      allowNetwork: true, 
+
+    const result = await docker.runSandboxedCode({
+      language: 'node',
+      code: 'console.log("hello world")',
+      allowNetwork: true,
       confirm: true,
-      timeout: "150", // test clamping to 120
-      files: { 'test.js': 'content' }
+      timeout: '150', // test clamping to 120
+      files: { 'test.js': 'content' },
     });
-    
+
     assert.equal(result.success, true);
     assert.equal(result.network, 'approved-egress');
     assert.equal(fsMock.mkdtemp.mock.calls.length, 1);
@@ -223,9 +223,15 @@ test('docker tools', async t => {
   });
 
   await t.test('runSandboxedCode cleans up tempDir on fs error', async () => {
-    fsMock.writeFile.mock.mockImplementationOnce(async () => { throw new Error('fs error'); });
+    fsMock.writeFile.mock.mockImplementationOnce(async () => {
+      throw new Error('fs error');
+    });
     await assert.rejects(
-      docker.runSandboxedCode({ language: 'node', code: 'console.log("hello world")', files: { 'test.js': 'content' } }),
+      docker.runSandboxedCode({
+        language: 'node',
+        code: 'console.log("hello world")',
+        files: { 'test.js': 'content' },
+      }),
       /fs error/
     );
     assert.equal(fsMock.rm.mock.calls.length, 1);
@@ -245,24 +251,24 @@ test('docker tools', async t => {
       child.stdout = new events.EventEmitter();
       child.stderr = new events.EventEmitter();
       let errorEmitted = false;
-      child.stdin = { 
+      child.stdin = {
         on: (ev, cb) => {
           if (ev === 'error' && !errorEmitted) {
             errorEmitted = true;
             cb(new Error('stdin error')); // test stdin error coverage
           }
-        }, 
-        end: () => {} 
+        },
+        end: () => {},
       };
       child.kill = mock.fn();
-      
+
       setTimeout(() => {
         child.stdin.on('error', () => {}); // trigger branch
         child.emit('close', null, 'SIGKILL');
       }, 2000);
       return child;
     });
-    
+
     // Test execFile throwing in forceRemove
     execFileMock.mock.mockImplementationOnce((cmd, args, opts, cb) => {
       throw new Error('rm failed');
@@ -280,17 +286,17 @@ test('docker tools', async t => {
       child.stderr = new events.EventEmitter();
       child.stdin = { on: () => {}, end: () => {} };
       child.kill = mock.fn();
-      
+
       setTimeout(() => {
-        child.stdout.emit('data', Buffer.alloc(1024 * 1024 - 5, 'a')); 
+        child.stdout.emit('data', Buffer.alloc(1024 * 1024 - 5, 'a'));
         child.stdout.emit('data', Buffer.alloc(10, 'b')); // Hits kept.length < chunk.length
         child.stdout.emit('data', Buffer.alloc(10, 'c')); // Hits remaining <= 0
       }, 5);
-      
+
       setTimeout(() => child.emit('close', 0, null), 15);
       return child;
     });
-    
+
     const result = await docker.runSandboxedCode({ language: 'python', code: 'print("a" * 2000000)' });
     assert.equal(result.success, false);
     assert.equal(result.truncated, true);

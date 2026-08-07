@@ -25,7 +25,7 @@ describe('Server internal functions', async () => {
     respondServiceDependencyUnavailable,
     adminReadFallbackHandler,
     readAdminCollectionFallback,
-    buildSecurityPosture
+    buildSecurityPosture,
   } = __TEST_EXPORTS__;
 
   test('isBrokerUnavailable', () => {
@@ -92,8 +92,12 @@ describe('Server internal functions', async () => {
     const originalConsoleError = console.error;
     let exitCode = null;
     let consoleErrorCalled = false;
-    process.exit = (code) => { exitCode = code; };
-    console.error = () => { consoleErrorCalled = true; };
+    process.exit = code => {
+      exitCode = code;
+    };
+    console.error = () => {
+      consoleErrorCalled = true;
+    };
 
     const uncaughtListeners = process.listeners('uncaughtException');
     const ourUncaught = uncaughtListeners.find(f => f.toString().includes('UNCAUGHT_EXCEPTION'));
@@ -114,21 +118,27 @@ describe('Server internal functions', async () => {
   });
 
   test('ensurePrivilegeBrokerAvailable coverage', async () => {
-    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const res = { status: s => ({ json: j => ({ status: s, body: j }) }) };
     const req = { identity: { role: 'admin' } };
     try {
       await ensurePrivilegeBrokerAvailable(req, res, () => 'next');
-    } catch(e) { void e; }
+    } catch (e) {
+      void e;
+    }
     try {
       await ensurePrivilegeBrokerAvailable({}, res, () => 'next');
-    } catch(e) { void e; }
+    } catch (e) {
+      void e;
+    }
     try {
-      await ensurePrivilegeBrokerAvailable({ identity: { role: 'user' }}, res, () => 'next');
-    } catch(e) { void e; }
+      await ensurePrivilegeBrokerAvailable({ identity: { role: 'user' } }, res, () => 'next');
+    } catch (e) {
+      void e;
+    }
   });
 
   test('respondServiceDependencyUnavailable coverage', () => {
-    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const res = { status: s => ({ json: j => ({ status: s, body: j }) }) };
     respondServiceDependencyUnavailable(res, { code: 'STATE_STORE_UNAVAILABLE' });
   });
 
@@ -166,24 +176,32 @@ describe('Server internal functions', async () => {
   });
 
   test('adminReadFallbackHandler coverage', async () => {
-    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const res = { status: s => ({ json: j => ({ status: s, body: j }) }) };
     const req = { path: '/foo', method: 'GET' };
-    const reader = async () => { throw new Error('BROKER_UNAVAILABLE'); };
+    const reader = async () => {
+      throw new Error('BROKER_UNAVAILABLE');
+    };
     await adminReadFallbackHandler(req, res, reader, { fallbackOnAnyError: true });
-    
-    const reader2 = async () => { throw { status: 403 }; };
+
+    const reader2 = async () => {
+      throw { status: 403 };
+    };
     await adminReadFallbackHandler(req, res, reader2, {});
   });
 
   test('readAdminCollectionFallback coverage', async () => {
-    const res = { status: (s) => ({ json: (j) => ({ status: s, body: j }) }) };
+    const res = { status: s => ({ json: j => ({ status: s, body: j }) }) };
     const req = { identity: { role: 'admin' }, path: '/foo' };
-    const reader = async () => { throw new Error('BROKER_UNAVAILABLE'); };
+    const reader = async () => {
+      throw new Error('BROKER_UNAVAILABLE');
+    };
     await readAdminCollectionFallback(req, res, reader, { fallbackOnAnyError: true });
 
-    const reader2 = async () => { throw { status: 403 }; };
+    const reader2 = async () => {
+      throw { status: 403 };
+    };
     await readAdminCollectionFallback(req, res, reader2, {});
-    
+
     const reqNoAuth = { path: '/foo' };
     await readAdminCollectionFallback(reqNoAuth, res, reader, {});
 
@@ -194,6 +212,8 @@ describe('Server internal functions', async () => {
   test('buildSecurityPosture coverage', async () => {
     try {
       await buildSecurityPosture();
-    } catch(e) { void e; }
+    } catch (e) {
+      void e;
+    }
   });
 });

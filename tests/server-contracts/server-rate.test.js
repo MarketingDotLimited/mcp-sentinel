@@ -8,9 +8,9 @@ test('rate limit handler', async () => {
   process.env.TEST_NO_LISTEN = 'false';
   process.env.PORT = '0';
   process.env.NODE_ENV = 'test';
-  
+
   const { __TEST_EXPORTS__ } = await import('../../server.js');
-  
+
   if (__TEST_EXPORTS__.brokerCall) {
     mock.method(__TEST_EXPORTS__, 'brokerCall', async () => ({ ok: true, data: [] }));
   }
@@ -25,7 +25,7 @@ test('rate limit handler', async () => {
 
   const res2 = await fetch(`http://127.0.0.1:${port}/health`);
   assert.equal(res2.status, 429);
-  
+
   // also test authenticatedLimiter!
   // It uses req.identity, so we can just mock it or send a real token!
   // Wait, if it returns 429, it covered the globalLimiter block!
