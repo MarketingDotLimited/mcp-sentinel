@@ -73,6 +73,8 @@ if (!process.env.MCP_ISOLATED_TEST_ENV) {
     AUTHELIA_USERS_FILE: path.join(tmpDir, 'users.yml'),
     AUTHELIA_CONFIG_FILE: path.join(tmpDir, 'configuration.yml'),
     BROKER_FIREWALL_SNAPSHOT_ROOT: path.join(tmpDir, 'firewall-snapshots'),
+    JWT_SECRET: 'test-jwt-secret-that-is-at-least-64-characters-long-so-it-passes-validation-12345678901234567890',
+    ADMIN_API_KEY: 'test-admin-api-key',
   };
 
   fs.mkdirSync(env.MCP_STATE_DIR, { recursive: true });
