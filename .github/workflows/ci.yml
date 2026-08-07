@@ -85,12 +85,18 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
+      - name: Run Static Test Integrity Audit
+        run: node scripts/detect-unsafe-tests.mjs
+
+      - name: Verify Coverage Scope
+        run: node scripts/verify-coverage-scope.mjs
+
       - name: Run Unit Tests with Coverage
         run: npm run test:coverage
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: matrix.node-version == '22.x'
+        if: always()
         with:
           name: coverage-report
           path: coverage/
