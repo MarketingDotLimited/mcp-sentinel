@@ -2651,14 +2651,15 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, a
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   /* c8 ignore next */
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
-  const resource = /* c8 ignore next */
-  (
-    process.env.OAUTH_RESOURCE_URL ||
+  const resource =
     /* c8 ignore next */
-    process.env.PUBLIC_URL ||
-    /* c8 ignore next */
-    `${req.protocol}://${req.get('host')}`
-  ).replace(/\/$/, '');
+    (
+      process.env.OAUTH_RESOURCE_URL ||
+      /* c8 ignore next */
+      process.env.PUBLIC_URL ||
+      /* c8 ignore next */
+      `${req.protocol}://${req.get('host')}`
+    ).replace(/\/$/, '');
   /* c8 ignore next */
   if (!issuer) return res.status(400).json({ error: 'Authelia issuer is not configured' });
   const state = randomUUID();
