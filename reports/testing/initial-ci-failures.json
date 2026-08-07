@@ -1,0 +1,78 @@
+{
+  "startingCommit": "6fbc27c81c3f0634af20f6a86377024e6d994633",
+  "historicalBaselineCommit": "ff2e4140548eaab51b7fa5a5de395d61f0874afd",
+  "revalidatedObservations": [
+    {
+      "id": 1,
+      "observation": "The latest main workflow is failing.",
+      "revalidated": true,
+      "details": "npm run lint fails with exit code 1; npm run test:coverage fails with exit code 1 due to 100% per-file/global threshold failure."
+    },
+    {
+      "id": 2,
+      "observation": "ESLint reports an unused variable in tests/security-oidc-branches.test.js",
+      "revalidated": true,
+      "details": "no-useless-assignment rule triggered at tests/security-oidc-branches.test.js line 87."
+    },
+    {
+      "id": 3,
+      "observation": "Unit Tests & Coverage exits with code 1.",
+      "revalidated": true,
+      "details": "c8 check-coverage fails threshold enforcement (Lines 90.92%, Branches 89.41% vs required 100%)."
+    },
+    {
+      "id": 4,
+      "observation": "The current c8 configuration uses per-file: false.",
+      "revalidated": true,
+      "details": ".c8rc has 'per-file': false."
+    },
+    {
+      "id": 5,
+      "observation": "The current c8 include list does not include browser JavaScript under public/js/**.",
+      "revalidated": true,
+      "details": ".c8rc include array omits public/js/**."
+    },
+    {
+      "id": 6,
+      "observation": "Production JavaScript under scripts/** is not included in coverage.",
+      "revalidated": true,
+      "details": ".c8rc include array omits scripts/**."
+    },
+    {
+      "id": 7,
+      "observation": "Some tests directly invoke process.exit(0).",
+      "revalidated": true,
+      "details": "tests/broker-missing.test.js and tests/server-routes.test.js contain process.exit calls."
+    },
+    {
+      "id": 8,
+      "observation": "Some tests catch unexpected request or tool failures and continue without asserting exact expected errors.",
+      "revalidated": true,
+      "details": "Multiple test files use .catch(() => {}) or empty try/catch blocks."
+    },
+    {
+      "id": 9,
+      "observation": "The real-browser test is skipped unless RUN_UI_E2E=true.",
+      "revalidated": true,
+      "details": "tests/ui-e2e.test.js line 42 has { skip: !enabled }."
+    },
+    {
+      "id": 10,
+      "observation": "The current CI does not run npm run test:browser as a required job.",
+      "revalidated": true,
+      "details": "ci.yml does not run Playwright browser tests as a required non-skippable CI job with browser coverage collection."
+    },
+    {
+      "id": 11,
+      "observation": "The Markdown and JSON user-needs reports disagree on persona count, requirement count, and summary totals.",
+      "revalidated": true,
+      "details": "USER_NEEDS_COVERAGE.md lists 7 personas and 35 needs while user-needs-coverage.json lists 3 personas and 26 needs."
+    },
+    {
+      "id": 12,
+      "observation": "Recent test commits touched production modules requiring separate behavioral audit.",
+      "revalidated": true,
+      "details": "Commits touched server.js, broker.js, lib/control-plane.js, lib/exec.js, lib/project-operation-dispatcher.js."
+    }
+  ]
+}

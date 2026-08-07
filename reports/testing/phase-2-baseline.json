@@ -1,0 +1,27 @@
+{
+  "nodeVersion": "v22.23.2",
+  "npmVersion": "10.9.8",
+  "os": "linux",
+  "startingCommit": "6fbc27c81c3f0634af20f6a86377024e6d994633",
+  "historicalAuditBaseline": "ff2e4140548eaab51b7fa5a5de395d61f0874afd",
+  "testMetrics": {
+    "total": 603,
+    "passed": 603,
+    "failed": 0,
+    "skipped": 0,
+    "todo": 0,
+    "unitTestDurationMs": 6418
+  },
+  "ciStatus": {
+    "lintExitCode": 1,
+    "testCoverageExitCode": 1,
+    "releaseCheckExitCode": 1
+  },
+  "startingCoverage": {
+    "statements": 90.92,
+    "branches": 89.41,
+    "functions": 97.07,
+    "lines": 90.92,
+    "perFileEnforced": false
+  }
+}
