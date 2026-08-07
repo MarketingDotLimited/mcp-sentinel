@@ -4,6 +4,10 @@ import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'url';
 
+if (process.getuid) {
+  process.getuid = () => 0;
+}
+
 const SCRIPT_PATH = fileURLToPath(new URL('../../scripts/deploy-release.js', import.meta.url));
 
 const fsMock = {
