@@ -83,7 +83,7 @@ async function generate() {
   );
 }
 
-generate().catch(err => {
+await generate().catch(err => {
   console.error(err);
   process.exit(1);
 });

@@ -547,7 +547,7 @@ describe('broker operational integration', () => {
 
     try {
       fsSync.unlinkSync('/tmp/testuser/.ssh');
-    } catch (e) {}
+    } catch(e) { void e; }
     await new Promise(resolve => brokerServer.close(resolve));
   });
 });

@@ -81,6 +81,6 @@ test('fuzz success paths', async () => {
     try {
       const p = r.handler(req, res, () => {});
       if (p && p.catch) await p.catch(() => {});
-    } catch(e) {}
+    } catch(e) { void e; }
   }
 });

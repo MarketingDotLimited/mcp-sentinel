@@ -93,7 +93,7 @@ ${mutants.length > 0 ? '### Surviving Mutants List\n```json\n' + JSON.stringify(
   }
 }
 
-runMutationTests().catch(err => {
+await runMutationTests().catch(err => {
   console.error(err);
   process.exit(1);
 });

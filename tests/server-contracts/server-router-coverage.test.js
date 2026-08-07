@@ -43,7 +43,7 @@ test('router massive coverage', async () => {
         req.method = method.toUpperCase();
         req.path = layer.route.path;
         for (const handler of layer.route.stack) {
-           try { await handler.handle(req, res, next); } catch(e) {}
+           try { await handler.handle(req, res, next); } catch(e) { void e; }
         }
       }
     } else if (layer.name === 'router') {
@@ -54,13 +54,13 @@ test('router massive coverage', async () => {
             req.method = method.toUpperCase();
             req.path = subLayer.route.path;
             for (const handler of subLayer.route.stack) {
-               try { await handler.handle(req, res, next); } catch(e) {}
+               try { await handler.handle(req, res, next); } catch(e) { void e; }
             }
           }
         }
       }
     } else if (layer.handle) {
-      try { await layer.handle(req, res, next); } catch(e) {}
+      try { await layer.handle(req, res, next); } catch(e) { void e; }
     }
   }
 });

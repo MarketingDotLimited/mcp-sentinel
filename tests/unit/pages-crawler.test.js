@@ -81,25 +81,25 @@ describe('Generic Pages Test', () => {
           }};
         });
 
-        try { component.render(container); } catch(e) {}
+        try { component.render(container); } catch(e) { void e; }
         await new Promise(r => setTimeout(r, 20)); // let GETs finish
         
         let elements = container.querySelectorAll('button, input, select, form, a, [class*="btn"]');
         for (const el of elements) {
           if (el.tagName === 'FORM') {
-            try { el.dispatchEvent(new dom.window.Event('submit', { cancelable: true })); } catch(e){}
+            try { el.dispatchEvent(new dom.window.Event('submit', { cancelable: true })); } catch(e){ void e; }
           } else if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
             el.value = 'test';
-            try { el.dispatchEvent(new dom.window.Event('input')); } catch(e){}
-            try { el.dispatchEvent(new dom.window.Event('change')); } catch(e){}
+            try { el.dispatchEvent(new dom.window.Event('input')); } catch(e){ void e; }
+            try { el.dispatchEvent(new dom.window.Event('change')); } catch(e){ void e; }
           } else {
-            try { el.click(); } catch(e){}
+            try { el.click(); } catch(e){ void e; }
           }
         }
         await new Promise(r => setTimeout(r, 20)); // let POSTs finish
 
         if (component.destroy) {
-          try { component.destroy(); } catch(e){}
+          try { component.destroy(); } catch(e){ void e; }
         }
         container.remove();
       };

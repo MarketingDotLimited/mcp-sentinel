@@ -1,0 +1,10 @@
+--- server.js
++++ server.js
+@@ -4090,6 +4090,7 @@
+   }
+ 
++  console.log("HANDLERS:", Object.keys(server.server._requestHandlers));
+   const manifestBody = JSON.stringify(visibleTools);
+ 
+ 
+ 

@@ -83,7 +83,7 @@ function option(name) {
   return index >= 0 ? process.argv[index + 1] : null;
 }
 
-async function main() {
+export async function main() {
   const projectFile = option('--project');
   const databaseFile = option('--state-db') || process.env.MCP_STATE_DB || '/var/lib/mcp-sentinel/state.sqlite3';
   if (!projectFile) throw new Error('--project must reference a protected JSON project record');

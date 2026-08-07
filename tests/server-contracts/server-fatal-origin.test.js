@@ -6,8 +6,8 @@ test('validateConfig fatal origins', async () => {
   process.env.AUDIT_HMAC_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
   process.env.AUDIT_CHECKPOINT_FILE = '/tmp/test-checkpoint.json';
   process.env.AUDIT_LOG_FILE = '/tmp/test-audit.log';
-  try { fs.unlinkSync('/tmp/test-checkpoint.json'); } catch(e) {}
-  try { fs.unlinkSync('/tmp/test-audit.log'); } catch(e) {}
+  try { fs.unlinkSync('/tmp/test-checkpoint.json'); } catch(e) { void e; }
+  try { fs.unlinkSync('/tmp/test-audit.log'); } catch(e) { void e; }
   
   await import('../test-env.js');
 
@@ -28,5 +28,5 @@ test('validateConfig fatal origins', async () => {
   console.error = origError;
   process.env.NODE_ENV = 'test';
   delete process.env.AUDIT_HMAC_KEY;
-  setTimeout(() => process.exit(0), 10);
+  
 });

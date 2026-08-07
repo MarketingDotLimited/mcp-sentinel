@@ -1,0 +1,601 @@
+TAP version 13
+# (node:4034318) ExperimentalWarning: Module mocking is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:86:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:85:9)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST prepare --fake-not-root FINISHED WITH 1 <<<
+# ACTUAL CODE FOR prepare --fake-not-root IS 1
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:90:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:89:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST unknown null FINISHED WITH 1 <<<
+# ACTUAL CODE FOR unknown null IS 1
+# ACTUAL CODE FOR prepare null IS 1
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:95:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:93:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST prepare null FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:104:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:98:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST prepare null FINISHED WITH 1 <<<
+# ACTUAL CODE FOR prepare null IS 1
+# ACTUAL CODE FOR stage null IS 1
+# ACTUAL CODE FOR stage a.txt IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:108:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:107:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage null FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:113:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:111:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.txt FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:119:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:116:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:124:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:122:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:130:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:127:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:136:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:133:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR activate null IS 1
+# ACTUAL CODE FOR activate 1.0.0 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR rollback null IS 1
+# ACTUAL CODE FOR rollback 1.0.0 IS 1
+# ACTUAL CODE FOR rollback 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR rollback 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:142:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:139:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:151:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:145:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:162:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:154:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:171:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:165:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:175:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:174:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST activate null FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:179:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:178:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST activate 1.0.0 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:184:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:182:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:190:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:187:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:195:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:193:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:199:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:198:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST rollback null FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:203:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:202:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST rollback 1.0.0 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:208:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:206:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST rollback 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:213:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:211:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST rollback 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT: ReferenceError: checksum is not defined
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:492:26)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:76:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:224:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:216:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+# Deployment refused: checksum is not defined
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# Subtest: deploy-release.js suite
+    # Subtest: prepare-not-root
+    ok 1 - prepare-not-root
+      ---
+      duration_ms: 1.276127
+      type: 'test'
+      ...
+    # Subtest: usage
+    not ok 2 - usage
+      ---
+      duration_ms: 0.418704
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:89:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 2, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:90:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:89:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: prepare-happy
+    not ok 3 - prepare-happy
+      ---
+      duration_ms: 0.374564
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:93:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:95:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:93:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: prepare-create-user
+    not ok 4 - prepare-create-user
+      ---
+      duration_ms: 0.277593
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:98:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:104:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:98:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: stage-no-artifact
+    ok 5 - stage-no-artifact
+      ---
+      duration_ms: 0.25029
+      type: 'test'
+      ...
+    # Subtest: stage-not-tar-gz
+    ok 6 - stage-not-tar-gz
+      ---
+      duration_ms: 0.186105
+      type: 'test'
+      ...
+    # Subtest: stage-invalid-temp
+    ok 7 - stage-invalid-temp
+      ---
+      duration_ms: 0.20005
+      type: 'test'
+      ...
+    # Subtest: stage-happy
+    not ok 8 - stage-happy
+      ---
+      duration_ms: 0.349157
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:122:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:124:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:122:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: stage-bad-file-size
+    ok 9 - stage-bad-file-size
+      ---
+      duration_ms: 0.38629
+      type: 'test'
+      ...
+    # Subtest: stage-bad-checksum-length
+    ok 10 - stage-bad-checksum-length
+      ---
+      duration_ms: 0.260263
+      type: 'test'
+      ...
+    # Subtest: stage-checksum-mismatch
+    ok 11 - stage-checksum-mismatch
+      ---
+      duration_ms: 0.194188
+      type: 'test'
+      ...
+    # Subtest: stage-bad-signature
+    ok 12 - stage-bad-signature
+      ---
+      duration_ms: 0.159643
+      type: 'test'
+      ...
+    # Subtest: stage-bad-tar-list
+    ok 13 - stage-bad-tar-list
+      ---
+      duration_ms: 0.146197
+      type: 'test'
+      ...
+    # Subtest: stage-no-manifest
+    ok 14 - stage-no-manifest
+      ---
+      duration_ms: 0.16444
+      type: 'test'
+      ...
+    # Subtest: activate-no-release
+    ok 15 - activate-no-release
+      ---
+      duration_ms: 0.633297
+      type: 'test'
+      ...
+    # Subtest: activate-invalid-release
+    ok 16 - activate-invalid-release
+      ---
+      duration_ms: 0.23044
+      type: 'test'
+      ...
+    # Subtest: activate-not-found
+    ok 17 - activate-not-found
+      ---
+      duration_ms: 0.161021
+      type: 'test'
+      ...
+    # Subtest: activate-not-dir
+    ok 18 - activate-not-dir
+      ---
+      duration_ms: 0.132887
+      type: 'test'
+      ...
+    # Subtest: activate-happy
+    not ok 19 - activate-happy
+      ---
+      duration_ms: 0.212738
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:193:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:195:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:193:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: rollback-no-id
+    ok 20 - rollback-no-id
+      ---
+      duration_ms: 0.131119
+      type: 'test'
+      ...
+    # Subtest: rollback-invalid-id
+    ok 21 - rollback-invalid-id
+      ---
+      duration_ms: 0.114006
+      type: 'test'
+      ...
+    # Subtest: rollback-not-found
+    ok 22 - rollback-not-found
+      ---
+      duration_ms: 0.110803
+      type: 'test'
+      ...
+    # Subtest: rollback-happy
+    not ok 23 - rollback-happy
+      ---
+      duration_ms: 0.151116
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:211:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:213:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:211:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: service-catch
+    not ok 24 - service-catch
+      ---
+      duration_ms: 0.152851
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:216:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:81:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:224:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:216:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    1..24
+not ok 1 - deploy-release.js suite
+  ---
+  duration_ms: 17.743318
+  type: 'test'
+  location: '/root/mcp-server/tests/scripts/deploy-release.test.js:33:1'
+  failureType: 'subtestsFailed'
+  error: '7 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 25
+# suites 0
+# pass 17
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 123.189464

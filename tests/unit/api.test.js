@@ -136,11 +136,11 @@ describe('api.js', () => {
     });
     
     // Should retry multiple URLs for /admin/
-    try { await API.get('/admin/test'); } catch (e) {}
+    try { await API.get('/admin/test'); } catch(e) { void e; }
     assert.ok(calls > 0);
 
     calls = 0;
-    try { await API.get('/action-manifest'); } catch (e) {}
+    try { await API.get('/action-manifest'); } catch(e) { void e; }
     assert.ok(calls > 0);
   });
   
@@ -173,8 +173,8 @@ describe('api.js', () => {
     global.fetch = t.mock.fn(async () => ({ status: 500, ok: false, json: async () => ({ error: 'database is locked' }) }));
     
     // object as url?
-    try { await API.get({}); } catch(e) {}
-    try { await API.get('http://invalid url'); } catch(e) {}
-    try { await API.get('http://localhost/admin/test'); } catch(e) {}
+    try { await API.get({}); } catch(e) { void e; }
+    try { await API.get('http://invalid url'); } catch(e) { void e; }
+    try { await API.get('http://localhost/admin/test'); } catch(e) { void e; }
   });
 });

@@ -103,7 +103,7 @@ describe('All Pages Test', () => {
       API.put = t.mock.fn(async () => successData);
       API.delete = t.mock.fn(async () => successData);
 
-      try { component.render(container); } catch(e) {}
+      try { component.render(container); } catch(e) { void e; }
       await new Promise(r => setTimeout(r, 50));
       
       async function triggerAllEvents(isErrorRun) {
@@ -121,14 +121,14 @@ describe('All Pages Test', () => {
                el.dataset.tab = 'test-tab';
             }
             if (el.tagName === 'FORM') {
-              try { el.dispatchEvent(new dom.window.Event('submit', { cancelable: true, bubbles: true })); } catch(e){}
+              try { el.dispatchEvent(new dom.window.Event('submit', { cancelable: true, bubbles: true })); } catch(e) { void e; }
             } else if (el.tagName === 'INPUT' || el.tagName === 'SELECT') {
               if (el.tagName === 'INPUT' && el.type === 'checkbox') el.checked = true;
               el.value = 'test_value';
-              try { el.dispatchEvent(new dom.window.Event('input', { bubbles: true })); } catch(e){}
-              try { el.dispatchEvent(new dom.window.Event('change', { bubbles: true })); } catch(e){}
+              try { el.dispatchEvent(new dom.window.Event('input', { bubbles: true })); } catch(e) { void e; }
+              try { el.dispatchEvent(new dom.window.Event('change', { bubbles: true })); } catch(e) { void e; }
             } else {
-              try { el.click(); } catch(e){}
+              try { el.click(); } catch(e) { void e; }
             }
           }
           // directly trigger captured listeners
@@ -146,7 +146,7 @@ describe('All Pages Test', () => {
               if (l.target.value === undefined) l.target.value = 'test_value';
               if (l.listener.handleEvent) l.listener.handleEvent(e);
               else l.listener.call(l.target, e);
-            } catch(err) {}
+            } catch(err) { void err; }
           }
           await new Promise(r => setTimeout(r, 20));
         }
@@ -169,12 +169,12 @@ describe('All Pages Test', () => {
            err.code = 'BROKER_UNAVAILABLE';
            throw err; 
          });
-         try { component.render(container); } catch(e){}
+         try { component.render(container); } catch(e){ void e; }
          await new Promise(r => setTimeout(r, 50));
       }
 
       if (component.destroy) {
-        try { component.destroy(); } catch(e){}
+        try { component.destroy(); } catch(e){ void e; }
       }
       container.remove();
       window.__capturedListeners = [];

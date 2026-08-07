@@ -38,13 +38,13 @@ test('verify-audit.js', async (t) => {
         process.env = { ...originalEnv };
         stdoutWrites = [];
         mock.reset();
-        try { fs.rmSync(logDir, { recursive: true, force: true }); } catch {}
-        try { fs.rmSync(credDir, { recursive: true, force: true }); } catch {}
-        try { fs.rmSync(checkpointFile, { force: true }); } catch {}
+        try { fs.rmSync(logDir, { recursive: true, force: true }); } catch(e) { void e; }
+        try { fs.rmSync(credDir, { recursive: true, force: true }); } catch(e) { void e; }
+        try { fs.rmSync(checkpointFile, { force: true }); } catch(e) { void e; }
     });
 
     t.after(() => {
-        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch(e) { void e; }
     });
 
     function createValidEntry(key, seqNo, prevHash, data) {

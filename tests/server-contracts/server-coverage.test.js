@@ -118,13 +118,13 @@ describe('Server internal functions', async () => {
     const req = { identity: { role: 'admin' } };
     try {
       await ensurePrivilegeBrokerAvailable(req, res, () => 'next');
-    } catch (e) {}
+    } catch(e) { void e; }
     try {
       await ensurePrivilegeBrokerAvailable({}, res, () => 'next');
-    } catch (e) {}
+    } catch(e) { void e; }
     try {
       await ensurePrivilegeBrokerAvailable({ identity: { role: 'user' }}, res, () => 'next');
-    } catch (e) {}
+    } catch(e) { void e; }
   });
 
   test('respondServiceDependencyUnavailable coverage', () => {
@@ -194,6 +194,6 @@ describe('Server internal functions', async () => {
   test('buildSecurityPosture coverage', async () => {
     try {
       await buildSecurityPosture();
-    } catch(e) {}
+    } catch(e) { void e; }
   });
 });

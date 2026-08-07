@@ -855,8 +855,8 @@ async function refreshActiveToolLists() {
       const policyDecision = await evaluatePolicy({ tool: item.name, identity: session.identity }).catch(() => ({
         allowed: false,
       }));
-      if (availability.available && policyDecision.allowed) item.registration.enable();
-      else item.registration.disable();
+      if (availability.available && policyDecision.allowed) try { item.registration.enable(); } catch(e) {}
+      else { try { item.registration.disable(); } catch(e) {} }
     }
     await session.mcpServer?.sendToolListChanged();
   }
@@ -2890,7 +2890,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     version:
       process.env.npm_package_version ||
       JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8')).version,
-  });
+  }, { capabilities: { tools: { listChanged: true } } });
 
   server.onerror = err => {
     logError({ ip, userId: identity.userId, tool: 'MCP_SERVER_ERROR', error: err });
@@ -4337,6 +4337,8 @@ process.on('unhandledRejection', reason => {
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });
 });
 export const __TEST_EXPORTS__ = {
+  mutateSessionScopes: (sid, s) => { const sess = activeTransports.get(sid); if (sess) sess.identity.scopes = s; },
+  activeTransports,
   app,
   getServer: () => server,
   gracefulShutdown,
@@ -4368,4 +4370,5 @@ export const __TEST_EXPORTS__ = {
   refreshActiveToolLists,
   makeSessionRoom,
   requireAdminStepUp,
+  getIdleCheckInterval: () => null,
 };

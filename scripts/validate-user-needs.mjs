@@ -29,7 +29,7 @@ async function validate() {
   console.log('✅ User needs matrix reconciliation validated successfully.');
 }
 
-validate().catch(err => {
+await validate().catch(err => {
   console.error(err);
   process.exit(1);
 });

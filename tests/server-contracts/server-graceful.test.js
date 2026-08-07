@@ -33,7 +33,7 @@ test('graceful shutdown coverage', async () => {
   // Call the listeners to cover the lines
   process.listeners('SIGTERM').find(f => f.toString().includes('gracefulShutdown'))?.();
   
-  // Wait for the async process.exit(0) from the audit.js import
+  // wait for the async exit from the audit.js import
   for (let i = 0; i < 20; i++) {
     if (exitCode === 0) break;
     await new Promise(r => origSetTimeout(r, 50));

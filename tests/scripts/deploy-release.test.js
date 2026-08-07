@@ -37,7 +37,7 @@ process.argv = ['node', SCRIPT_PATH, 'prepare'];
 let runCommand;
 try {
 runCommand = (await import(SCRIPT_PATH)).runCommand;
-} catch (e) {}
+} catch(e) { void e; }
 process.argv = originalArgv;
 if (!runCommand) runCommand = (await import(SCRIPT_PATH)).runCommand;
 

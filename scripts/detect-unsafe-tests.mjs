@@ -104,7 +104,7 @@ async function auditTests() {
   }
 }
 
-auditTests().catch(err => {
+await auditTests().catch(err => {
   console.error(err);
   process.exit(1);
 });

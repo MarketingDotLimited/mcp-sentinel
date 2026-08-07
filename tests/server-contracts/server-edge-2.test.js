@@ -39,8 +39,8 @@ test('server catch block', async () => {
   
   const handles = process._getActiveHandles();
   for (const h of handles) {
-    if (h && typeof h.unref === 'function') try { h.unref(); } catch(e) {}
-    if (h && typeof h.close === 'function') try { h.close(); } catch(e) {}
+    if (h && typeof h.unref === 'function') try { h.unref(); } catch(e) { void e; }
+    if (h && typeof h.close === 'function') try { h.close(); } catch(e) { void e; }
   }
   
   process.exit = origExit;
@@ -48,5 +48,5 @@ test('server catch block', async () => {
   console.log = origLog;
   process.env.PORT = oldPort;
   process.env.TEST_NO_LISTEN = 'true';
-  setTimeout(() => process.exit(0), 10);
+  
 });

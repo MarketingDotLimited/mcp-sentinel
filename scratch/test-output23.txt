@@ -1,0 +1,501 @@
+TAP version 13
+# (node:4069369) ExperimentalWarning: Module mocking is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# CAUGHT ERROR: Error: Production deployment commands must run as root
+#     at requireRoot (file:///root/mcp-server/scripts/deploy-release.js:45:103)
+#     at prepareHost (file:///root/mcp-server/scripts/deploy-release.js:175:3)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:471:31)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:88:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:87:9)
+# Deployment refused: Production deployment commands must run as root
+# >>> TEST prepare --fake-not-root FINISHED WITH 1 <<<
+# Usage: install.sh prepare | stage <signed-artifact.tar.gz> | activate <release-id> | rollback <rollback-id>
+# >>> TEST unknown null FINISHED WITH 2 <<<
+# >>> TEST prepare null FINISHED WITH 0 <<<
+# ACTUAL CODE FOR prepare --fake-not-root IS 1
+# ACTUAL CODE FOR unknown null IS 2
+# {"prepared":true,"uid":999,"gid":999}
+# ACTUAL CODE FOR prepare null IS 0
+# {"prepared":true,"uid":999,"gid":999}
+# ACTUAL CODE FOR prepare null IS 0
+# >>> TEST prepare null FINISHED WITH 0 <<<
+# CAUGHT ERROR: Error: stage requires the signed .tar.gz artifact path
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:109:32)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:110:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:109:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: stage requires the signed .tar.gz artifact path
+# >>> TEST stage null FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: Release artifact must be a regular .tar.gz file
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:111:50)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:115:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:113:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: Release artifact must be a regular .tar.gz file
+# >>> TEST stage a.txt FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: fail
+#     at Object.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:120:66)
+#     at Object.apply (node:internal/test_runner/mock/mock:765:20)
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:113:43)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:121:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+# Deployment refused: fail
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# ACTUAL CODE FOR stage null IS 1
+# ACTUAL CODE FOR stage a.txt IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# {"staged":true,"releaseId":"1.0.0-abcdef123456","destination":"/opt/mcp-sentinel/releases/1.0.0-abcdef123456","signatureFingerprint":"abcdef1234567890"}
+# ACTUAL CODE FOR stage a.tar.gz IS 0
+# >>> TEST stage a.tar.gz FINISHED WITH 0 <<<
+# CAUGHT ERROR: Error: Release input is not a bounded regular file: /opt/a.tar.gz
+#     at protectedRegularFile (file:///root/mcp-server/scripts/deploy-release.js:64:11)
+#     at copyReleaseInput (file:///root/mcp-server/scripts/deploy-release.js:76:3)
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:117:22)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:132:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+# Deployment refused: Release input is not a bounded regular file: /opt/a.tar.gz
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# CAUGHT ERROR: Error: Release checksum file does not exactly match the artifact
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:133:13)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:138:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:135:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: Release checksum file does not exactly match the artifact
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: Release checksum file does not exactly match the artifact
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:133:13)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:144:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:141:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: Release checksum file does not exactly match the artifact
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# CAUGHT ERROR: Error: Artifact and manifest must be signed by the same key
+#     at file:///root/mcp-server/tests/scripts/deploy-release.test.js:153:82
+#     at Object.apply (node:internal/test_runner/mock/mock:765:20)
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:139:5)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:154:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+# Deployment refused: Artifact and manifest must be signed by the same key
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: Artifact and manifest must be signed by the same key
+#     at file:///root/mcp-server/tests/scripts/deploy-release.test.js:153:82
+#     at Object.apply (node:internal/test_runner/mock/mock:765:20)
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:139:5)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:166:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+# Deployment refused: Artifact and manifest must be signed by the same key
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: Release manifest must be valid
+#     at file:///root/mcp-server/tests/scripts/deploy-release.test.js:176:79
+#     at Object.apply (node:internal/test_runner/mock/mock:765:20)
+#     at stageRelease (file:///root/mcp-server/scripts/deploy-release.js:135:23)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:472:34)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:177:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+# Deployment refused: Release manifest must be valid
+# >>> TEST stage a.tar.gz FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: activate requires a valid staged release ID
+#     at activateRelease (file:///root/mcp-server/scripts/deploy-release.js:336:11)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:473:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:181:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:180:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: activate requires a valid staged release ID
+# >>> TEST activate null FINISHED WITH 1 <<<
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR stage a.tar.gz IS 1
+# ACTUAL CODE FOR activate null IS 1
+# ACTUAL CODE FOR activate 1.0.0 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR rollback null IS 1
+# CAUGHT ERROR: Error: activate requires a valid staged release ID
+#     at activateRelease (file:///root/mcp-server/scripts/deploy-release.js:336:11)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:473:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:185:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:184:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: activate requires a valid staged release ID
+# >>> TEST activate 1.0.0 FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: state-key must be an independent 32-byte hexadecimal secret
+#     at validateActivationInputs (file:///root/mcp-server/scripts/deploy-release.js:215:13)
+#     at activateRelease (file:///root/mcp-server/scripts/deploy-release.js:340:19)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:473:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:190:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:188:13)
+# Deployment refused: state-key must be an independent 32-byte hexadecimal secret
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: Staged release directory is unsafe
+#     at activateRelease (file:///root/mcp-server/scripts/deploy-release.js:339:59)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:473:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:196:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:193:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: Staged release directory is unsafe
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: state-key must be an independent 32-byte hexadecimal secret
+#     at validateActivationInputs (file:///root/mcp-server/scripts/deploy-release.js:215:13)
+#     at activateRelease (file:///root/mcp-server/scripts/deploy-release.js:340:19)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:473:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:201:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:199:13)
+# Deployment refused: state-key must be an independent 32-byte hexadecimal secret
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: rollback requires a valid rollback ID
+#     at rollback (file:///root/mcp-server/scripts/deploy-release.js:438:57)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:474:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:205:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:204:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: rollback requires a valid rollback ID
+# >>> TEST rollback null FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: rollback requires a valid rollback ID
+#     at rollback (file:///root/mcp-server/scripts/deploy-release.js:438:57)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:474:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:209:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:208:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: rollback requires a valid rollback ID
+# >>> TEST rollback 1.0.0 FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: rollback requires a valid rollback ID
+#     at rollback (file:///root/mcp-server/scripts/deploy-release.js:438:57)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:474:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:214:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:212:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: rollback requires a valid rollback ID
+# >>> TEST rollback 1.0.0-123456789012 FINISHED WITH 1 <<<
+# CAUGHT ERROR: Error: rollback requires a valid rollback ID
+#     at rollback (file:///root/mcp-server/scripts/deploy-release.js:438:57)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:474:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:219:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:217:13)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+# Deployment refused: rollback requires a valid rollback ID
+# >>> TEST rollback 1.0.0-123456789012 FINISHED WITH 1 <<<
+# ACTUAL CODE FOR rollback 1.0.0 IS 1
+# ACTUAL CODE FOR rollback 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR rollback 1.0.0-123456789012 IS 1
+# ACTUAL CODE FOR activate 1.0.0-123456789012 IS 1
+# Subtest: deploy-release.js suite
+    # Subtest: prepare-not-root
+    ok 1 - prepare-not-root
+      ---
+      duration_ms: 1.26744
+      type: 'test'
+      ...
+    # Subtest: usage
+    ok 2 - usage
+      ---
+      duration_ms: 0.295516
+      type: 'test'
+      ...
+    # Subtest: prepare-happy
+    ok 3 - prepare-happy
+      ---
+      duration_ms: 0.523471
+      type: 'test'
+      ...
+    # Subtest: prepare-create-user
+    ok 4 - prepare-create-user
+      ---
+      duration_ms: 0.358025
+      type: 'test'
+      ...
+    # Subtest: stage-no-artifact
+    ok 5 - stage-no-artifact
+      ---
+      duration_ms: 0.458454
+      type: 'test'
+      ...
+    # Subtest: stage-not-tar-gz
+    ok 6 - stage-not-tar-gz
+      ---
+      duration_ms: 0.277771
+      type: 'test'
+      ...
+    # Subtest: stage-invalid-temp
+    ok 7 - stage-invalid-temp
+      ---
+      duration_ms: 0.306747
+      type: 'test'
+      ...
+    # Subtest: stage-happy
+    ok 8 - stage-happy
+      ---
+      duration_ms: 1.903304
+      type: 'test'
+      ...
+    # Subtest: stage-bad-file-size
+    ok 9 - stage-bad-file-size
+      ---
+      duration_ms: 0.582576
+      type: 'test'
+      ...
+    # Subtest: stage-bad-checksum-length
+    ok 10 - stage-bad-checksum-length
+      ---
+      duration_ms: 0.60167
+      type: 'test'
+      ...
+    # Subtest: stage-checksum-mismatch
+    ok 11 - stage-checksum-mismatch
+      ---
+      duration_ms: 0.493687
+      type: 'test'
+      ...
+    # Subtest: stage-bad-signature
+    ok 12 - stage-bad-signature
+      ---
+      duration_ms: 0.844242
+      type: 'test'
+      ...
+    # Subtest: stage-bad-tar-list
+    ok 13 - stage-bad-tar-list
+      ---
+      duration_ms: 0.633452
+      type: 'test'
+      ...
+    # Subtest: stage-no-manifest
+    ok 14 - stage-no-manifest
+      ---
+      duration_ms: 0.558972
+      type: 'test'
+      ...
+    # Subtest: activate-no-release
+    ok 15 - activate-no-release
+      ---
+      duration_ms: 0.674447
+      type: 'test'
+      ...
+    # Subtest: activate-invalid-release
+    ok 16 - activate-invalid-release
+      ---
+      duration_ms: 0.221258
+      type: 'test'
+      ...
+# CAUGHT ERROR: Error: state-key must be an independent 32-byte hexadecimal secret
+#     at validateActivationInputs (file:///root/mcp-server/scripts/deploy-release.js:215:13)
+#     at activateRelease (file:///root/mcp-server/scripts/deploy-release.js:340:19)
+#     at runCommand (file:///root/mcp-server/scripts/deploy-release.js:473:37)
+#     at run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:78:9)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:230:15)
+#     at Test.runInAsyncScope (node:async_hooks:214:14)
+#     at Test.run (node:internal/test_runner/test:1047:25)
+#     at Test.start (node:internal/test_runner/test:944:17)
+#     at TestContext.test (node:internal/test_runner/test:373:20)
+#     at TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:222:13)
+# Deployment refused: state-key must be an independent 32-byte hexadecimal secret
+# >>> TEST activate 1.0.0-123456789012 FINISHED WITH 1 <<<
+    # Subtest: activate-not-found
+    ok 17 - activate-not-found
+      ---
+      duration_ms: 0.425602
+      type: 'test'
+      ...
+    # Subtest: activate-not-dir
+    ok 18 - activate-not-dir
+      ---
+      duration_ms: 0.201389
+      type: 'test'
+      ...
+    # Subtest: activate-happy
+    not ok 19 - activate-happy
+      ---
+      duration_ms: 0.504872
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:199:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:83:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:201:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:199:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: rollback-no-id
+    ok 20 - rollback-no-id
+      ---
+      duration_ms: 0.253393
+      type: 'test'
+      ...
+    # Subtest: rollback-invalid-id
+    ok 21 - rollback-invalid-id
+      ---
+      duration_ms: 0.18077
+      type: 'test'
+      ...
+    # Subtest: rollback-not-found
+    ok 22 - rollback-not-found
+      ---
+      duration_ms: 0.144628
+      type: 'test'
+      ...
+    # Subtest: rollback-happy
+    not ok 23 - rollback-happy
+      ---
+      duration_ms: 0.217744
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:217:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:83:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:219:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:217:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    # Subtest: service-catch
+    not ok 24 - service-catch
+      ---
+      duration_ms: 0.389032
+      type: 'test'
+      location: '/root/mcp-server/tests/scripts/deploy-release.test.js:222:13'
+      failureType: 'testCodeFailure'
+      error: 'exit mismatch: expected 0, got 1'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        run (file:///root/mcp-server/tests/scripts/deploy-release.test.js:83:19)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:230:15)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1047:25)
+        Test.start (node:internal/test_runner/test:944:17)
+        TestContext.test (node:internal/test_runner/test:373:20)
+        TestContext.<anonymous> (file:///root/mcp-server/tests/scripts/deploy-release.test.js:222:13)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+      ...
+    1..24
+not ok 1 - deploy-release.js suite
+  ---
+  duration_ms: 26.435779
+  type: 'test'
+  location: '/root/mcp-server/tests/scripts/deploy-release.test.js:33:1'
+  failureType: 'subtestsFailed'
+  error: '3 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 25
+# suites 0
+# pass 21
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 142.166873

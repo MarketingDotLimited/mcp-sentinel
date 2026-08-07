@@ -19,7 +19,7 @@
     "test:scripts": "node --experimental-test-module-mocks --test tests/scripts/*.test.js",
     "test:privileged": "node --experimental-test-module-mocks --test tests/privileged/*.test.js",
     "test:browser": "npx playwright test",
-    "test:coverage:node": "rm -rf coverage .nyc_output && c8 --clean=false npm run test:unit && c8 --clean=false npm run test:integration && c8 --clean=false npm run test:server-contracts && c8 --clean=false npm run test:mcp-contracts && c8 --clean=false npm run test:scripts",
+    "test:coverage:node": "rm -rf coverage .nyc_output coverage-tmp && NODE_V8_COVERAGE=coverage-tmp npm run test:unit && NODE_V8_COVERAGE=coverage-tmp npm run test:integration && NODE_V8_COVERAGE=coverage-tmp npm run test:server-contracts && NODE_V8_COVERAGE=coverage-tmp npm run test:mcp-contracts && NODE_V8_COVERAGE=coverage-tmp npm run test:scripts && c8 report --reporter=text --reporter=html --temp-directory coverage-tmp",
     "test:coverage:node:report": "c8 report --reporter=json --report-dir coverage/node --temp-directory coverage/tmp",
     "test:coverage:browser": "npm run test:browser",
     "test:coverage:merge": "node scripts/merge-coverage.js",
@@ -47,6 +47,7 @@
     "dotenv": "^16.3.1",
     "express": "^4.21.0",
     "express-rate-limit": "^7.5.0",
+    "glob": "^13.0.6",
     "helmet": "^8.0.0",
     "ipaddr.js": "^2.4.0",
     "jose": "^6.2.4",
@@ -78,7 +79,9 @@
     "istanbul-lib-coverage": "^3.2.2",
     "istanbul-lib-report": "^3.0.1",
     "istanbul-reports": "^3.2.0",
+    "jsdom": "^30.0.1",
     "prettier": "^3.9.6",
-    "v8-to-istanbul": "^9.3.0"
+    "v8-to-istanbul": "^9.3.0",
+    "wtfnode": "^0.10.1"
   }
 }

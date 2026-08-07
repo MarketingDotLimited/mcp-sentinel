@@ -122,33 +122,11 @@ const API = {
       if (/(?:^|\/)admin\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
       if (/(?:^|\/)admin\/sessions$/.test(adminUrl))
         return { sessions: [], count: 0, status: 'dependency-unavailable' };
-      if (/(?:^|\/)action-manifest$/.test(adminUrl) || /^\/action-manifest$/.test(adminUrl)) {
-        return {
-          manifest: {
-            version: 'missing',
-            hash: 'missing',
-            name: 'MCP Sentinel',
-            tools: [],
-          },
-          refreshChecklist: [],
-          warnings: ['Privilege broker unavailable: continuing with a read-only local fallback.'],
-        };
-      }
+
       if (/^\/api\/oauth-users$/.test(adminUrl) || /^\/api\/oauth-clients$/.test(adminUrl)) return [];
       if (/^\/api\/capabilities$/.test(adminUrl)) return { capabilities: [], status: 'dependency-unavailable' };
       if (/^\/api\/sessions$/.test(adminUrl)) return { sessions: [], count: 0, status: 'dependency-unavailable' };
-      if (/^\/api\/action-manifest$/.test(adminUrl)) {
-        return {
-          manifest: {
-            version: 'missing',
-            hash: 'missing',
-            name: 'MCP Sentinel',
-            tools: [],
-          },
-          refreshChecklist: [],
-          warnings: ['Privilege broker unavailable: continuing with a read-only local fallback.'],
-        };
-      }
+
       return null;
     };
 
@@ -269,14 +247,13 @@ const API = {
           isDependencyUnavailable(error);
         lastError = error;
         if (!retryable || i === uniqUrls.length - 1) {
+          if (error?.message === 'Failed to fetch') {
+            throw new Error('Server unreachable. Check your connection.');
+          }
           throw error;
         }
       }
     }
-    if (lastError?.message === 'Failed to fetch') {
-      throw new Error('Server unreachable. Check your connection.');
-    }
-    throw lastError;
   },
 
   async get(url) {

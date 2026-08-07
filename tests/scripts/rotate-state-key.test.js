@@ -38,12 +38,12 @@ test('rotate-state-key.js', async (t) => {
         process.env = { ...originalEnv };
         stdoutWrites = [];
         mock.reset();
-        try { fs.rmSync(dbFile); } catch {}
-        try { fs.rmSync(credDir, { recursive: true }); } catch {}
+        try { fs.rmSync(dbFile); } catch(e) { void e; }
+        try { fs.rmSync(credDir, { recursive: true }); } catch(e) { void e; }
     });
 
     t.after(() => {
-        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch {}
+        try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch(e) { void e; }
     });
 
     await t.test('throws if not offline', async () => {

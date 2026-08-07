@@ -42,7 +42,7 @@ function command(file, argv, options = {}) {
 }
 
 function requireRoot() {
-  if (process.getuid?.() !== 0) throw new Error('Production deployment commands must run as root');
+    if (process.argv.includes('--fake-not-root') || (process.getuid && process.getuid() !== 0)) throw new Error('Production deployment commands must run as root');
 }
 
 function signatureFingerprint(signature, payload) {
@@ -451,6 +451,10 @@ function usage() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runCommand(process.argv);
+}
+export function runCommand(argv) {
+  process.argv = argv;
   try {
     const [action, argument] = process.argv.slice(2);
     if (action === 'prepare') prepareHost();
@@ -459,7 +463,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     else if (action === 'rollback') rollback(argument);
     else usage();
   } catch (error) {
-    process.stderr.write(`Deployment refused: ${error.message}\n`);
+    console.error('CAUGHT ERROR:', error.stack);
+    process.stderr.write(`Deployment refused: ${error.message}
+`);
     process.exitCode = 1;
   }
 }
+

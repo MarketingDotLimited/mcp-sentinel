@@ -301,7 +301,7 @@ test('production-preflight.js missing service account branches', async (t) => {
 test('production-preflight.js branch coverage extensions', async (t) => {
     // Helper to run preflight and ignore exits
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     // Test: mcp-sentinel must be an unprivileged nologin system account
@@ -374,7 +374,7 @@ test('production-preflight.js branch coverage extensions', async (t) => {
 
 test('production-preflight.js final branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     const setupWithDb = async (tmp, query) => {
@@ -495,7 +495,7 @@ test('production-preflight.js final branches', async (t) => {
 
 test('production-preflight.js missing 180 branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     // 182 - Integrity check failed
@@ -534,7 +534,7 @@ test('production-preflight.js missing 180 branches', async (t) => {
 
 test('production-preflight.js missing last branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     // 186-187 - fallback for missing ALLOWED_REPOS and MANAGED_USERS
@@ -580,7 +580,7 @@ test('production-preflight.js missing last branches', async (t) => {
 
 test('production-preflight.js env branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     const envBase = 'BROKER_PROTECTED_SERVICES=mcp-sentinel,mcp-sentinel-broker,ssh,sshd,nginx,authelia\nBROKER_MANAGEMENT_PORTS=22,443\nMCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3\nBROKER_GIT_ALLOWED_REPOS=/tmp/repo\nBROKER_MANAGED_USERS=projuser\n';
@@ -644,7 +644,7 @@ test('production-preflight.js env branches', async (t) => {
 
 test('production-preflight.js final-final branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     const envBase = 'BROKER_PROTECTED_SERVICES=mcp-sentinel,mcp-sentinel-broker,ssh,sshd,nginx,authelia\nBROKER_MANAGEMENT_PORTS=22,443\nMCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3\nBROKER_GIT_ALLOWED_REPOS=/tmp/repo\nBROKER_MANAGED_USERS=projuser\n';
@@ -688,7 +688,7 @@ test('production-preflight.js final-final branches', async (t) => {
 
 test('production-preflight.js mega branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     const envBase = 'NODE_ENV=production\nHOST=127.0.0.1\nTRUST_PROXY=true\nTRUSTED_PROXIES=127.0.0.1\nOAUTH_RESOURCE_URL=https://mcp.example.com\nAUTHELIA_ISSUER=https://auth.example.com\nAUTHELIA_JWKS_URL=https://auth.example.com/jwks\nALLOWED_ORIGINS=https://mcp.example.com\nPUBLIC_URL=https://mcp.example.com\n';
@@ -760,7 +760,7 @@ test('production-preflight.js mega branches', async (t) => {
 
 test('production-preflight.js last final branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     // 103 - duplicate credentials
@@ -800,7 +800,7 @@ test('production-preflight.js last final branches', async (t) => {
 
 test('production-preflight.js absolutely last branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     // 91-92 - uid/gid mismatch
@@ -836,7 +836,7 @@ test('production-preflight.js absolutely last branches', async (t) => {
 
 test('production-preflight.js absolute absolutely last branches', async (t) => {
     const run = async (tmp) => {
-        try { await runPreflight(tmp); } catch {}
+        try { await runPreflight(tmp); } catch(e) { void e; }
     };
 
     // 73 - URL with wrong protocol

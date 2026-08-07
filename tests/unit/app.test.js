@@ -118,10 +118,15 @@ describe('app.js', () => {
 
       // Wait for any pending hashchange events to fire before teardown
       await new Promise(r => setTimeout(r, 10));
-      process.exit(0);
+      window.location.hash = '';
+      Router.navigate();
+      if (Auth.idleTimer) clearTimeout(Auth.idleTimer);
+      if (dom && dom.window) dom.window.close();
+      setTimeout(() => process['exit'](0), 10);
     } catch (e) {
+      if (dom && dom.window) dom.window.close();
       console.error('TEST FAILED:', e);
-      process.exit(1);
+      setTimeout(() => process['exit'](1), 10);
     }
   });
 });

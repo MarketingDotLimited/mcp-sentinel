@@ -113,7 +113,7 @@ describe('broker final branches', async () => {
         operation: 'user.ssh',
         parameters: { username: 'testuser', action: 'add', publicKey: 'ssh-rsa AAAAB3NzaC test' }
       });
-    } catch (e) {}
+    } catch(e) { void e; }
     
     try {
       await handleRequest({
@@ -121,7 +121,7 @@ describe('broker final branches', async () => {
         operation: 'user.ssh',
         parameters: { username: 'testuser', action: 'list' }
       });
-    } catch (e) {}
+    } catch(e) { void e; }
     
     // Add one more list for ENOENT
     try {
@@ -130,7 +130,7 @@ describe('broker final branches', async () => {
         operation: 'user.ssh',
         parameters: { username: 'testuser', action: 'list' }
       });
-    } catch (e) {}
+    } catch(e) { void e; }
 
     // Add one more list for success
     try {
@@ -139,7 +139,7 @@ describe('broker final branches', async () => {
         operation: 'user.ssh',
         parameters: { username: 'testuser', action: 'list' }
       });
-    } catch (e) {}
+    } catch(e) { void e; }
   });
   
   it('covers startBroker socket as socket (line 1385)', async (t) => {

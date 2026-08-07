@@ -55,14 +55,14 @@ test('server tools dead code coverage', async () => {
   try {
      const res = await client.callTool({ name: 'get_system_info', arguments: {} });
      console.log('POLICY RES:', res);
-  } catch (e) {}
+  } catch(e) { void e; }
 
   // Trigger Policy Error!
   await fs.writeFile('/tmp/mcp-policy.json', 'invalid-json');
   try {
      const res = await client.callTool({ name: 'get_system_info', arguments: {} });
      console.log('POLICY ERR RES:', res);
-  } catch (e) {}
+  } catch(e) { void e; }
 
   await client.close();
   const server = __TEST_EXPORTS__.getServer();

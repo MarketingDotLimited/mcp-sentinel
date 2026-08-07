@@ -68,12 +68,8 @@ function sha256(file) {
 }
 
 function requireUrl(value, name, expectedProtocol = 'https:') {
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error(`${name} must be an absolute URL`);
-  }
+  if (!URL.canParse(value)) throw new Error(`${name} must be an absolute URL`);
+  const url = new URL(value);
   if (url.protocol !== expectedProtocol || url.username || url.password)
     throw new Error(`${name} must use ${expectedProtocol}`);
   return url;
@@ -211,20 +207,22 @@ function inspectDatabase(sentinel) {
       .prepare('SELECT username, payload FROM oauth_mappings')
       .all()
       .map(row => ({ username: row.username, ...JSON.parse(row.payload) }));
-    for (const mapping of mappingRows) {
+    mappingRows.forEach(mapping => {
       if (mapping.role !== 'admin' && mapping.scopes?.includes('*'))
         throw new Error(`Non-admin OAuth mapping '${mapping.username}' has wildcard scope`);
-      for (const projectId of mapping.projectIds || [])
+      (mapping.projectIds || []).forEach(projectId => {
         if (!projectIds.has(projectId))
           throw new Error(`OAuth mapping '${mapping.username}' references unknown project '${projectId}'`);
-      for (const [clientId, client] of Object.entries(mapping.clients || {})) {
+      });
+      Object.entries(mapping.clients || {}).forEach(([clientId, client]) => {
         if (client.role !== 'admin' && client.scopes?.includes('*'))
           throw new Error(`Non-admin OAuth client override '${mapping.username}/${clientId}' has wildcard scope`);
-        for (const projectId of client.projectIds || [])
+        (client.projectIds || []).forEach(projectId => {
           if (!projectIds.has(projectId))
             throw new Error(`OAuth client override '${mapping.username}/${clientId}' references an unknown project`);
-      }
-    }
+        });
+      });
+    });
     const adminKeys = database
       .prepare('SELECT payload FROM api_keys')
       .all()

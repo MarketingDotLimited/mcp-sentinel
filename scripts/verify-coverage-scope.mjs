@@ -50,7 +50,7 @@ async function verifyScope() {
   console.log('✅ Coverage scope verification passed. All production categories included with per-file enforcement.');
 }
 
-verifyScope().catch(err => {
+await verifyScope().catch(err => {
   console.error(err);
   process.exit(1);
 });
