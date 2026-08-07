@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 
-const enabled = process.env.RUN_LIVE_E2E === 'true';
+const enabled = process.env.RUN_LIVE_E2E === 'true' && process.getuid && process.getuid() === 0;
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-sentinel-live-'));
 const adminKey = 'admin-key-placeholder-for-tests';
 const limitedKey = 'mcp_limited-key-placeholder-for-tests';

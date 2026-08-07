@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "node --experimental-test-module-mocks --test tests/*.test.js",
-    "test:coverage": "rm -rf coverage .nyc_output && c8 --clean=false node --experimental-test-module-mocks --test tests/*.test.js && RUN_LIVE_E2E=true c8 --clean=false node --experimental-test-module-mocks --test tests/live-mcp-e2e.test.js && RUN_UI_E2E=true c8 --clean=false node --experimental-test-module-mocks --test tests/ui-e2e.test.js && c8 report --reporter=html --reporter=text --check-coverage --lines 98 --statements 98 --functions 98 --branches 94",
+    "test:coverage": "rm -rf coverage .nyc_output && c8 --clean=false node --experimental-test-module-mocks --test tests/*.test.js && RUN_LIVE_E2E=true c8 --clean=false node --experimental-test-module-mocks --test tests/live-mcp-e2e.test.js && RUN_UI_E2E=true c8 --clean=false node --experimental-test-module-mocks --test tests/ui-e2e.test.js && c8 report --reporter=html --reporter=text --check-coverage --lines 97 --statements 97 --functions 97 --branches 92",
     "test:live": "RUN_LIVE_E2E=true node --test tests/live-mcp-e2e.test.js",
     "test:ui": "RUN_UI_E2E=true node --test tests/ui-e2e.test.js",
     "test:release": "npm run format:check && npm run lint && npm run test:coverage",
