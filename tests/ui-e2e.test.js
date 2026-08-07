@@ -75,13 +75,13 @@ describe('dashboard UX', { skip: !enabled }, () => {
 
       await page.locator('a[href="#/workflows"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Guided'));
-      assert.match(await page.locator('body').innerText(), /Check why my server or website is slow/);
+      await page.waitForFunction(() => document.body.innerText.includes('Check why my server or website is slow'));
       assert.equal(await page.locator('a[href="#/automations"]').isVisible(), false);
 
       await page.locator('a[href="#/administration"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Administration'));
-      assert.match(await page.locator('body').innerText(), /Capability packs/);
-      assert.match(await page.locator('body').innerText(), /Advanced Data Access[\s\S]*Disabled by default/);
+      await page.waitForFunction(() => document.body.innerText.includes('Capability packs'));
+      await page.waitForFunction(() => /Advanced Data Access[\s\S]*Disabled by default/.test(document.body.innerText));
 
       await page.getByRole('link', { name: /ChatGPT action manifest/ }).click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('ChatGPT action manifest'));
@@ -92,6 +92,7 @@ describe('dashboard UX', { skip: !enabled }, () => {
 
       await page.locator('a[href="#/connect"]').click();
       await page.waitForFunction(() => document.querySelector('h1')?.textContent?.includes('Connect your AI'));
+      await page.waitForFunction(() => document.body.innerText.includes('ChatGPT (web)'));
       const connectText = await page.locator('body').innerText();
       for (const platform of [
         'ChatGPT (web)',
