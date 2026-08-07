@@ -1,8 +1,13 @@
 {
-  "all": true,
-  "check-coverage": true,
-  "per-file": true,
-  "include": [
+  "generatedAt": "2026-08-07T13:50:22.806Z",
+  "perFileEnforced": true,
+  "globalThresholds": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "includePatterns": [
     "lib/**",
     "routes/**",
     "tools/**",
@@ -15,22 +20,13 @@
     "keystore.js",
     "security.js"
   ],
-  "exclude": [
+  "excludePatterns": [
     "tests/**",
     "scratch/**",
     "node_modules/**",
     "coverage/**",
     "eslint.config.js"
   ],
-  "reporter": [
-    "text",
-    "html",
-    "lcov",
-    "json",
-    "json-summary"
-  ],
-  "statements": 100,
-  "branches": 100,
-  "functions": 100,
-  "lines": 100
+  "missingPatterns": [],
+  "scopeComplete": true
 }
