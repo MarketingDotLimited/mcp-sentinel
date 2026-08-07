@@ -140,3 +140,25 @@ it('revokeSessionToken ignores non-apiKey/jti', () => {
   const res = { status: () => ({ json: () => {} }) };
   security.revokeSessionToken(req, res);
 });
+
+it('ipInCidr handles IP kind mismatch (IPv4 vs IPv6 CIDR)', async () => {
+  const key = crypto.randomBytes(32).toString('hex');
+  await security.addApiKey(key, {
+    userId: 'admin',
+    role: 'viewer',
+    allowedIPs: ['2001:db8::/32'],
+    scopes: ['*'],
+    active: true,
+  });
+
+  const req = {
+    headers: { 'authorization': `Bearer ${key}` },
+    socket: { remoteAddress: '10.0.0.1' }
+  };
+  const res = { status: () => res, json: () => {} };
+
+  let called = false;
+  await security.authenticate(req, res, () => { called = true; });
+  assert.equal(called, false);
+});
+
