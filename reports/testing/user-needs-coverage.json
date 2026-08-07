@@ -1,63 +1,377 @@
 {
-  "generatedAt": "2026-08-07T12:29:00Z",
+  "generatedAt": "2026-08-07T14:00:00Z",
   "personas": [
     {
       "id": "linux-admin",
       "name": "Linux Server Administrator",
       "needs": [
-        { "id": "ADMIN-01", "goal": "View system health", "status": "fully_met" },
-        { "id": "ADMIN-02", "goal": "Manage services", "status": "fully_met" },
-        { "id": "ADMIN-03", "goal": "Manage firewall", "status": "fully_met" },
-        { "id": "ADMIN-04", "goal": "Manage users", "status": "fully_met" },
-        { "id": "ADMIN-05", "goal": "View logs", "status": "fully_met" },
-        { "id": "ADMIN-06", "goal": "Manage packages", "status": "partially_met", "gap": "GAP-04" },
-        { "id": "ADMIN-07", "goal": "Manage cron jobs", "status": "not_met", "gap": "GAP-01" },
-        { "id": "ADMIN-08", "goal": "Monitor storage", "status": "fully_met" },
-        { "id": "ADMIN-09", "goal": "Manage SSL certs", "status": "fully_met" },
-        { "id": "ADMIN-10", "goal": "Manage Nginx", "status": "partially_met", "gap": "GAP-03" }
+        {
+          "id": "ADMIN-01",
+          "goal": "View system health at a glance",
+          "capability": "Dashboard with CPU/memory/disk/uptime",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-02",
+          "goal": "Manage system services",
+          "capability": "Start/stop/restart/enable/disable via MCP",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-03",
+          "goal": "Manage firewall rules",
+          "capability": "Add/remove/list UFW rules via MCP",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-04",
+          "goal": "Manage system users",
+          "capability": "Create/delete/modify users, SSH keys",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-05",
+          "goal": "View and search logs",
+          "capability": "Journal log retrieval with filters",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-06",
+          "goal": "Manage packages",
+          "capability": "Install/remove/update packages",
+          "status": "partially_met",
+          "gap": "GAP-04"
+        },
+        {
+          "id": "ADMIN-07",
+          "goal": "Manage cron jobs",
+          "capability": "Create/edit/delete scheduled tasks",
+          "status": "not_met",
+          "gap": "GAP-01"
+        },
+        {
+          "id": "ADMIN-08",
+          "goal": "Monitor disk and storage",
+          "capability": "View disk usage, partitions, mounts",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-09",
+          "goal": "Manage SSL certificates",
+          "capability": "ACME/Let's Encrypt automation",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "ADMIN-10",
+          "goal": "Manage Nginx",
+          "capability": "Configuration via guided workflows",
+          "status": "partially_met",
+          "gap": "GAP-03"
+        }
       ]
     },
     {
       "id": "sre",
       "name": "SRE/Operations Engineer",
       "needs": [
-        { "id": "SRE-01", "goal": "Monitor SLOs", "status": "fully_met" },
-        { "id": "SRE-02", "goal": "Subscribe to alerts", "status": "fully_met" },
-        { "id": "SRE-03", "goal": "View telemetry", "status": "fully_met" },
-        { "id": "SRE-04", "goal": "Manage deployments", "status": "fully_met" },
-        { "id": "SRE-05", "goal": "Rollback configs", "status": "fully_met" },
-        { "id": "SRE-06", "goal": "Run diagnostics", "status": "fully_met" },
-        { "id": "SRE-07", "goal": "Manage remote nodes", "status": "fully_met" }
+        {
+          "id": "SRE-01",
+          "goal": "Monitor SLOs",
+          "capability": "SLO definitions and metrics",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SRE-02",
+          "goal": "Subscribe to alerts",
+          "capability": "Alert subscription system",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SRE-03",
+          "goal": "View telemetry metrics",
+          "capability": "Prometheus-format metrics endpoint",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SRE-04",
+          "goal": "Manage deployments",
+          "capability": "Plan and execute deployments",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SRE-05",
+          "goal": "Rollback configurations",
+          "capability": "Config backup and restore",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SRE-06",
+          "goal": "Run diagnostics",
+          "capability": "System info, process listing",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SRE-07",
+          "goal": "Manage remote nodes",
+          "capability": "SSH gateway, node registration",
+          "status": "fully_met",
+          "gap": null
+        }
       ]
     },
     {
       "id": "security",
       "name": "Security Operator",
       "needs": [
-        { "id": "SEC-01", "goal": "View security posture", "status": "fully_met" },
-        { "id": "SEC-02", "goal": "Manage API keys", "status": "fully_met" },
-        { "id": "SEC-03", "goal": "Manage SSH policies", "status": "fully_met" },
-        { "id": "SEC-04", "goal": "Audit log review", "status": "fully_met" },
-        { "id": "SEC-05", "goal": "Manage OAuth/OIDC", "status": "fully_met" },
-        { "id": "SEC-06", "goal": "WebAuthn passkeys", "status": "fully_met" },
-        { "id": "SEC-07", "goal": "Session management", "status": "fully_met" },
-        { "id": "SEC-08", "goal": "Approval workflows", "status": "fully_met" },
-        { "id": "SEC-09", "goal": "Fail2ban management", "status": "not_met", "gap": "GAP-02" }
+        {
+          "id": "SEC-01",
+          "goal": "View security posture",
+          "capability": "Security posture endpoint",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-02",
+          "goal": "Manage API keys",
+          "capability": "Create/revoke/list with scopes",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-03",
+          "goal": "Manage SSH access policies",
+          "capability": "Multi-layer SSH policy engine",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-04",
+          "goal": "Audit log review",
+          "capability": "HMAC-chained audit logging",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-05",
+          "goal": "Manage OAuth/OIDC",
+          "capability": "User and client management",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-06",
+          "goal": "WebAuthn passkeys",
+          "capability": "Registration and authentication",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-07",
+          "goal": "Session management",
+          "capability": "View and revoke sessions",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-08",
+          "goal": "Approval workflows",
+          "capability": "Require approval for destructive ops",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "SEC-09",
+          "goal": "Fail2ban management",
+          "capability": "Ban/unban IP addresses",
+          "status": "not_met",
+          "gap": "GAP-02"
+        }
+      ]
+    },
+    {
+      "id": "dev",
+      "name": "Developer Deploying Applications",
+      "needs": [
+        {
+          "id": "DEV-01",
+          "goal": "Deploy from Git repository",
+          "capability": "Git operations + deployment tools",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "DEV-02",
+          "goal": "Run project tests",
+          "capability": "Test execution in sandboxes",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "DEV-03",
+          "goal": "Execute database queries",
+          "capability": "PostgreSQL/MySQL query tool",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "DEV-04",
+          "goal": "Run sandboxed code",
+          "capability": "Python/Node.js in containers",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "DEV-05",
+          "goal": "Manage project files",
+          "capability": "Read/write/delete/search files",
+          "status": "fully_met",
+          "gap": null
+        }
+      ]
+    },
+    {
+      "id": "arabic",
+      "name": "Arabic-speaking Administrator",
+      "needs": [
+        {
+          "id": "AR-01",
+          "goal": "RTL layout support",
+          "capability": "UI supports Arabic RTL",
+          "status": "partially_met",
+          "gap": "GAP-06"
+        },
+        {
+          "id": "AR-02",
+          "goal": "Arabic translations",
+          "capability": "UI text in Arabic",
+          "status": "cannot_be_automatically_validated",
+          "gap": null
+        },
+        {
+          "id": "AR-03",
+          "goal": "Arabic input in forms",
+          "capability": "Unicode input handling",
+          "status": "fully_met",
+          "gap": null
+        }
+      ]
+    },
+    {
+      "id": "a11y",
+      "name": "Keyboard/Assistive Technology User",
+      "needs": [
+        {
+          "id": "A11Y-01",
+          "goal": "Keyboard navigation",
+          "capability": "Tab/Enter/Escape support",
+          "status": "partially_met",
+          "gap": "GAP-05"
+        },
+        {
+          "id": "A11Y-02",
+          "goal": "Screen reader support",
+          "capability": "ARIA attributes",
+          "status": "partially_met",
+          "gap": "GAP-05"
+        },
+        {
+          "id": "A11Y-03",
+          "goal": "Focus management",
+          "capability": "Focus trapping in modals",
+          "status": "cannot_be_automatically_validated",
+          "gap": null
+        }
+      ]
+    },
+    {
+      "id": "restricted",
+      "name": "Restricted Operator",
+      "needs": [
+        {
+          "id": "RESTR-01",
+          "goal": "Limited scope access",
+          "capability": "Scope-based MCP tool filtering",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "RESTR-02",
+          "goal": "Read-only access",
+          "capability": "Read-only scope templates",
+          "status": "fully_met",
+          "gap": null
+        },
+        {
+          "id": "RESTR-03",
+          "goal": "Approval-gated operations",
+          "capability": "Policy engine with approval flow",
+          "status": "fully_met",
+          "gap": null
+        }
       ]
     }
   ],
   "gaps": [
-    { "id": "GAP-01", "description": "No cron job management MCP tool", "severity": "medium" },
-    { "id": "GAP-02", "description": "No fail2ban management MCP tool", "severity": "low" },
-    { "id": "GAP-03", "description": "No dedicated Nginx management tool", "severity": "medium" },
-    { "id": "GAP-04", "description": "No dedicated package management tool", "severity": "medium" },
-    { "id": "GAP-05", "description": "No WCAG accessibility audit integration", "severity": "medium" },
-    { "id": "GAP-06", "description": "No systematic Arabic RTL testing", "severity": "low" }
+    {
+      "id": "GAP-01",
+      "need": "Cron job management",
+      "severity": "Medium",
+      "impact": "Admins must use raw commands for cron",
+      "solution": "Add manage_cron MCP tool"
+    },
+    {
+      "id": "GAP-02",
+      "need": "Fail2ban management",
+      "severity": "Low",
+      "impact": "Security ops must SSH for fail2ban",
+      "solution": "Add manage_fail2ban MCP tool"
+    },
+    {
+      "id": "GAP-03",
+      "need": "Dedicated Nginx tool",
+      "severity": "Medium",
+      "impact": "Nginx config via generic file ops only",
+      "solution": "Add manage_nginx MCP tool"
+    },
+    {
+      "id": "GAP-04",
+      "need": "Package management tool",
+      "severity": "Medium",
+      "impact": "No dedicated package install/remove",
+      "solution": "Add manage_packages MCP tool"
+    },
+    {
+      "id": "GAP-05",
+      "need": "WCAG accessibility audit",
+      "severity": "Medium",
+      "impact": "Keyboard/screen reader gaps unknown",
+      "solution": "Integrate axe-core with Playwright"
+    },
+    {
+      "id": "GAP-06",
+      "need": "Full Arabic RTL testing",
+      "severity": "Low",
+      "impact": "RTL layout not systematically verified",
+      "solution": "Add RTL-specific browser tests"
+    }
   ],
   "summary": {
-    "totalNeeds": 35,
-    "fullyMet": 28,
-    "partiallyMet": 4,
+    "totalNeeds": 40,
+    "fullyMet": 31,
+    "partiallyMet": 5,
     "notMet": 2,
     "cannotValidateAutomatically": 2
   }
