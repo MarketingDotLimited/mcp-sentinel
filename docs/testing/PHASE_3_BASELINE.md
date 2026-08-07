@@ -18,4 +18,5 @@
 8. **Test Environment Isolation:** Tests are currently modifying real file paths (like `/var/lib/mcp-sentinel`) and suffering from EACCES errors due to lack of environment variable isolation in a shared test process.
 
 ## Reconciliation of Phase 2 Claims
+
 See `reports/testing/phase-2-claim-reconciliation.json`. Phase 2 claims of 100% coverage, passing CI, and mutation proof are contradicted by the actual repository state and evidence in the GitHub Actions run.

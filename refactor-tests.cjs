@@ -100,7 +100,14 @@ const fileMappings = {
 };
 
 // Remove the dirty subdirs
-for (const d of ['tests/unit', 'tests/integration', 'tests/mcp-contracts', 'tests/server-contracts', 'tests/scripts', 'tests/privileged']) {
+for (const d of [
+  'tests/unit',
+  'tests/integration',
+  'tests/mcp-contracts',
+  'tests/server-contracts',
+  'tests/scripts',
+  'tests/privileged',
+]) {
   fs.rmSync(d, { recursive: true, force: true });
 }
 
@@ -120,13 +127,16 @@ Object.entries(fileMappings).forEach(([file, targetDir]) => {
 
     // Make a safe AST-like replacement using precise regex boundaries for relative paths
     // 1. Static imports / mock.module
-    content = content.replace(/(import\s+.*from\s+|import\s+|mock\.module\(\s*)['"]\.\.\/([^'"]+)['"]/g, '$1"../../$2"');
+    content = content.replace(
+      /(import\s+.*from\s+|import\s+|mock\.module\(\s*)['"]\.\.\/([^'"]+)['"]/g,
+      '$1"../../$2"'
+    );
     content = content.replace(/(import\s+.*from\s+|import\s+|mock\.module\(\s*)['"]\.\/([^'"]+)['"]/g, '$1"../$2"');
-    
+
     // 2. Dynamic imports
     content = content.replace(/import\(\s*['"]\.\.\/([^'"]+)['"]\s*\)/g, 'import("../../$1")');
     content = content.replace(/import\(\s*['"]\.\/([^'"]+)['"]\s*\)/g, 'import("../$1")');
-    
+
     // 3. Template literal dynamic imports
     content = content.replace(/import\(\s*`\.\.\/([^`]+)`\s*\)/g, 'import(`../../$1`)');
     content = content.replace(/import\(\s*`\.\/([^`]+)`\s*\)/g, 'import(`../$1`)');
@@ -134,9 +144,12 @@ Object.entries(fileMappings).forEach(([file, targetDir]) => {
     // 4. Require statements
     content = content.replace(/require\(\s*['"]\.\.\/([^'"]+)['"]\s*\)/g, 'require("../../$1")');
     content = content.replace(/require\(\s*['"]\.\/([^'"]+)['"]\s*\)/g, 'require("../$1")');
-    
+
     // 5. Hardcoded __dirname path.joins pointing one level up
-    content = content.replace(/path\.join\(\s*__dirname,\s*['"]\.\.\/([^'"]+)['"]\s*\)/g, 'path.join(__dirname, "../../$1")');
+    content = content.replace(
+      /path\.join\(\s*__dirname,\s*['"]\.\.\/([^'"]+)['"]\s*\)/g,
+      'path.join(__dirname, "../../$1")'
+    );
 
     fs.writeFileSync(dest, content);
     fs.rmSync(src);

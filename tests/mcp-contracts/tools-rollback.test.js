@@ -1,15 +1,15 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-mock.module("../../lib/broker-client.js", {
+mock.module('../../lib/broker-client.js', {
   namedExports: {
     brokerCall: mock.fn(),
   },
 });
 
-const { applyConfig, listConfigBackups, restoreConfig } = await import("../../tools/rollback.js");
-const { brokerCall } = await import("../../lib/broker-client.js");
+const { applyConfig, listConfigBackups, restoreConfig } = await import('../../tools/rollback.js');
+const { brokerCall } = await import('../../lib/broker-client.js');
 
 describe('rollback tool', () => {
   beforeEach(() => {

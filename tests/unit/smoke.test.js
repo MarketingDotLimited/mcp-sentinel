@@ -1,10 +1,10 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { readFile } from "../../tools/files.js";
-import { getProcesses } from "../../tools/system.js";
-import { setUserPassword, manageSshKeys } from "../../tools/users.js";
-import { runSandboxedCode } from "../../tools/docker.js";
+import { readFile } from '../../tools/files.js';
+import { getProcesses } from '../../tools/system.js';
+import { setUserPassword, manageSshKeys } from '../../tools/users.js';
+import { runSandboxedCode } from '../../tools/docker.js';
 
 describe('MCP Sentinel Security Sandbox Tests', () => {
   it('Should reject reading /etc/shadow for non-admin', async () => {

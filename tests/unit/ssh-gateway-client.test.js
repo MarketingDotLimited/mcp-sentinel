@@ -1,10 +1,10 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { clearSshConnectionCache, sshGatewayCall, validateSshConnection } from "../../lib/ssh-gateway-client.js";
+import { clearSshConnectionCache, sshGatewayCall, validateSshConnection } from '../../lib/ssh-gateway-client.js';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-ssh-gateway-'));
 const credentials = path.join(directory, 'credentials');
@@ -349,7 +349,7 @@ describe('SSH node gateway client', () => {
   });
 });
 
-import { runSshProcess, killTree } from "../../lib/ssh-gateway-client.js";
+import { runSshProcess, killTree } from '../../lib/ssh-gateway-client.js';
 
 describe('SSH runSshProcess', () => {
   it('executes successfully and captures stdout/stderr', async () => {

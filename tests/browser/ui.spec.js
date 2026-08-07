@@ -30,30 +30,34 @@ test.describe('dashboard UX', () => {
     for (const entry of coverageData) {
       // Find the local file path based on URL
       const filePath = new URL(entry.url).pathname;
-      
+
       const converter = v8toIstanbul(filePath);
       await converter.load();
       converter.applyCoverage(entry.functions);
       Object.assign(istanbulCoverage, converter.toIstanbul());
     }
-    
+
     await fs.mkdir('coverage/browser/istanbul', { recursive: true });
     await fs.mkdir('coverage/browser/raw', { recursive: true });
     await fs.writeFile('coverage/browser/raw/v8.json', JSON.stringify(coverageData, null, 2));
     await fs.writeFile('coverage/browser/istanbul/coverage.json', JSON.stringify(istanbulCoverage, null, 2));
   });
 
-  test('keeps the nontechnical experience focused while exposing capability packs to administrators', async ({ page }) => {
+  test('keeps the nontechnical experience focused while exposing capability packs to administrators', async ({
+    page,
+  }) => {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    
+
     await page.goto('/');
-    
+
     // Test: Login Failure
     await page.locator('input[type="password"]').fill('wrong_password');
     await page.getByRole('button', { name: 'Sign In' }).click();
-    await expect(page.locator('text=Invalid credentials').first()).toBeVisible({ timeout: 2000 }).catch(() => {});
-    
+    await expect(page.locator('text=Invalid credentials').first())
+      .toBeVisible({ timeout: 2000 })
+      .catch(() => {});
+
     // Test: Login Success
     await page.locator('input[type="password"]').fill(key);
     await page.getByRole('button', { name: 'Sign In' }).click();
@@ -68,7 +72,7 @@ test.describe('dashboard UX', () => {
     await page.locator('a[href="#/administration"]').click();
     await expect(page.locator('h1')).toContainText('Administration');
     await expect(page.locator('body')).toContainText('Capability packs');
-    
+
     await page.getByRole('link', { name: /ChatGPT action manifest/ }).click();
     await expect(page.locator('h1')).toContainText('ChatGPT action manifest');
     await expect(page.locator('#manifest-status')).toContainText('Manifest v');
@@ -95,19 +99,19 @@ test.describe('dashboard UX', () => {
     expect(connectText).toMatch(/Cloud connector readiness/);
     expect(errors).toEqual([]);
   });
-  
+
   test('handles forms, destruct warning, arabic and empty states', async ({ page }) => {
     // Fill in other requirements for coverage
     await page.goto('/');
     await page.locator('input[type="password"]').fill(key);
     await page.getByRole('button', { name: 'Sign In' }).click();
-    
+
     // Trigger RTL / Arabic layout if supported via a lang switch or localstorage
     await page.evaluate(() => {
       document.documentElement.dir = 'rtl';
       document.documentElement.lang = 'ar';
     });
-    
+
     // Just click around to trigger coverage
     await page.locator('a[href="#/workflows"]').click();
     await page.locator('a[href="#/connect"]').click();

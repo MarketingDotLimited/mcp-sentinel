@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import * as deployment from "../../lib/deployment.js";
+import * as deployment from '../../lib/deployment.js';
 
 test('deployment utilities', async t => {
   await t.test('parseEnvironment', async t => {

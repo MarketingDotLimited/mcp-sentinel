@@ -12,11 +12,13 @@ let failed = false;
 
 for (const [file, metrics] of Object.entries(summary)) {
   if (file === 'total') continue;
-  
+
   const { lines, statements, functions, branches } = metrics;
   if (lines.pct < 100 || statements.pct < 100 || functions.pct < 100 || branches.pct < 100) {
     console.error(`Coverage failed for ${file}`);
-    console.error(`Lines: ${lines.pct}%, Statements: ${statements.pct}%, Functions: ${functions.pct}%, Branches: ${branches.pct}%`);
+    console.error(
+      `Lines: ${lines.pct}%, Statements: ${statements.pct}%, Functions: ${functions.pct}%, Branches: ${branches.pct}%`
+    );
     failed = true;
   }
 }

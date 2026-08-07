@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';

@@ -1,16 +1,16 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-mock.module("../../lib/broker-client.js", {
+mock.module('../../lib/broker-client.js', {
   namedExports: {
     brokerCall: mock.fn(),
   },
 });
 
 const { manageService, getServiceStatus, listServices, getJournalLogs, manageFirewall } =
-  await import("../../tools/services.js");
-const { brokerCall } = await import("../../lib/broker-client.js");
+  await import('../../tools/services.js');
+const { brokerCall } = await import('../../lib/broker-client.js');
 
 describe('services tool', () => {
   beforeEach(() => {

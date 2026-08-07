@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 // Opt-in live integration test. It starts an isolated Sentinel instance, creates
 // and removes one temporary OS account, and verifies least-privilege MCP access.
 import { after, describe, it } from 'node:test';
@@ -153,7 +153,8 @@ describe('live MCP least-privilege path', { skip: !enabled }, () => {
     const brokerSocket = path.join(tmp, 'broker.sock');
     const sharedEnvironment = {
       ...process.env,
-      TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+      TEST_NO_LISTEN: 'false',
+      NODE_ENV: 'test',
       MCP_BROKER_SOCKET: brokerSocket,
       MCP_STATE_DB: path.join(tmp, 'state.sqlite3'),
       BROKER_MANAGED_USERS: username,

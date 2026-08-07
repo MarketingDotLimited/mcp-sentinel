@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import fs from 'fs';
 import fsSync from 'fs';
 import path from 'path';
@@ -91,7 +91,7 @@ fsSync.writeFileSync(path.join(directory, 'app.json'), '{}');
 
 describe('broker final coverage', () => {
   it('covers the remaining lines', async () => {
-    const { startBroker, handleRequest } = await import("../../broker.js");
+    const { startBroker, handleRequest } = await import('../../broker.js');
     const origSetInterval = global.setInterval;
     global.setInterval = (fn, ms) => origSetInterval(fn, ms).unref();
     const srv = startBroker();

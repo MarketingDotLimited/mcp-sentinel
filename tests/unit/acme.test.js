@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import test, { describe, it, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'path';
@@ -41,7 +41,7 @@ mock.module('acme-client', {
   },
 });
 
-const { AcmeManager } = await import("../../lib/acme.js");
+const { AcmeManager } = await import('../../lib/acme.js');
 
 describe('AcmeManager', () => {
   beforeEach(() => {

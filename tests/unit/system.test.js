@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert';
 import path from 'node:path';
@@ -86,7 +86,7 @@ mock.module('node:os', {
   },
 });
 
-mock.module("../../lib/exec.js", {
+mock.module('../../lib/exec.js', {
   namedExports: {
     secureExec: async (args, identity) => {
       if (forceEmptyExec === true) {
@@ -110,13 +110,13 @@ mock.module("../../lib/exec.js", {
   },
 });
 
-mock.module("../../lib/broker-client.js", {
+mock.module('../../lib/broker-client.js', {
   namedExports: {
     brokerCall: async () => ({}),
   },
 });
 
-mock.module("../../lib/project-operation-dispatcher.js", {
+mock.module('../../lib/project-operation-dispatcher.js', {
   namedExports: {
     dispatchProjectOperation: async (projectId, identity, operation, payload, options) => {
       if (operation === 'project.cancel') return { exitCode: 0 };
@@ -150,7 +150,7 @@ mock.module("../../lib/project-operation-dispatcher.js", {
   },
 });
 
-mock.module("../../lib/control-plane.js", {
+mock.module('../../lib/control-plane.js', {
   namedExports: {
     getProject: async () => ({ id: 'default-project' }),
     loadTaskRunState: async runId => {
@@ -337,8 +337,8 @@ const {
   pruneProjectTestRuns,
   getProjectTestRun,
   runProjectTests,
-} = await import("../../tools/system.js");
-const { secureExec } = await import("../../lib/exec.js");
+} = await import('../../tools/system.js');
+const { secureExec } = await import('../../lib/exec.js');
 
 describe('system tools', () => {
   it('getSystemInfo as admin', async () => {

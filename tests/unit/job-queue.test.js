@@ -1,10 +1,10 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { JobQueue, getJobQueue } from "../../lib/job-queue.js";
+import { JobQueue, getJobQueue } from '../../lib/job-queue.js';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-job-queue-'));
 after(() => fs.rm(directory, { recursive: true, force: true }));

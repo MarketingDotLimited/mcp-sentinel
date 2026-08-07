@@ -4,27 +4,13 @@
   "commandRunner": {
     "command": "npm run test:unit"
   },
-  "mutate": [
-    "server.js",
-    "broker.js",
-    "lib/**/*.js",
-    "tools/**/*.js",
-    "routes/**/*.js"
-  ],
+  "mutate": ["server.js", "broker.js", "lib/**/*.js", "tools/**/*.js", "routes/**/*.js"],
   "thresholds": {
     "high": 100,
     "low": 99,
     "break": 100
   },
-  "reporters": [
-    "html",
-    "clear-text",
-    "progress"
-  ],
-  "ignorePatterns": [
-    "coverage/**",
-    "tests/**",
-    "scripts/**"
-  ],
+  "reporters": ["html", "clear-text", "progress"],
+  "ignorePatterns": ["coverage/**", "tests/**", "scripts/**"],
   "concurrency": 2
 }

@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import test, { describe, it, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'path';
@@ -14,13 +14,13 @@ mock.module('fs/promises', {
 });
 
 const secureExecMock = mock.fn();
-mock.module("../../lib/exec.js", {
+mock.module('../../lib/exec.js', {
   namedExports: {
     secureExec: secureExecMock,
   },
 });
 
-const { monitor } = await import("../../lib/monitor.js");
+const { monitor } = await import('../../lib/monitor.js');
 const SystemMonitor = monitor.constructor;
 
 describe('SystemMonitor', () => {

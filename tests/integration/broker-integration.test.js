@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs/promises';
@@ -125,7 +125,8 @@ after(async () => {
 
 describe('broker operational integration', () => {
   it('reports schema, project identity, and state health', async () => {
-    const health = await call('broker.health'); console.log('HEALTHY:', health);
+    const health = await call('broker.health');
+    console.log('HEALTHY:', health);
     assert.equal(health.healthy, true);
     assert.equal(health.projectCount, 1);
     assert.equal(health.stateMode, '0600');

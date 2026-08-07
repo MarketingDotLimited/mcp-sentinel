@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import fs from 'node:fs';
-import { handleGatewayInput } from "../../node-gateway.js";
+import { handleGatewayInput } from '../../node-gateway.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const GATEWAY_BIN = join(__dirname, '..', '..', 'node-gateway.js');

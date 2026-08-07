@@ -1,11 +1,13 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 describe('server-routes-fuzzer', () => {
   it('fuzzes express handlers safely', async () => {
     process.env.TEST_NO_LISTEN = 'true';
-    const { __TEST_EXPORTS__: { app: expressApp } } = await import("../../server.js");
+    const {
+      __TEST_EXPORTS__: { app: expressApp },
+    } = await import('../../server.js');
     const routes = expressApp._router?.stack || [];
     const handlers = [];
 
@@ -62,7 +64,9 @@ describe('server-routes-fuzzer', () => {
         clientIP: '127.0.0.1',
         protocol: 'http',
         get: () => 'mcp.example.test',
-        on: (evt, cb) => { if (evt === 'close') setTimeout(cb, 10); },
+        on: (evt, cb) => {
+          if (evt === 'close') setTimeout(cb, 10);
+        },
       };
 
       try {
@@ -91,7 +95,7 @@ describe('server-routes-fuzzer', () => {
 
 describe('server-helpers-explicit', () => {
   it('tests helpers explicitly with contract assertions', async () => {
-    const { __TEST_EXPORTS__ } = await import("../../server.js");
+    const { __TEST_EXPORTS__ } = await import('../../server.js');
     let statusCode = 200;
     let jsonBody = null;
 
@@ -156,7 +160,7 @@ describe('server-helpers-explicit', () => {
 
 describe('server-helpers-extract', () => {
   it('tests missing helpers with contract assertions', async () => {
-    const { __TEST_EXPORTS__ } = await import("../../server.js");
+    const { __TEST_EXPORTS__ } = await import('../../server.js');
     let statusCode = 200;
 
     const dummyRes = {
@@ -188,7 +192,7 @@ describe('server-helpers-extract', () => {
 
     await __TEST_EXPORTS__.refreshActiveToolLists();
 
-    assert.equal(typeof await __TEST_EXPORTS__.makeSessionRoom({}, '127.0.0.1'), 'boolean');
+    assert.equal(typeof (await __TEST_EXPORTS__.makeSessionRoom({}, '127.0.0.1')), 'boolean');
 
     await __TEST_EXPORTS__.requireAdminStepUp(
       { identity: { role: 'admin' }, body: { confirmationCode: '123' }, get: () => null },

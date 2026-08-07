@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 process.on('unhandledRejection', r => {
   console.error('UNHANDLED_REJECTION:', r.stack);
 });
@@ -529,7 +529,7 @@ it('covers remaining', async () => {
   // healthUrl tests
   process.env.MCP_BROKER_SOCKET = '/tmp/mcp-sock-3.sock';
   process.env.BROKER_MANAGED_SERVICES = 'nginx,example-app,authelia';
-  const { startBroker: sbExtra, handleRequest: hrExtra } = await import("../../broker.js");
+  const { startBroker: sbExtra, handleRequest: hrExtra } = await import('../../broker.js');
   const srvExtra = sbExtra();
 
   const origDateNow = Date.now;

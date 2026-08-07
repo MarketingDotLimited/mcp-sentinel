@@ -14,7 +14,13 @@ const openServers = new Set();
 const originalDatabaseSync = DatabaseSync;
 class SafeDatabaseSync extends originalDatabaseSync {
   constructor(dbPath, options) {
-    if (typeof dbPath === 'string' && (dbPath.startsWith('/var/lib') || dbPath.startsWith('/etc') || dbPath.startsWith('/home') || dbPath.startsWith('/root'))) {
+    if (
+      typeof dbPath === 'string' &&
+      (dbPath.startsWith('/var/lib') ||
+        dbPath.startsWith('/etc') ||
+        dbPath.startsWith('/home') ||
+        dbPath.startsWith('/root'))
+    ) {
       if (process.env.ALLOW_PROD_PATHS !== 'true') {
         throw new Error(`EACCES: test attempted to access production database path: ${dbPath}`);
       }
@@ -32,8 +38,11 @@ sqlite.DatabaseSync = SafeDatabaseSync;
 
 // Monkeypatch fs to prevent production path access
 const originalOpenSync = fs.openSync;
-fs.openSync = function(p, flags, mode) {
-  if (typeof p === 'string' && (p.startsWith('/var/lib') || p.startsWith('/etc') || p.startsWith('/home') || p.startsWith('/root'))) {
+fs.openSync = function (p, flags, mode) {
+  if (
+    typeof p === 'string' &&
+    (p.startsWith('/var/lib') || p.startsWith('/etc') || p.startsWith('/home') || p.startsWith('/root'))
+  ) {
     if (process.env.ALLOW_PROD_PATHS !== 'true' && !p.startsWith('/tmp')) {
       throw new Error(`EACCES: test attempted to access production path: ${p}`);
     }
@@ -62,7 +71,7 @@ if (!process.env.MCP_ISOLATED_TEST_ENV) {
     TEST_NO_LISTEN: 'true',
     MCP_ISOLATED_TEST_ENV: 'true',
     AUTHELIA_USERS_FILE: path.join(tmpDir, 'users.yml'),
-    AUTHELIA_CONFIG_FILE: path.join(tmpDir, 'configuration.yml')
+    AUTHELIA_CONFIG_FILE: path.join(tmpDir, 'configuration.yml'),
   };
 
   fs.mkdirSync(env.MCP_STATE_DIR, { recursive: true });
@@ -80,9 +89,11 @@ if (!process.env.MCP_ISOLATED_TEST_ENV) {
   process.on('exit', () => {
     // Close databases
     for (const db of openDatabases) {
-      try { db.close(); } catch (e) {}
+      try {
+        db.close();
+      } catch (e) {}
     }
-    
+
     // Attempt removal
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -98,9 +109,10 @@ export async function teardownEnvironment() {
   // Clear any timers or event listeners if needed
   process.removeAllListeners('SIGTERM');
   process.removeAllListeners('SIGINT');
-  
+
   for (const db of openDatabases) {
-    try { db.close(); } catch (e) {}
+    try {
+      db.close();
+    } catch (e) {}
   }
 }
-

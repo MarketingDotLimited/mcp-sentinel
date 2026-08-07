@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateOAuthTokenPolicy } from "../../lib/oauth-token-policy.js";
+import { validateOAuthTokenPolicy } from '../../lib/oauth-token-policy.js';
 
 const issuer = 'https://auth.example.test';
 const resource = 'https://mcp.example.test';

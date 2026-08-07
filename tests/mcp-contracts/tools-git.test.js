@@ -1,22 +1,22 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-mock.module("../../lib/control-plane.js", {
+mock.module('../../lib/control-plane.js', {
   namedExports: {
     getProject: mock.fn(),
   },
 });
 
-mock.module("../../lib/project-operation-dispatcher.js", {
+mock.module('../../lib/project-operation-dispatcher.js', {
   namedExports: {
     dispatchProjectOperation: mock.fn(),
   },
 });
 
-const { gitOperation } = await import("../../tools/git.js");
-const { getProject } = await import("../../lib/control-plane.js");
-const { dispatchProjectOperation } = await import("../../lib/project-operation-dispatcher.js");
+const { gitOperation } = await import('../../tools/git.js');
+const { getProject } = await import('../../lib/control-plane.js');
+const { dispatchProjectOperation } = await import('../../lib/project-operation-dispatcher.js');
 
 describe('git tool', () => {
   beforeEach(() => {

@@ -5,21 +5,18 @@ export default defineConfig({
   testMatch: /.*\.spec\.js/,
   timeout: 30 * 1000,
   expect: {
-    timeout: 5000
+    timeout: 5000,
   },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: [
-    ['html'],
-    ['list']
-  ],
+  reporter: [['html'], ['list']],
   use: {
     actionTimeout: 0,
     trace: 'on-first-retry',
     video: 'retain-on-failure',
-    screenshot: 'only-on-failure'
+    screenshot: 'only-on-failure',
   },
   projects: [
     {

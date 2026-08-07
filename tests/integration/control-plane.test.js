@@ -1,10 +1,10 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { sanitizeArgs } from "../../audit.js";
+import { sanitizeArgs } from '../../audit.js';
 
 const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-sentinel-approvals-'));
 process.env.CONTROL_PLANE_STATE_FILE = path.join(tempDir, 'control-plane.json');

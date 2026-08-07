@@ -1,13 +1,13 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 const brokerCallMock = mock.fn(() => Promise.resolve('mocked_result'));
-mock.module("../../lib/broker-client.js", {
+mock.module('../../lib/broker-client.js', {
   namedExports: { brokerCall: brokerCallMock },
 });
 
-const autheliaClient = await import("../../lib/authelia-client.js");
+const autheliaClient = await import('../../lib/authelia-client.js');
 
 test('authelia-client tests', async t => {
   t.afterEach(() => {

@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 // Opt-in browser test for the nontechnical dashboard paths.
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';

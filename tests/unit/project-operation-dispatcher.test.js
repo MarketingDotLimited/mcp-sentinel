@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { createProjectOperationDispatcher } from "../../lib/project-operation-dispatcher.js";
+import { createProjectOperationDispatcher } from '../../lib/project-operation-dispatcher.js';
 
 const project = { id: '436b432a-206b-43cd-abfa-6291dbef0c50' };
 const identity = { userId: 'developer' };

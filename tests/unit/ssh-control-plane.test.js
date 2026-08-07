@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';

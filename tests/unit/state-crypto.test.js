@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mock } from 'node:test';
@@ -16,7 +16,7 @@ function setupEnv() {
 }
 
 test('state-crypto tests', async t => {
-  mock.module("../../lib/key-provider.js", {
+  mock.module('../../lib/key-provider.js', {
     namedExports: {
       createKeyProvider: () => {
         return {

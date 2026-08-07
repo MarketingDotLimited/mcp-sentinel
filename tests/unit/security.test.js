@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs/promises';
@@ -48,7 +48,7 @@ describe('security.js full coverage', () => {
   });
 
   it('added ADMIN_API_KEY', async () => {
-    const { getKeyEntry } = await import("../../keystore.js");
+    const { getKeyEntry } = await import('../../keystore.js');
     const entry = getKeyEntry(process.env.ADMIN_API_KEY);
     assert.ok(entry);
     assert.equal(entry.userId, 'admin');

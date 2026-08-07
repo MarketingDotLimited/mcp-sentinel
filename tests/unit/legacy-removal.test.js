@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'child_process';
@@ -7,7 +7,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
-import { openSqliteState } from "../../lib/sqlite-state.js";
+import { openSqliteState } from '../../lib/sqlite-state.js';
 
 const execute = promisify(execFile);
 const temporaryDirectories = [];

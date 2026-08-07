@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toolResultSchema } from "../../lib/tool-result-schemas.js";
+import { toolResultSchema } from '../../lib/tool-result-schemas.js';
 
 test('tool-result-schemas', async t => {
   await t.test('returns schema for valid tool name', () => {

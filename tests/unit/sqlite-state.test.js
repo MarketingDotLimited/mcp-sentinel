@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs/promises';
@@ -6,8 +6,14 @@ import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { loadSqliteState, loadTaskRun, openSqliteState, saveSqliteState, upsertTaskRun } from "../../lib/sqlite-state.js";
-import { encryptStateValue } from "../../lib/state-crypto.js";
+import {
+  loadSqliteState,
+  loadTaskRun,
+  openSqliteState,
+  saveSqliteState,
+  upsertTaskRun,
+} from '../../lib/sqlite-state.js';
+import { encryptStateValue } from '../../lib/state-crypto.js';
 
 const temporaryDirectories = [];
 

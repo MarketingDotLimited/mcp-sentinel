@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
@@ -6,7 +6,7 @@ import fsPromises from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import { loadCredentialSecret } from "../../lib/credentials.js";
+import { loadCredentialSecret } from '../../lib/credentials.js';
 
 const originalDirectory = process.env.CREDENTIALS_DIRECTORY;
 const originalSecret = process.env.TEST_CREDENTIAL_SECRET;
@@ -71,7 +71,7 @@ describe('systemd credential loading', () => {
       [
         '--input-type=module',
         '--eval',
-        "const security = await import(\"./security.js\"); console.log(security.jwtSecretIsConfigured())",
+        'const security = await import("./security.js"); console.log(security.jwtSecretIsConfigured())',
       ],
       { cwd: path.resolve('.'), env: environment, encoding: 'utf8' }
     );
@@ -80,7 +80,7 @@ describe('systemd credential loading', () => {
     await fsPromises.writeFile(path.join(directory, 'audit-key'), 'invalid', { mode: 0o600 });
     assert.throws(
       () =>
-        execFileSync(process.execPath, ['--input-type=module', '--eval', "await import(\"./audit.js\")"], {
+        execFileSync(process.execPath, ['--input-type=module', '--eval', 'await import("./audit.js")'], {
           cwd: path.resolve('.'),
           env: environment,
           encoding: 'utf8',

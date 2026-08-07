@@ -27,7 +27,7 @@ if (fs.existsSync(browserCoveragePath)) {
 const context = libReport.createContext({
   dir: path.resolve('coverage/merged'),
   defaultSummarizer: 'nested',
-  coverageMap: map
+  coverageMap: map,
 });
 
 reports.create('json').execute(context);

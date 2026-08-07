@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
@@ -50,7 +50,7 @@ describe('security.js OIDC remaining branches', async () => {
       },
     });
 
-    mock.module("../../lib/oauth-mappings-store.js", {
+    mock.module('../../lib/oauth-mappings-store.js', {
       namedExports: {
         readOAuthMappings: async () => ({
           'test@example.com': {

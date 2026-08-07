@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { secureExec } from "../../lib/exec.js";
+import { secureExec } from '../../lib/exec.js';
 
 test('secureExec validation', async () => {
   // Test invalid commands

@@ -1,8 +1,8 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import express from 'express';
-import coreRouter from "../../routes/core.js";
+import coreRouter from '../../routes/core.js';
 import http from 'node:http';
 
 describe('core router', () => {

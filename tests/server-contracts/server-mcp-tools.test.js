@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'net';
@@ -67,7 +67,7 @@ describe('server-mcp-tools fuzzer', () => {
     process.env.NODE_ENV = 'test';
     process.env.TEST_NO_LISTEN = 'false'; // listen so SSE client can connect
 
-    await import("../../server.js");
+    await import('../../server.js');
     await new Promise(r => setTimeout(r, 1000));
   });
 
@@ -96,7 +96,9 @@ describe('server-mcp-tools fuzzer', () => {
       socket.destroy();
     }
     if (brokerServer) brokerServer.close();
-    const { __TEST_EXPORTS__: { getServer } } = await import("../../server.js");
+    const {
+      __TEST_EXPORTS__: { getServer },
+    } = await import('../../server.js');
     const testServer = getServer();
     if (testServer) {
       await new Promise(resolve => testServer.close(resolve));

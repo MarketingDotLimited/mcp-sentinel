@@ -1,11 +1,11 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'crypto';
 
 let callCount = 0;
 
-mock.module("../../lib/control-plane.js", {
+mock.module('../../lib/control-plane.js', {
   namedExports: {
     getProject: async projectId => {
       callCount++;
@@ -16,7 +16,7 @@ mock.module("../../lib/control-plane.js", {
   },
 });
 
-mock.module("../../lib/project-operation-dispatcher.js", {
+mock.module('../../lib/project-operation-dispatcher.js', {
   namedExports: {
     dispatchProjectOperation: async (projectId, identity, operation, payload) => ({
       operation,
@@ -25,7 +25,7 @@ mock.module("../../lib/project-operation-dispatcher.js", {
   },
 });
 
-const files = await import("../../tools/files.js");
+const files = await import('../../tools/files.js');
 
 describe('files tools branch coverage', () => {
   it('covers remaining branches', async () => {

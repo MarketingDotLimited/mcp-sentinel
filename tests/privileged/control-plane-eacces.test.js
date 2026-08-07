@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import test from 'node:test';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -6,7 +6,7 @@ import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const CONTROL_PLANE_JS = path.join(__dirname, "../../lib/control-plane.js");
+const CONTROL_PLANE_JS = path.join(__dirname, '../../lib/control-plane.js');
 
 test('control-plane.js loadState EACCES', () => {
   execFileSync(process.execPath, [

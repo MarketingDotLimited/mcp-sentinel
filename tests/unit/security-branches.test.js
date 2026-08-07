@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'child_process';
@@ -7,7 +7,7 @@ import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SECURITY_JS = path.join(__dirname, "../../security.js");
+const SECURITY_JS = path.join(__dirname, '../../security.js');
 
 test('security.js branches - separate processes for env vars', () => {
   // Test USE_LEGACY_REVOCATIONS = true

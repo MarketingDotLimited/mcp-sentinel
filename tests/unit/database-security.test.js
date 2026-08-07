@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { boundedRows, classifyQuery } from "../../tools/db.js";
+import { boundedRows, classifyQuery } from '../../tools/db.js';
 
 describe('database query boundary', () => {
   it('classifies read and write statements without accepting comments or multiple statements', () => {

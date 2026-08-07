@@ -1,11 +1,11 @@
-import "../test-env.js";
+import '../test-env.js';
 /* c8 ignore start */
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
-import { LocalKeyProvider, createKeyProvider } from "../../lib/key-provider.js";
+import { LocalKeyProvider, createKeyProvider } from '../../lib/key-provider.js';
 
 let directory;
 

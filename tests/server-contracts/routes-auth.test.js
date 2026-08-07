@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, describe, mock, before, after } from 'node:test';
 import assert from 'node:assert';
 import express from 'express';
@@ -9,7 +9,7 @@ process.env.JWT_REVOCATION_FILE = '/tmp/jwt_mock.json';
 process.env.KEYSTORE_FILE = '/tmp/keys_mock.json';
 process.env.AUDIT_LOG_DIR = '/tmp/audit_logs';
 
-mock.module("../../security.js", {
+mock.module('../../security.js', {
   namedExports: {
     // Return 401 to ensure rate limiter counts it as an unsuccessful request
     authenticate: (req, res, next) => res.status(401).json({ error: 'unauth' }),
@@ -20,7 +20,7 @@ mock.module("../../security.js", {
   },
 });
 
-mock.module("../../audit.js", {
+mock.module('../../audit.js', {
   namedExports: {
     logSecurityEvent: mock.fn(),
   },
@@ -35,8 +35,8 @@ describe('auth router', () => {
   let baseUrl;
 
   before(async () => {
-    authRouter = (await import("../../routes/auth.js")).default;
-    logSecurityEvent = (await import("../../audit.js")).logSecurityEvent;
+    authRouter = (await import('../../routes/auth.js')).default;
+    logSecurityEvent = (await import('../../audit.js')).logSecurityEvent;
 
     app = express();
     // trust proxy to ensure IP is read properly if needed

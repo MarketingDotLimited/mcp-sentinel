@@ -1,7 +1,7 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { REMOTE_BROKER_OPERATIONS, assertRemoteBrokerOperation } from "../../lib/remote-operation-policy.js";
+import { REMOTE_BROKER_OPERATIONS, assertRemoteBrokerOperation } from '../../lib/remote-operation-policy.js';
 
 test('remote-operation-policy', async t => {
   await t.test('REMOTE_BROKER_OPERATIONS contains expected operations', () => {

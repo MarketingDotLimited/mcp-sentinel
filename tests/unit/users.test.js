@@ -1,13 +1,13 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 const brokerCallMock = mock.fn(() => Promise.resolve('mocked_result'));
-mock.module("../../lib/broker-client.js", {
+mock.module('../../lib/broker-client.js', {
   namedExports: { brokerCall: brokerCallMock },
 });
 
-const users = await import("../../tools/users.js");
+const users = await import('../../tools/users.js');
 
 test('users tools', async t => {
   const adminIdentity = { role: 'admin', userId: 'adminuser' };

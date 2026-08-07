@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -65,7 +65,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -174,7 +175,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -251,7 +253,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -355,7 +358,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -397,7 +401,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -454,7 +459,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -511,7 +517,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',
@@ -567,7 +574,8 @@ describe('admin OAuth endpoints report broker dependency status', { signal: new 
       cwd: process.cwd(),
       env: {
         ...process.env,
-        TEST_NO_LISTEN: 'false', NODE_ENV: 'test',
+        TEST_NO_LISTEN: 'false',
+        NODE_ENV: 'test',
         PORT: String(port),
         HOST: '127.0.0.1',
         USE_HTTPS: 'false',

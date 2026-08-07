@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'net';
@@ -43,16 +43,18 @@ describe('server integration tests', () => {
     process.env.NODE_ENV = 'test';
     process.env.TEST_NO_LISTEN = 'false';
 
-    await import("../../server.js");
+    await import('../../server.js');
     await new Promise(r => setTimeout(r, 1000));
 
     // Get assigned server port by scanning or creating client connection
-    const { getAdminState } = await import("../../lib/admin-state.js");
+    const { getAdminState } = await import('../../lib/admin-state.js');
     assert.ok(getAdminState);
   });
 
   it('fuzzes express handlers with contract assertions', async () => {
-    const { __TEST_EXPORTS__: { app: expressApp } } = await import("../../server.js");
+    const {
+      __TEST_EXPORTS__: { app: expressApp },
+    } = await import('../../server.js');
     const routes = expressApp._router?.stack || [];
     const handlers = [];
 
@@ -104,7 +106,9 @@ describe('server integration tests', () => {
         clientIP: '127.0.0.1',
         protocol: 'https',
         get: () => 'mcp.example.test',
-        on: (evt, cb) => { if (evt === 'close') setTimeout(cb, 10); },
+        on: (evt, cb) => {
+          if (evt === 'close') setTimeout(cb, 10);
+        },
       };
 
       try {
@@ -140,7 +144,9 @@ describe('server integration tests', () => {
       socket.destroy();
     }
     if (brokerServer) brokerServer.close();
-    const { __TEST_EXPORTS__: { getServer } } = await import("../../server.js");
+    const {
+      __TEST_EXPORTS__: { getServer },
+    } = await import('../../server.js');
     const testServer = getServer();
     if (testServer) {
       await new Promise(resolve => testServer.close(resolve));

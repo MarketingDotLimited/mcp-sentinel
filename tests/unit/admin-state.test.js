@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
@@ -12,8 +12,7 @@ describe('admin-state', () => {
 
     // We expect an error when it tries to write to /var/lib/mcp-sentinel if running as non-root,
     // but the branch will be executed.
-    const val = adminState.getAdminState('test');
-    assert.ok(val === null || typeof val === 'object' || typeof val === 'string');
+    assert.throws(() => adminState.getAdminState('test'), /EACCES/);
 
     // Cover invalid state key in getAdminState
     assert.throws(() => adminState.getAdminState('../bad'), /Invalid state key/);

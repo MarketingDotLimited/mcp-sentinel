@@ -1,10 +1,10 @@
-import "../test-env.js";
+import '../test-env.js';
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { validateNodeProject } from "../../scripts/register-node-project.js";
+import { validateNodeProject } from '../../scripts/register-node-project.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-node-project-'));
 const project = {

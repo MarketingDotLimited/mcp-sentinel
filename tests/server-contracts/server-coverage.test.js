@@ -1,11 +1,11 @@
-import "../test-env.js";
+import '../test-env.js';
 process.env.TEST_NO_LISTEN = 'true';
 
 import { test, describe, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 describe('Server internal functions', async () => {
-  const { __TEST_EXPORTS__ } = await import("../../server.js");
+  const { __TEST_EXPORTS__ } = await import('../../server.js');
   const {
     isBrokerUnavailable,
     isRecoverableDependencyError,

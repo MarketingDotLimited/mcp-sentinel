@@ -1,4 +1,4 @@
-import "../test-env.js";
+import '../test-env.js';
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import events from 'node:events';
@@ -20,7 +20,7 @@ const fsMock = {
 };
 mock.module('fs/promises', { namedExports: fsMock, defaultExport: fsMock });
 
-const docker = await import("../../tools/docker.js");
+const docker = await import('../../tools/docker.js');
 
 test('docker tools', async t => {
   let originalEnv;
