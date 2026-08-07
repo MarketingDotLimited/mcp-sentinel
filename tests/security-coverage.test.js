@@ -225,8 +225,13 @@ describe('security.js additional coverage', async () => {
 
   it('authenticateJWT no Bearer prefix', () => {
     let nextCalled = false;
-    const req = { headers: { authorization: 'Basic xyz' }, socket: { remoteAddress: '127.0.0.1' } };
-    const res = { status: () => res, json: () => res };
+    const req = {
+      headers: { authorization: 'Basic xyz' },
+      socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
+    const res = { status: () => res, json: () => res, type: () => res, set: () => res };
     // This will fallback to authenticate, which will fail because no x-api-key
     let statusCalled = null;
     const res2 = {
@@ -257,7 +262,12 @@ describe('security.js additional coverage', async () => {
       process.env.JWT_SECRET,
       { algorithm: 'HS256', issuer: 'mcp-server', audience: 'mcp-client' }
     );
-    const req = { headers: { authorization: 'Bearer ' + token }, socket: { remoteAddress: '127.0.0.1' } };
+    const req = {
+      headers: { authorization: 'Bearer ' + token },
+      socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
     let statusCalled = 0;
     const res = {
       status: c => {
@@ -266,6 +276,7 @@ describe('security.js additional coverage', async () => {
       },
       json: () => res,
       set: () => res,
+      type: () => res,
     };
     security.authenticateJWT(req, res, () => {});
     assert.equal(statusCalled, 401);
@@ -289,7 +300,12 @@ describe('security.js additional coverage', async () => {
     );
     await security.revokeApiKeyById(keyId);
 
-    const req = { headers: { authorization: 'Bearer ' + token }, socket: { remoteAddress: '127.0.0.1' } };
+    const req = {
+      headers: { authorization: 'Bearer ' + token },
+      socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
     let statusCalled = 0;
     const res = {
       status: c => {
@@ -298,6 +314,7 @@ describe('security.js additional coverage', async () => {
       },
       json: () => res,
       set: () => res,
+      type: () => res,
     };
     security.authenticateJWT(req, res, () => {});
     assert.equal(statusCalled, 401);
@@ -320,9 +337,14 @@ describe('security.js additional coverage', async () => {
       process.env.JWT_SECRET,
       { algorithm: 'HS256', issuer: 'mcp-server', audience: 'mcp-client' }
     );
-    const req = { headers: { authorization: 'Bearer ' + token }, socket: { remoteAddress: '8.8.8.8' } };
+    const req = {
+      headers: { authorization: 'Bearer ' + token },
+      socket: { remoteAddress: '8.8.8.8' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
     let nextCalled = false;
-    const res = { status: () => res, json: () => res, set: () => res };
+    const res = { status: () => res, json: () => res, set: () => res, type: () => res };
     let statusCalled = null;
     const res2 = {
       status: c => {
