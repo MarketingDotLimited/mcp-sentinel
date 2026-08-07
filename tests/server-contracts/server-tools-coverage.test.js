@@ -6,7 +6,6 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import net from 'net';
 import * as security from '../../security.js';
 
-process.on('unhandledRejection', () => {});
 
 test('server tools error branches', async () => {
   const srv = net.createServer();
@@ -37,7 +36,7 @@ test('server tools error branches', async () => {
   try {
     await clientLimited.callTool({ name: 'get_system_info', arguments: {} });
   } catch (e) {
-    console.log('LIMITED ERROR:', e.message);
+    assert.ok(e.message);
   }
   await clientLimited.close();
 
@@ -54,21 +53,21 @@ test('server tools error branches', async () => {
       arguments: { tool: 'request_change_approval', arguments: {}, summary: 'x' },
     });
   } catch (e) {
-    console.log('APPROVAL ERROR:', e.message);
+    assert.ok(e.message);
   }
 
   // capability pack not enabled
   try {
     await client.callTool({ name: 'run_sandboxed_code', arguments: { language: 'node', code: 'x' } });
   } catch (e) {
-    console.log('SANDBOX ERROR:', e.message);
+    assert.ok(e.message);
   }
 
   // trigger Zod Error inside
   try {
     await client.callTool({ name: 'get_system_info', arguments: { forceReplay: 'not-a-boolean' } });
   } catch (e) {
-    console.log('ZOD ERROR:', e.message);
+    assert.ok(e.message);
   }
 
   await client.close();
