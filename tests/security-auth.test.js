@@ -40,6 +40,10 @@ function response() {
       this.headers[name] = value;
       return this;
     },
+    type(t) {
+      this.headers['Content-Type'] = t;
+      return this;
+    },
   };
 }
 

@@ -201,9 +201,13 @@ describe('security.js additional coverage', async () => {
     const req = {
       headers: { authorization: 'Bearer mcp_' + 'a'.repeat(64) },
       socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http', get: () => 'localhost'
     };
     // Should fallback to API key auth, which will fail missing key
-    const res = { status: c => ({ json: b => b }) };
+    const res = { status: c => {
+      const s = { json: b => b, type: () => s, set: () => s };
+      return s;
+    } };
     const result = security.authenticateJWT(req, res, () => {
       called = true;
     });

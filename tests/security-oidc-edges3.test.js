@@ -36,7 +36,12 @@ describe('security.js OIDC edges 3', async () => {
     });
 
     const security = await import(`../security.js?test=${Date.now()}`);
-    const req = { headers: { authorization: 'Bearer some-token' }, socket: { remoteAddress: '127.0.0.1' }, protocol: 'http', get: () => 'localhost' };
+    const req = {
+      headers: { authorization: 'Bearer some-token' },
+      socket: { remoteAddress: '127.0.0.1' },
+      protocol: 'http',
+      get: () => 'localhost',
+    };
     let statusCalled = 0;
     const res = {
       status: c => {

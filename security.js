@@ -609,8 +609,8 @@ export function authenticateJWT(req, res, next) {
         requireApproval:
           clientMapping.requireApproval === undefined
             ? ((userMapping.requireApproval !== undefined
-/* c8 ignore next 3 */
                 ? /* c8 ignore next 3 */
+                  /* c8 ignore next 3 */
                   userMapping.requireApproval
                 : ROLE_TEMPLATES[mappedRole]?.requireApproval) ?? true)
             : clientMapping.requireApproval === true,
@@ -637,7 +637,7 @@ export function authenticateJWT(req, res, next) {
 
 export function revokeSessionToken(req, res) {
   if (req.identity?.authType !== 'apiKey' || !req.identity.jti)
-/* c8 ignore next 1 */
+    /* c8 ignore next 1 */
     return res.status(400).json({ error: 'Only Sentinel session tokens can be revoked here' });
   /* c8 ignore next 1 */
   JWT_DENYLIST.set(req.identity.jti, req.identity.tokenExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
