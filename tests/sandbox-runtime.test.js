@@ -9,7 +9,10 @@ const runtime = path.join(directory, 'podman');
 await fs.writeFile(
   runtime,
   `#!/usr/bin/env node
-if (process.argv[2] === 'rm') process.exit(0);
+if (process.argv[2] === 'rm') {
+  if (process.env.FAIL_RM === '1') process.exit(1);
+  process.exit(0);
+}
 let input = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', chunk => input += chunk);
@@ -82,5 +85,75 @@ describe('rootless OCI sandbox contract', () => {
     process.env.SANDBOX_IMAGE_NODE = 'registry.example.test/node:latest';
     await assert.rejects(runSandboxedCode({ language: 'node', code: 'x' }), /pinned by sha256/);
     process.env.SANDBOX_IMAGE_NODE = image;
+  });
+
+  it('requires SANDBOX_NETWORK when network is allowed', async () => {
+    process.env.SANDBOX_ALLOW_NETWORK = 'true';
+    delete process.env.SANDBOX_NETWORK;
+    await assert.rejects(
+      runSandboxedCode({ language: 'node', code: 'x', allowNetwork: true, confirm: true }),
+      /SANDBOX_NETWORK must identify/
+    );
+  });
+
+  it('handles child process spawn errors', async () => {
+    const oldPath = process.env.PATH;
+    process.env.PATH = '/nonexistent';
+    await assert.rejects(
+      runSandboxedCode({ language: 'node', code: 'x' }),
+      /Sandbox runtime failed: spawn podman ENOENT/
+    );
+    process.env.PATH = oldPath;
+  });
+
+  it('rejects invalid SANDBOX_RUNTIME', async () => {
+    process.env.SANDBOX_RUNTIME = 'invalid';
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x' }), /SANDBOX_RUNTIME must be podman or docker/);
+  });
+
+  it('rejects docker runtime if not explicitly allowed', async () => {
+    process.env.SANDBOX_RUNTIME = 'docker';
+    process.env.SANDBOX_ALLOW_DOCKER = 'false';
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x' }), /Docker sandbox runtime is disabled/);
+    process.env.SANDBOX_RUNTIME = 'podman'; // restore
+  });
+
+  it('rejects invalid files object', async () => {
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: null }), /files must be an object/);
+  });
+
+  it('validates code properly', async () => {
+    await assert.rejects(runSandboxedCode({ language: 'node', code: '' }), /code is required/);
+    await assert.rejects(runSandboxedCode({ language: 'node', code: null }), /code is required/);
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'a'.repeat(256 * 1024 + 1) }), /limit/);
+  });
+
+  it('validates files content properly', async () => {
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: { 'a.txt': 123 } }), /string content/);
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: { 'a.txt': 'a'.repeat(1024 * 1024 + 1) } }), /byte limit/);
+    const manyFiles = {};
+    for (let i = 0; i < 51; i++) manyFiles[`f${i}.txt`] = 'x';
+    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: manyFiles }), /at most/);
+  });
+
+  it('handles custom timeout bounds', async () => {
+    const res1 = await runSandboxedCode({ language: 'node', code: 'x', timeout: 0 }); // hits min 1
+    const res2 = await runSandboxedCode({ language: 'node', code: 'x', timeout: 1000 }); // hits max 120
+    assert.equal(res1.success, true);
+    assert.equal(res2.success, true);
+  });
+
+  it('ignores rm failure on terminate', async () => {
+    process.env.FAIL_RM = '1';
+    const timedOut = await runSandboxedCode({ language: 'node', code: 'TIMEOUT', timeout: 1 });
+    assert.equal(timedOut.timedOut, true);
+    delete process.env.FAIL_RM;
+  });
+
+  it('handles missing SANDBOX_RUNTIME', async () => {
+    delete process.env.SANDBOX_RUNTIME;
+    const res = await runSandboxedCode({ language: 'node', code: 'x' });
+    assert.equal(res.success, true);
+    process.env.SANDBOX_RUNTIME = 'podman';
   });
 });

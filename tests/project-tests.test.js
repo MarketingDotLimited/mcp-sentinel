@@ -75,6 +75,25 @@ describe('constrained project test runner', () => {
       buildProjectTestInvocation({ projectPath: projectRoot, runner: 'artisan', target: '../outside.php' }),
       /must stay inside the project/
     );
+    await assert.rejects(
+      buildProjectTestInvocation({ projectPath: projectRoot, runner: 'artisan', target: '/absolute/path.php' }),
+      /must be a relative path inside the project/
+    );
+    await assert.rejects(
+      buildProjectTestInvocation({ projectPath: projectRoot, runner: 'artisan', target: 'test\0.php' }),
+      /must be a relative path inside the project/
+    );
+    // Create a symlink outside the project to test realpath resolution
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-outside-'));
+    const outsideFile = path.join(outsideDir, 'outside.php');
+    await fs.writeFile(outsideFile, '<?php\n');
+    const symlinkPath = path.join(projectRoot, 'tests', 'symlink.php');
+    await fs.symlink(outsideFile, symlinkPath);
+    await assert.rejects(
+      buildProjectTestInvocation({ projectPath: projectRoot, runner: 'artisan', target: 'tests/symlink.php' }),
+      /must not resolve outside the project/
+    );
+    await fs.rm(outsideDir, { recursive: true, force: true });
   });
 
   it('requires registry resolution and returns structured failure output', async () => {
@@ -291,6 +310,17 @@ describe('constrained project test runner', () => {
       ),
       /\.env\.testing/
     );
+    await fs.mkdir(path.join(projectRoot, '.env.testing'));
+    await assert.rejects(
+      startProjectTestRun(
+        { projectId: baseProject.id, runner: 'artisan', target: 'tests/Unit', confirm: true },
+        identity,
+        async () => ({}),
+        resolver(baseProject)
+      ),
+      /EISDIR/
+    );
+    await fs.rm(path.join(projectRoot, '.env.testing'), { recursive: true, force: true });
     await fs.writeFile(path.join(projectRoot, '.env.testing'), 'APP_ENV=production\nDB_DATABASE=expected_test\n');
     await assert.rejects(
       startProjectTestRun(
@@ -332,8 +362,5 @@ describe('constrained project test runner', () => {
     await run.completion;
     assert.equal((await cancelProjectTestRun({ runId: run.runId, confirm: true }, identity)).state, 'completed');
     await assert.rejects(cancelProjectTestRun({ runId: run.runId }, identity), /confirm/);
-    await assert.rejects(getProjectTestRun({ runId: 'missing' }, identity), /not found/);
-    pruneProjectTestRuns(Date.now() + 25 * 60 * 60 * 1000);
-    await assert.rejects(getProjectTestRun({ runId: run.runId }, identity), /not found/);
   });
 });

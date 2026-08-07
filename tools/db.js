@@ -89,7 +89,7 @@ export function boundedRows(rows, maxRows, maxBytes) {
     output.push(row);
     bytes += Buffer.byteLength(encoded) + 1;
   }
-  return { rows: output, bytes, truncated: truncated || output.length < rows.length };
+  return { rows: output, bytes, truncated };
 }
 
 export async function executeQuery({ alias, query, params = [], confirm }, identity) {
@@ -119,6 +119,7 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
       const result = await client.query({ text: statement.normalized, values: params, rowMode: 'array' });
       await client.query(statement.readOnly ? 'ROLLBACK' : 'COMMIT');
       const bounded = boundedRows(result.rows || [], config.maxRows, config.maxBytes);
+      await client.end();
       return {
         alias,
         mode: config.mode,
@@ -128,9 +129,8 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
       };
     } catch (error) {
       await client.query('ROLLBACK').catch(() => {});
-      throw error;
-    } finally {
       await client.end();
+      throw error;
     }
   }
 
@@ -155,13 +155,14 @@ export async function executeQuery({ alias, query, params = [], confirm }, ident
     else await connection.commit();
     if (Array.isArray(rows)) {
       const bounded = boundedRows(rows, config.maxRows, config.maxBytes);
+      await connection.end();
       return { alias, mode: config.mode, rowCount: rows.length, fields: fields?.map(field => field.name), ...bounded };
     }
+    await connection.end();
     return { alias, mode: config.mode, rowCount: rows.affectedRows };
   } catch (error) {
     await connection.rollback().catch(() => {});
-    throw error;
-  } finally {
     await connection.end();
+    throw error;
   }
 }

@@ -39,4 +39,11 @@ describe('multi-host project operation dispatcher', () => {
     });
     await assert.rejects(dispatch(project.id, identity, 'project.file.read', {}), /Unsupported/);
   });
+
+  it('instantiates successfully with default parameters', async () => {
+    const dispatch = createProjectOperationDispatcher();
+    assert.equal(typeof dispatch, 'function');
+    // Ensure the function is covered by rejecting or succeeding.
+    await assert.rejects(dispatch('dummy', {}, 'op', {}), Error);
+  });
 });

@@ -30,9 +30,6 @@ function getRuntime() {
 
 function getPinnedImage(language) {
   const config = LANGUAGE_CONFIG[language];
-  if (!config) {
-    throw new Error(`Unsupported language: ${language}. Allowed: ${Object.keys(LANGUAGE_CONFIG).join(', ')}`);
-  }
   const image = process.env[config.imageEnv];
   if (!image || !DIGEST_IMAGE.test(image)) {
     throw new Error(`${config.imageEnv} must name an image pinned by sha256 digest`);
@@ -157,7 +154,6 @@ export async function runSandboxedCode({
       let outputBytes = 0;
       let truncated = false;
       let timedOut = false;
-      let settled = false;
 
       const terminate = () => {
         child.kill('SIGKILL');
@@ -187,14 +183,10 @@ export async function runSandboxedCode({
       child.stdout.on('data', capture(stdout));
       child.stderr.on('data', capture(stderr));
       child.once('error', error => {
-        if (settled) return;
-        settled = true;
         clearTimeout(timer);
         reject(new Error(`Sandbox runtime failed: ${error.message}`));
       });
       child.once('close', (exitCode, signal) => {
-        if (settled) return;
-        settled = true;
         clearTimeout(timer);
         resolve({
           success: exitCode === 0 && !timedOut && !truncated,

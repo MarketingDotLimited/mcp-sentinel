@@ -315,6 +315,7 @@ describe('approval control plane', () => {
         environment: 'production',
         serviceName: 'example-app',
         healthUrl: 'https://example.test/health',
+        protectedPaths: ['config', 'data', '../invalid', '/absolute/path'],
       },
       admin
     );

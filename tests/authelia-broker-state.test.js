@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
+import * as yaml from 'js-yaml';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-authelia-state-'));
 const bin = path.join(directory, 'bin');
@@ -262,5 +263,136 @@ describe('typed Authelia administration state', () => {
     );
     await assert.rejects(authelia.deleteOAuthClient('missing-section'), /Invalid Authelia config/);
     await fs.writeFile(configFile, 'identity_providers:\n  oidc:\n    clients: []\n', { mode: 0o600 });
+  });
+
+  it('covers remaining uncovered lines', async () => {
+    // line 55-56: backup dir creation fails
+    const backupDir = process.env.AUTHELIA_BACKUP_DIR;
+    await fs.rm(backupDir, { recursive: true, force: true });
+    await fs.writeFile(backupDir, 'im a file now'); // file instead of dir makes mkdir fail
+    await assert.rejects(authelia.addOAuthUser({ username: 'baddir', password: 'pw', email: 'a@b.com' }), /Cannot prepare Authelia backup directory/);
+    await fs.rm(backupDir);
+    await fs.mkdir(backupDir, { recursive: true });
+
+    // line 83-84: restartAuthelia fails (systemctl restart throws)
+    // line 92-93: rollbackFile catch
+    process.env.FAKE_SYSTEMCTL_FAIL = 'true';
+    process.env.FAKE_SYSTEMCTL_FAIL = 'true';
+    process.env.AUTHELIA_RESTART_SETTLE_MS = '100';
+    let oldConsoleError = console.error;
+    let rollbackFailedCalled = false;
+    console.error = (msg, ...args) => {
+      if (typeof msg === 'string' && msg.includes('Rollback failed:')) rollbackFailedCalled = true;
+    };
+    const p = assert.rejects(authelia.addOAuthUser({ username: 'restartfail', password: 'pw', email: 'a@b.com' }), /Authelia failed to restart/);
+    const p2 = (async () => {
+      let found = false;
+      for (let i = 0; i < 50 && !found; i++) {
+        await new Promise(r => setTimeout(r, 20));
+        try {
+          const backups = await fs.readdir(backupDir);
+          if (backups.length > 0) {
+            for (const b of backups) await fs.rm(path.join(backupDir, b));
+            found = true;
+          }
+        } catch (e) {}
+      }
+    })();
+    await Promise.all([p, p2]);
+    console.error = oldConsoleError;
+    assert.equal(rollbackFailedCalled, true, 'rollbackFile should catch error');
+    process.env.AUTHELIA_RESTART_SETTLE_MS = '0';
+    delete process.env.FAKE_SYSTEMCTL_FAIL;
+
+    // line 141: scopesMatch false with same length
+    await authelia.addOAuthUser({ username: 'scopes-match', password: 'pw', email: 's@a.com', scopes: ['files.*'] });
+    await authelia.updateOAuthUser('scopes-match', { scopes: ['projects.*'] });
+
+    // line 166-168: wildcard scopes restricted migration (existing mapping has wildcard but role is not admin)
+    const db = new DatabaseSync(process.env.MCP_STATE_DB);
+    db.prepare("UPDATE oauth_mappings SET payload = json_set(payload, '$.scopes', json('[\" * \"]')) WHERE username = 'scopes-match'").run();
+    db.close();
+    await assert.rejects(authelia.updateOAuthUser('scopes-match', { scopes: ['*'] }), /Wildcard OAuth scope/);
+
+    // line 262-264: USERS_FILE non-ENOENT error
+    const usersFileContent = await fs.readFile(process.env.AUTHELIA_USERS_FILE, 'utf8');
+    await fs.rm(process.env.AUTHELIA_USERS_FILE);
+    await fs.mkdir(process.env.AUTHELIA_USERS_FILE);
+    await assert.rejects(authelia.getOAuthUsers(), /EISDIR/);
+    await fs.rm(process.env.AUTHELIA_USERS_FILE, { recursive: true });
+    await fs.writeFile(process.env.AUTHELIA_USERS_FILE, usersFileContent, { mode: 0o600 });
+
+    // line 269-270: USERS_FILE invalid YAML
+    await fs.writeFile(process.env.AUTHELIA_USERS_FILE, 'invalid: yaml: :');
+    assert.deepEqual(await authelia.getOAuthUsers(), []);
+    await fs.writeFile(process.env.AUTHELIA_USERS_FILE, usersFileContent, { mode: 0o600 });
+
+    // line 349-350: User already exists
+    await authelia.addOAuthUser({ username: 'existing', password: 'pw', email: 'e@e.com' });
+    await assert.rejects(authelia.addOAuthUser({ username: 'existing', password: 'pw', email: 'e@e.com' }), /already exists/);
+
+    // line 404-418: updateOAuthUser with groups and password
+    await authelia.updateOAuthUser('existing', { groups: ['new-group'], password: 'new-password' });
+
+    // line 464-466: CONFIG_FILE non-ENOENT error
+    const configFileContent = await fs.readFile(process.env.AUTHELIA_CONFIG_FILE, 'utf8');
+    await fs.rm(process.env.AUTHELIA_CONFIG_FILE);
+    await fs.mkdir(process.env.AUTHELIA_CONFIG_FILE);
+    await assert.rejects(authelia.getOAuthClients(), /EISDIR/);
+    await fs.rm(process.env.AUTHELIA_CONFIG_FILE, { recursive: true });
+    await fs.writeFile(process.env.AUTHELIA_CONFIG_FILE, configFileContent, { mode: 0o600 });
+
+    // line 471-472: CONFIG_FILE invalid YAML
+    await fs.writeFile(process.env.AUTHELIA_CONFIG_FILE, 'invalid: yaml: :');
+    assert.deepEqual(await authelia.getOAuthClients(), []);
+    await fs.writeFile(process.env.AUTHELIA_CONFIG_FILE, configFileContent, { mode: 0o600 });
+
+    // line 522-523: addOAuthClient secret generation fails
+    process.env.FAKE_AUTHELIA_COMMAND_FAIL = 'true';
+    await assert.rejects(authelia.addOAuthClient({ clientId: 'fail-client', redirectUris: ['https://example.test'] }), /secret generation failed/);
+    delete process.env.FAKE_AUTHELIA_COMMAND_FAIL;
+
+    // line 651-652: forceRestartAuthelia
+    assert.equal(await authelia.forceRestartAuthelia(), true);
+
+    // branch coverage: invalid linuxUser
+    await assert.rejects(authelia.updateOAuthUser('existing', { linuxUser: '1invalid' }), /Invalid OAuth Linux user/);
+    
+    // branch coverage: falsy AUTHELIA_URL and AUTHELIA_JWKS_URL
+    const oldIssuer = process.env.AUTHELIA_ISSUER;
+    const oldJwks = process.env.AUTHELIA_JWKS_URL;
+    const oldRes = process.env.OAUTH_RESOURCE_URL;
+    delete process.env.AUTHELIA_ISSUER;
+    delete process.env.AUTHELIA_JWKS_URL;
+    delete process.env.OAUTH_RESOURCE_URL;
+    delete process.env.PUBLIC_URL;
+    const autheliaFalsy = await import(`../lib/authelia.js?test=falsy-${Date.now()}`);
+    const health = await autheliaFalsy.getAutheliaHealth();
+    assert.equal(health.discoveryUrl, '');
+    assert.equal(health.jwksUrl, '');
+    
+    // branch coverage: falsy resourceAudience in addOAuthClient
+    await autheliaFalsy.addOAuthClient({ clientId: 'no-audience', redirectUris: ['https://example.test', 123], clientName: '' });
+
+    // branch coverage: bad digest in addOAuthClient (line 519)
+    process.env.FAKE_AUTHELIA_BAD_DIGEST = 'true';
+    await assert.rejects(autheliaFalsy.addOAuthClient({ clientId: 'bad-digest-client', redirectUris: ['https://example.test'] }), /Failed to parse secret hash/);
+    delete process.env.FAKE_AUTHELIA_BAD_DIGEST;
+
+    // branch coverage: non-array redirectUris
+    await assert.rejects(autheliaFalsy.addOAuthClient({ clientId: 'no-array-redirect', redirectUris: 'not-an-array' }), /At least one redirect URI is required/);
+    delete process.env.FAKE_AUTHELIA_BAD_DIGEST;
+
+    // branch coverage: client with falsy attributes
+    const rawConf = await fs.readFile(process.env.AUTHELIA_CONFIG_FILE, 'utf8');
+    const yamlConf = yaml.load(rawConf);
+    yamlConf.identity_providers.oidc.clients.push({ client_id: 'missing-attrs' });
+    await fs.writeFile(process.env.AUTHELIA_CONFIG_FILE, yaml.dump(yamlConf));
+    const clients = await autheliaFalsy.getOAuthClients();
+    assert.ok(clients.find(c => c.client_id === 'missing-attrs'));
+
+    process.env.AUTHELIA_ISSUER = oldIssuer;
+    process.env.AUTHELIA_JWKS_URL = oldJwks;
+    process.env.OAUTH_RESOURCE_URL = oldRes;
   });
 });

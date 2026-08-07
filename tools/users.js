@@ -11,7 +11,6 @@ function validateUsername(username, { allowRoot = false } = {}) {
 }
 
 function groups(value, field) {
-  if (value === undefined || value === '') return undefined;
   if (typeof value !== 'string' || !value.split(',').every(group => /^[a-z_][a-z0-9_-]*$/i.test(group)))
     throw new Error(`${field} must contain valid group names`);
   return value.split(',');

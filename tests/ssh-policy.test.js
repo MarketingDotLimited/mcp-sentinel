@@ -115,4 +115,70 @@ describe('SSH policy evaluation', () => {
     state.sshConnections[0].hostId = 'host-2';
     assert.match(evaluateSshPolicy({ state, identity, project: remoteProject() }).reason, /not registered/);
   });
+
+  it('gracefully handles identities lacking required fields for policy lookup', () => {
+    const invalidIdentity = { authType: 'oauth' };
+    const result = evaluateSshPolicy({ state: enabledState(), identity: invalidIdentity, project: remoteProject() });
+    assert.equal(result.allowed, false);
+    assert.equal(result.layers.find(l => l.name === 'Identity SSH').allowed, false);
+    assert.equal(result.layers.find(l => l.name === 'OAuth client SSH').allowed, false);
+    assert.equal(result.layers.find(l => l.name === 'OAuth subject-client SSH').allowed, false);
+  });
+
+  it('rejects unsupported project transport kinds', () => {
+    const project = remoteProject();
+    project.transportKind = 'unknown-transport';
+    const result = evaluateSshPolicy({ state: enabledState(), identity, project });
+    assert.equal(result.allowed, false);
+    assert.equal(result.reason, 'Project transport is unsupported');
+  });
+
+  it('allows access via team assignment when projectIds array is missing', () => {
+    const state = enabledState();
+    const caller = { ...identity };
+    delete caller.projectIds; // Fallback to teamId
+    const result = evaluateSshPolicy({ state, identity: caller, project: remoteProject() });
+    assert.equal(result.allowed, true);
+  });
+
+  it('rejects if identity cannot produce a stable identity preference ID', () => {
+    // Identity with no authType=oauth, no keyId, no userId
+    const caller = { role: 'developer', teamId: 'team-1', organizationId: 'organization-1' };
+    const state = enabledState();
+    const result = evaluateSshPolicy({ state, identity: caller, project: remoteProject() });
+    assert.equal(result.allowed, false);
+    assert.equal(result.layers.find(l => l.name === 'Identity SSH').allowed, false);
+  });
+
+  it('throws on invalid state, identity, or project inputs', () => {
+    assert.throws(() => evaluateSshPolicy({}), /State, identity, and project are required/);
+  });
+
+  it('throws on invalid scoped SSH policy identity', () => {
+    assert.throws(() => scopedSshPolicyId('invalid-kind', 'id'), /Invalid scoped SSH policy identity/);
+    assert.throws(() => scopedSshPolicyId('organization', null), /Invalid scoped SSH policy identity/);
+  });
+
+  it('validates api-key identity', () => {
+    assert.match(identitySshPreferenceId({ keyId: '123' }), /^api-key:/);
+  });
+
+  it('validates local-user identity', () => {
+    assert.match(identitySshPreferenceId({ userId: '456' }), /^local-user:/);
+  });
+
+  it('allows access via admin role', () => {
+    const state = enabledState();
+    const caller = { ...identity, role: 'admin' };
+    delete caller.projectIds;
+    delete caller.teamId; // ensure it doesn't fall back to team assignment
+    const result = evaluateSshPolicy({ state, identity: caller, project: remoteProject() });
+    assert.equal(result.allowed, true);
+  });
+
+  it('throws in subjectClientSshPreferenceId on missing fields', () => {
+    assert.throws(() => subjectClientSshPreferenceId({}), /OAuth issuer, subject, and client ID are required/);
+    assert.throws(() => subjectClientSshPreferenceId({ oauthIssuer: 'a' }), /OAuth issuer, subject, and client ID are required/);
+    assert.throws(() => subjectClientSshPreferenceId({ oauthIssuer: 'a', oauthSubject: 'b' }), /OAuth issuer, subject, and client ID are required/);
+  });
 });

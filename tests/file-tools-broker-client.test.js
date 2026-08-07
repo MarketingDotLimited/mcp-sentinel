@@ -137,4 +137,34 @@ describe('typed user administration broker client', () => {
       /Invalid SSH/
     );
   });
+
+  it('covers missing branches in users.js', async () => {
+    const admin = { userId: 'admin', role: 'admin' };
+    const developer = { userId: 'developer', role: 'developer' };
+
+    // validateUsername
+    await assert.rejects(users.createUser({ username: 'Invalid!' }, admin), /Invalid username/);
+
+    // groups
+    assert.equal((await users.createUser({ username: 'u2' }, admin)).operation, 'user.create'); // undefined groups, shell, comment
+    await assert.rejects(users.createUser({ username: 'u3', groups: 'bad group' }, admin), /groups must contain valid group names/);
+
+    // validatePublicKey
+    await assert.rejects(users.manageSshKeys({ username: 'admin', action: 'add', publicKey: 123 }, admin), /Invalid SSH public key payload/);
+    await assert.rejects(users.manageSshKeys({ username: 'admin', action: 'add', publicKey: 'ssh-rsa' }, admin), /Invalid SSH public key payload/); 
+
+    // setUserPassword
+    await assert.rejects(users.setUserPassword({ username: 'u5', password: 'short' }, admin), /Password must be 12-1024 characters/);
+
+    // modifyUser
+    await assert.rejects(users.modifyUser({ username: 'u6', expireDate: 'bad-date' }, admin), /expireDate must be YYYY-MM-DD or empty/);
+    assert.equal((await users.modifyUser({ username: 'u6', removeGroups: 'g1', shell: '/bin/sh', unlockAccount: true, expireDate: '2030-01-01' }, admin)).operation, 'user.modify');
+    assert.equal((await users.modifyUser({ username: 'u6', expireDate: '' }, admin)).operation, 'user.modify');
+
+    // manageSshKeys
+    await assert.rejects(users.manageSshKeys({ username: 'other', action: 'list' }, developer), /You can only manage your own SSH keys/);
+    await assert.rejects(users.manageSshKeys({ username: 'admin', action: 'bad-action' }, admin), /Invalid SSH key action/);
+    assert.equal((await users.manageSshKeys({ username: 'admin', action: 'remove', keyIndex: 0 }, admin)).operation, 'user.ssh');
+    assert.equal((await users.manageSshKeys({ username: 'admin', action: 'list' }, admin)).operation, 'user.ssh');
+  });
 });

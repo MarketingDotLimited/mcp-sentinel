@@ -96,4 +96,11 @@ describe('SQLite security state', () => {
     assert.equal(adminState.getAdminState('missing'), null);
     assert.throws(() => adminState.setAdminState('../bad', {}), /Invalid state key/);
   });
+
+  it('handles invalid JSON in admin state', () => {
+    const database = new DatabaseSync(databaseFile);
+    database.prepare("INSERT OR REPLACE INTO state_meta (key, value) VALUES ('raw_string_key', 'just-a-string')").run();
+    database.close();
+    assert.equal(adminState.getAdminState('raw_string_key'), 'just-a-string');
+  });
 });

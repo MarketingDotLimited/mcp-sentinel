@@ -171,7 +171,7 @@ async function resolveProjectRoot(requestedPath, allowedRootsOverride) {
   const allowedRoots = (allowedRootsOverride || configuredProjectTestRoots()).map(item => path.resolve(item));
   if (!allowedRoots.length) throw new Error('No project test roots are configured');
 
-  const requested = path.resolve(requestedPath || allowedRoots[0]);
+  const requested = path.resolve(requestedPath ? requestedPath : allowedRoots[0]);
   if (!allowedRoots.includes(requested)) {
     throw new Error(`Project path '${requested}' is not listed in PROJECT_TEST_ROOTS`);
   }
@@ -263,10 +263,14 @@ async function verifyTestingEnvironment(project, runner) {
   try {
     values = parseEnvFile(await fs.readFile(envPath, 'utf8'));
   } catch (error) {
-    if (error.code === 'ENOENT') throw new Error('Laravel project tests require a readable .env.testing file');
+    if (error.code === 'ENOENT') {
+      throw new Error('Laravel project tests require a readable .env.testing file');
+    }
     throw error;
   }
-  if (values.APP_ENV && values.APP_ENV !== 'testing') throw new Error('.env.testing must set APP_ENV=testing');
+  if (values.APP_ENV && values.APP_ENV !== 'testing') {
+    throw new Error('.env.testing must set APP_ENV=testing');
+  }
   const database = values.DB_DATABASE || values.DATABASE_DATABASE;
   if (!project.testDatabase)
     throw new Error('The registered project must declare testDatabase before Laravel tests can run');
@@ -302,7 +306,7 @@ function assertRunOwner(run, identity) {
 }
 
 function parseTestCounts(output) {
-  const text = String(output || '');
+  const text = String(output);
   const tests = text.match(/(\d+)\s+(?:tests?|passing|passed)/i);
   const assertions = text.match(/(\d+)\s+assertions?/i);
   return {

@@ -177,6 +177,10 @@ describe('SSH access controls', () => {
       ),
       /subject is required/
     );
+    await assert.rejects(
+      controlPlane.adminSetSshAccess({ targetType: 'unsupported-target', sshAllowed: true, confirm: true }, admin),
+      /Unsupported SSH policy target type/
+    );
   });
 
   it('lets any administrator denial take effect immediately and invalidates an approval', async () => {

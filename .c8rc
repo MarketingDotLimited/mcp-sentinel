@@ -1,0 +1,31 @@
+{
+  "exclude": [
+    "tests/**",
+    "scratch/**",
+    "install.sh",
+    "keygen.js",
+    "setup.js",
+    "scripts/**",
+    "eslint.config.js",
+    "mock-fs.js",
+    "parse_lcov.js",
+    "patch_keys.js",
+    "patch_oauth.js",
+    "test-env.js",
+    "test-ui.js",
+    "test_mcp.js",
+    "test_mcp_nginx.js"
+  ],
+  "include": [
+    "lib/**",
+    "routes/**",
+    "tools/**",
+    "server.js",
+    "broker.js",
+    "node-gateway.js",
+    "audit.js",
+    "keystore.js",
+    "security.js"
+  ],
+  "all": true
+}
