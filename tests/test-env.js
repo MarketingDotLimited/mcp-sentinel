@@ -78,6 +78,7 @@ if (!process.env.MCP_ISOLATED_TEST_ENV) {
   fs.mkdirSync(env.MCP_STATE_DIR, { recursive: true });
   fs.mkdirSync(env.AUDIT_LOG_DIR, { recursive: true });
   fs.mkdirSync(env.FIREWALL_SNAPSHOT_DIR, { recursive: true });
+  fs.mkdirSync(env.BROKER_FIREWALL_SNAPSHOT_ROOT, { recursive: true });
   fs.mkdirSync(env.BACKUP_DIR, { recursive: true });
   fs.mkdirSync(env.RESTORE_DIR, { recursive: true });
 

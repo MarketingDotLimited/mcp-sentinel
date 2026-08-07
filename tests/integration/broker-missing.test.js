@@ -100,6 +100,17 @@ fsSync.readFileSync = function (path, options) {
   return originalReadFileSync.apply(this, arguments);
 };
 
+const originalCpSync = fsSync.cpSync;
+fsSync.cpSync = function (src, dest, options) {
+  if (src === '/etc/ufw') {
+    fsSync.mkdirSync(dest, { recursive: true });
+    return;
+  }
+  if (originalCpSync) {
+    return originalCpSync.apply(this, arguments);
+  }
+};
+
 const passwd = fsSync
   .readFileSync('/etc/passwd', 'utf8')
   .trim()
