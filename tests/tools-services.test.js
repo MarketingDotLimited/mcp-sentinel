@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 mock.module('../lib/broker-client.js', {
   namedExports: {
     brokerCall: mock.fn(),
-  }
+  },
 });
 
-const { manageService, getServiceStatus, listServices, getJournalLogs, manageFirewall } = await import('../tools/services.js');
+const { manageService, getServiceStatus, listServices, getJournalLogs, manageFirewall } =
+  await import('../tools/services.js');
 const { brokerCall } = await import('../lib/broker-client.js');
 
 describe('services tool', () => {
@@ -28,10 +29,22 @@ describe('services tool', () => {
     });
 
     test('validates service name', async () => {
-      await assert.rejects(manageService({ service: 'name!', action: 'start' }, { role: 'admin' }), /Invalid service name: 'name!'/);
-      await assert.rejects(manageService({ service: 'name/', action: 'start' }, { role: 'admin' }), /Invalid service name: 'name\/'/);
-      await assert.rejects(manageService({ service: '-name', action: 'start' }, { role: 'admin' }), /Service name cannot start with -/);
-      await assert.rejects(manageService({ service: 'name..name', action: 'start' }, { role: 'admin' }), /Invalid service name/);
+      await assert.rejects(
+        manageService({ service: 'name!', action: 'start' }, { role: 'admin' }),
+        /Invalid service name: 'name!'/
+      );
+      await assert.rejects(
+        manageService({ service: 'name/', action: 'start' }, { role: 'admin' }),
+        /Invalid service name: 'name\/'/
+      );
+      await assert.rejects(
+        manageService({ service: '-name', action: 'start' }, { role: 'admin' }),
+        /Service name cannot start with -/
+      );
+      await assert.rejects(
+        manageService({ service: 'name..name', action: 'start' }, { role: 'admin' }),
+        /Invalid service name/
+      );
     });
 
     test('throws if invalid action', async () => {
@@ -69,7 +82,7 @@ describe('services tool', () => {
     });
 
     test('calls brokerCall successfully with data', async () => {
-      brokerCall.mock.mockImplementation(async (method) => {
+      brokerCall.mock.mockImplementation(async method => {
         if (method === 'service.status') return { active: 'active', enabled: 'enabled', status: 'running' };
         if (method === 'journal.read') return { stdout: 'logs' };
         return {};
@@ -80,13 +93,13 @@ describe('services tool', () => {
         active: 'active',
         enabled: 'enabled',
         status_output: 'running',
-        recent_logs: 'logs'
+        recent_logs: 'logs',
       });
       assert.equal(brokerCall.mock.calls.length, 2);
     });
 
     test('calls brokerCall successfully with fallback data', async () => {
-      brokerCall.mock.mockImplementation(async (method) => {
+      brokerCall.mock.mockImplementation(async method => {
         if (method === 'service.status') return {};
         if (method === 'journal.read') return {};
         return {};
@@ -97,7 +110,7 @@ describe('services tool', () => {
         active: 'unknown',
         enabled: 'unknown',
         status_output: '',
-        recent_logs: 'No logs available'
+        recent_logs: 'No logs available',
       });
     });
   });
@@ -109,7 +122,7 @@ describe('services tool', () => {
 
     test('calls brokerCall with state and filters', async () => {
       brokerCall.mock.mockImplementation(async () => ({ stdout: 'Service A\nService B\nAnother A' }));
-      
+
       let res = await listServices({ filter: 'A', state: 'active' }, { role: 'admin' });
       assert.deepEqual(res, { services: 'Service A\nAnother A', count: 2 });
       assert.deepEqual(brokerCall.mock.calls[0].arguments, ['service.list', { state: 'active' }]);
@@ -117,7 +130,7 @@ describe('services tool', () => {
 
     test('calls brokerCall without state and filters', async () => {
       brokerCall.mock.mockImplementation(async () => ({ stdout: 'Service A\nService B\n\n' }));
-      
+
       let res = await listServices({}, { role: 'admin' });
       assert.deepEqual(res, { services: 'Service A\nService B', count: 2 });
       assert.deepEqual(brokerCall.mock.calls[0].arguments, ['service.list', {}]);
@@ -153,10 +166,10 @@ describe('services tool', () => {
     test('calls brokerCall with provided options', async () => {
       brokerCall.mock.mockImplementation(async () => ({ stdout: 'logs', stderr: 'err logs' }));
       const res = await getJournalLogs({ service: 'nginx', since: '1h', priority: 'err' }, { role: 'admin' });
-      
+
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'journal.read',
-        { service: 'nginx', lines: 50, since: '1h', priority: 'err' }
+        { service: 'nginx', lines: 50, since: '1h', priority: 'err' },
       ]);
       assert.deepEqual(res, { logs: 'logs', stderr: 'err logs' });
     });
@@ -178,9 +191,18 @@ describe('services tool', () => {
     });
 
     test('validates port number', async () => {
-      await assert.rejects(manageFirewall({ action: 'allow', port: 'abc' }, { role: 'admin' }), /Port must be between 1 and 65535/);
-      await assert.rejects(manageFirewall({ action: 'allow', port: -1 }, { role: 'admin' }), /Port must be between 1 and 65535/);
-      await assert.rejects(manageFirewall({ action: 'allow', port: 65536 }, { role: 'admin' }), /Port must be between 1 and 65535/);
+      await assert.rejects(
+        manageFirewall({ action: 'allow', port: 'abc' }, { role: 'admin' }),
+        /Port must be between 1 and 65535/
+      );
+      await assert.rejects(
+        manageFirewall({ action: 'allow', port: -1 }, { role: 'admin' }),
+        /Port must be between 1 and 65535/
+      );
+      await assert.rejects(
+        manageFirewall({ action: 'allow', port: 65536 }, { role: 'admin' }),
+        /Port must be between 1 and 65535/
+      );
     });
 
     test('status/list actions', async () => {
@@ -194,8 +216,11 @@ describe('services tool', () => {
     });
 
     test('confirm action', async () => {
-      await assert.rejects(manageFirewall({ action: 'confirm' }, { role: 'admin' }), /rollbackId is required to confirm a firewall change/);
-      
+      await assert.rejects(
+        manageFirewall({ action: 'confirm' }, { role: 'admin' }),
+        /rollbackId is required to confirm a firewall change/
+      );
+
       brokerCall.mock.mockImplementationOnce(async () => ({ success: true }));
       const res = await manageFirewall({ action: 'confirm', rollbackId: '123' }, { role: 'admin' });
       assert.deepEqual(res, { success: true });
@@ -203,23 +228,45 @@ describe('services tool', () => {
     });
 
     test('delete action rule validation', async () => {
-      await assert.rejects(manageFirewall({ action: 'delete', port: 80 }, { role: 'admin' }), /Rule must be allow or deny for delete action/);
-      await assert.rejects(manageFirewall({ action: 'delete', port: 80, rule: 'invalid' }, { role: 'admin' }), /Rule must be allow or deny for delete action/);
+      await assert.rejects(
+        manageFirewall({ action: 'delete', port: 80 }, { role: 'admin' }),
+        /Rule must be allow or deny for delete action/
+      );
+      await assert.rejects(
+        manageFirewall({ action: 'delete', port: 80, rule: 'invalid' }, { role: 'admin' }),
+        /Rule must be allow or deny for delete action/
+      );
     });
 
     test('missing port for other actions', async () => {
-      await assert.rejects(manageFirewall({ action: 'allow' }, { role: 'admin' }), /Invalid combination of action and parameters/);
+      await assert.rejects(
+        manageFirewall({ action: 'allow' }, { role: 'admin' }),
+        /Invalid combination of action and parameters/
+      );
     });
 
     test('rule action formats output', async () => {
-      brokerCall.mock.mockImplementationOnce(async () => ({ stdout: ' ok ', stderr: '', rollbackId: 'id1', rollbackAt: 'time1' }));
+      brokerCall.mock.mockImplementationOnce(async () => ({
+        stdout: ' ok ',
+        stderr: '',
+        rollbackId: 'id1',
+        rollbackAt: 'time1',
+      }));
       let res = await manageFirewall({ action: 'allow', port: 80, rule: 'allow' }, { role: 'admin' });
       assert.deepEqual(res, { action: 'allow', output: 'ok', rollbackId: 'id1', rollbackAt: 'time1' });
 
-      brokerCall.mock.mockImplementationOnce(async () => ({ stdout: '', stderr: ' err ', rollbackId: 'id2', rollbackAt: 'time2' }));
+      brokerCall.mock.mockImplementationOnce(async () => ({
+        stdout: '',
+        stderr: ' err ',
+        rollbackId: 'id2',
+        rollbackAt: 'time2',
+      }));
       res = await manageFirewall({ action: 'deny', port: 443 }, { role: 'admin' });
       assert.deepEqual(res, { action: 'deny', output: 'err', rollbackId: 'id2', rollbackAt: 'time2' });
-      assert.deepEqual(brokerCall.mock.calls[1].arguments, ['firewall.rule', { action: 'deny', port: 443, protocol: 'tcp', rule: undefined }]);
+      assert.deepEqual(brokerCall.mock.calls[1].arguments, [
+        'firewall.rule',
+        { action: 'deny', port: 443, protocol: 'tcp', rule: undefined },
+      ]);
     });
   });
 });

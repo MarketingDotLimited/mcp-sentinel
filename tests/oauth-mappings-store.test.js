@@ -45,12 +45,16 @@ describe('oauth-mappings-store.js coverage', () => {
     const { readOAuthMappings: r1 } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
     // Should be ENOENT from KS file path which doesn't exist? Wait, readOAuthMappings uses MAPPINGS_FILE!
     // But USE_LEGACY_JSON is true! So it tries to read MAPPINGS_FILE which is undefined/empty and throws ENOENT or fails.
-    try { await r1(); } catch (e) {}
+    try {
+      await r1();
+    } catch (e) {}
 
     delete process.env.KEYSTORE_FILE;
     process.env.CONTROL_PLANE_STATE_FILE = path.join(directory, 'cp.json');
     const { readOAuthMappings: r2 } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
-    try { await r2(); } catch (e) {}
+    try {
+      await r2();
+    } catch (e) {}
   });
 
   it('covers USE_LEGACY_JSON false', async () => {
@@ -61,7 +65,9 @@ describe('oauth-mappings-store.js coverage', () => {
     // all false -> USE_LEGACY_JSON = false
     const { readOAuthMappings: r3 } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
     // It will try to use /var/lib/mcp-sentinel/state.sqlite3 which might fail due to permissions, so we catch
-    try { await r3(); } catch (e) {}
+    try {
+      await r3();
+    } catch (e) {}
   });
 
   it('covers writeRows rollback on invalid username', async () => {
@@ -70,17 +76,14 @@ describe('oauth-mappings-store.js coverage', () => {
     delete process.env.AUTHELIA_MAPPINGS_FILE;
 
     const { writeOAuthMappings } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
-    await assert.rejects(
-      writeOAuthMappings({ 'invalid user!': { role: 'dev' } }),
-      /Invalid OAuth mapping username/
-    );
+    await assert.rejects(writeOAuthMappings({ 'invalid user!': { role: 'dev' } }), /Invalid OAuth mapping username/);
   });
 
   it('covers SQLite read and write including migration', async () => {
     const dbFile = path.join(directory, 'state2.sqlite3');
     const legacyFile = path.join(directory, 'legacy.json');
     await fs.writeFile(legacyFile, JSON.stringify({ bob: { role: 'dev' } }));
-    
+
     process.env.MCP_STATE_DB = dbFile;
     process.env.AUTHELIA_MAPPINGS_FILE = legacyFile;
 
@@ -99,19 +102,19 @@ describe('oauth-mappings-store.js coverage', () => {
     const dbFile = path.join(directory, 'state3.sqlite3');
     const legacyFile = path.join(directory, 'legacy2.json');
     await fs.writeFile(legacyFile, 'invalid json');
-    
+
     process.env.MCP_STATE_DB = dbFile;
     process.env.AUTHELIA_MAPPINGS_FILE = legacyFile;
 
     const { readOAuthMappings } = await import(`../lib/oauth-mappings-store.js?t=${Date.now()}`);
     await assert.rejects(readOAuthMappings(), /OAuth mapping migration failed/);
   });
-  
+
   it('covers safeParseJson empty or invalid', async () => {
     const dbFile = path.join(directory, 'state4.sqlite3');
     process.env.MCP_STATE_DB = dbFile;
     delete process.env.AUTHELIA_MAPPINGS_FILE;
-    
+
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(dbFile);
     db.exec(`

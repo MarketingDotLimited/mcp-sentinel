@@ -68,7 +68,6 @@ describe('durable job queue', () => {
     assert.deepEqual(queue.get(job.id).result.accepted, {});
   });
 
-
   it('exceeds max attempts', () => {
     const queue = new JobQueue(path.join(directory, 'max-attempts.sqlite3'));
     const job = queue.enqueue({ type: 'test', owner: 'alice', maxAttempts: 1 });
@@ -86,7 +85,7 @@ describe('durable job queue', () => {
     const queue = new JobQueue(path.join(directory, 'rollback.sqlite3'));
     queue.enqueue({ type: 'test', owner: 'alice' });
     const originalPrepare = queue.database.prepare;
-    queue.database.prepare = (sql) => {
+    queue.database.prepare = sql => {
       if (sql.includes('UPDATE')) {
         throw new Error('Fake DB Error');
       }
@@ -118,7 +117,7 @@ describe('durable job queue', () => {
     const queue = new JobQueue(path.join(directory, 'list.sqlite3'));
     queue.enqueue({ type: 't1', owner: 'alice' });
     queue.enqueue({ type: 't2', owner: 'bob' });
-    
+
     const all = queue.list();
     assert.equal(all.length, 2);
 
@@ -139,23 +138,29 @@ describe('durable job queue', () => {
     const queue = new JobQueue(path.join(directory, 'worker-errors.sqlite3'));
     const job1 = queue.enqueue({ type: 'missing', owner: 'test' });
     const job2 = queue.enqueue({ type: 'error', owner: 'test' });
-    
+
     const stop = queue.startWorker({
       workerId: 'w1',
       pollMs: 25,
       handlers: {
-        error: async () => { throw new Error('Handler failed'); }
-      }
+        error: async () => {
+          throw new Error('Handler failed');
+        },
+      },
     });
 
-    for (let index = 0; index < 20 && (queue.get(job1.id).state !== 'failed' || queue.get(job2.id).state !== 'failed'); index += 1) {
+    for (
+      let index = 0;
+      index < 20 && (queue.get(job1.id).state !== 'failed' || queue.get(job2.id).state !== 'failed');
+      index += 1
+    ) {
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     stop();
 
     assert.equal(queue.get(job1.id).state, 'failed');
     assert.match(queue.get(job1.id).error, /No registered handler/);
-    
+
     assert.equal(queue.get(job2.id).state, 'failed');
     assert.equal(queue.get(job2.id).error, 'Handler failed');
   });
@@ -185,7 +190,7 @@ describe('durable job queue', () => {
 
   it('validates various parameters', () => {
     assert.throws(() => new JobQueue('/'), /bounded job database path is required/);
-    
+
     const queue = new JobQueue(path.join(directory, 'validation.sqlite3'));
     assert.throws(() => queue.enqueue({ type: 'INVALID!', owner: 'alice' }), /unsupported characters/);
     assert.throws(() => queue.enqueue({ type: 't1', owner: 'alice', maxAttempts: 11 }), /maxAttempts is invalid/);
@@ -198,31 +203,31 @@ describe('durable job queue', () => {
     // BRDA:13,2 jsonSize with nullish payload
     const queue = new JobQueue(path.join(directory, 'edge.sqlite3'));
     queue.enqueue({ type: 'test', owner: 'alice', payload: null });
-    
+
     // BRDA:23,9 JobQueue constructor with undefined databaseFile
     try {
       new JobQueue(undefined);
     } catch (e) {
       // ignore
     }
-    
+
     // BRDA:132,47 shouldRetry is false because attempts >= maxAttempts
     const edgeQueue = new JobQueue(path.join(directory, 'edge2.sqlite3'));
     const job2 = edgeQueue.enqueue({ type: 't2', owner: 'alice', maxAttempts: 1 });
     edgeQueue.claim({ workerId: 'w1' }); // attempts = 1
     edgeQueue.fail(job2.id, 'fail', { retry: true, workerId: 'w1' });
     assert.equal(edgeQueue.get(job2.id).state, 'failed');
-    
+
     // BRDA:116,37 catch inside catch for rollback
     const rollbackQueue = new JobQueue(path.join(directory, 'rollback-catch.sqlite3'));
     rollbackQueue.enqueue({ type: 'test', owner: 'alice' });
     const originalPrepare = rollbackQueue.database.prepare;
-    rollbackQueue.database.prepare = (sql) => {
+    rollbackQueue.database.prepare = sql => {
       if (sql.includes('UPDATE')) throw new Error('Fake DB Error');
       return originalPrepare.call(rollbackQueue.database, sql);
     };
     const originalExec = rollbackQueue.database.exec;
-    rollbackQueue.database.exec = (sql) => {
+    rollbackQueue.database.exec = sql => {
       if (sql === 'ROLLBACK') throw new Error('Rollback failed');
       return originalExec.call(rollbackQueue.database, sql);
     };
@@ -234,7 +239,9 @@ describe('durable job queue', () => {
     const job = queue.enqueue({ type: 'test', owner: 'alice' });
     let handlerStarted = false;
     let resolveHandler;
-    const handlerPromise = new Promise(r => { resolveHandler = r; });
+    const handlerPromise = new Promise(r => {
+      resolveHandler = r;
+    });
     const stop = queue.startWorker({
       workerId: 'w1',
       handlers: {
@@ -242,14 +249,14 @@ describe('durable job queue', () => {
           handlerStarted = true;
           await handlerPromise;
           return {};
-        }
-      }
+        },
+      },
     });
-    
+
     while (!handlerStarted) {
       await new Promise(r => setTimeout(r, 5));
     }
-    
+
     stop();
     resolveHandler();
   });
@@ -266,13 +273,13 @@ describe('durable job queue', () => {
     const queue = new JobQueue(path.join(directory, 'invalid-state.sqlite3'));
     const job = queue.enqueue({ type: 'test', owner: 'alice' });
     queue.claim({ workerId: 'w1' });
-    
+
     const originalIncludes = Array.prototype.includes;
-    Array.prototype.includes = function(searchElement) {
+    Array.prototype.includes = function (searchElement) {
       if (searchElement === 'completed') return false;
       return originalIncludes.apply(this, arguments);
     };
-    
+
     try {
       queue.complete(job.id, {}, { workerId: 'w1' });
     } catch (e) {

@@ -1,12 +1,12 @@
-import { describe, it, before, after } from "node:test";
-import assert from "node:assert/strict";
-import fs from "fs/promises";
-import os from "os";
-import path from "path";
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'fs/promises';
+import os from 'os';
+import path from 'path';
 
 describe('keystore rollbacks', async () => {
   let tmpDir;
-  
+
   before(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-keystore-rollback-'));
   });
@@ -18,25 +18,28 @@ describe('keystore rollbacks', async () => {
   it('loadKeystore rollback', async () => {
     const keysFile = path.join(tmpDir, 'api-keys.json');
     const dbFile = path.join(tmpDir, 'state.sqlite3');
-    await fs.writeFile(keysFile, JSON.stringify({
-      hash1: { keyId: 'throw-me' }
-    }));
-    
+    await fs.writeFile(
+      keysFile,
+      JSON.stringify({
+        hash1: { keyId: 'throw-me' },
+      })
+    );
+
     process.env.KEYSTORE_FILE = keysFile;
     process.env.MCP_STATE_DB = dbFile;
-    
+
     const keystore = await import(`../keystore.js?test=${Date.now()}`);
-    
+
     const originalStringify = JSON.stringify;
-    JSON.stringify = function(val) {
+    JSON.stringify = function (val) {
       if (val && val.keyId === 'throw-me') throw new Error('fake stringify error');
       return originalStringify(val);
     };
-    
+
     try {
       await keystore.loadKeystore();
       assert.fail('should have thrown');
-    } catch(err) {
+    } catch (err) {
       assert.match(err.message, /fake stringify error/);
     } finally {
       JSON.stringify = originalStringify;
@@ -47,30 +50,33 @@ describe('keystore rollbacks', async () => {
     const keysFile = path.join(tmpDir, 'api-keys2.json');
     const dbFile = path.join(tmpDir, 'state2.sqlite3');
     await fs.writeFile(keysFile, JSON.stringify({}));
-    
+
     process.env.KEYSTORE_FILE = keysFile;
     process.env.MCP_STATE_DB = dbFile;
-    
+
     const keystore = await import(`../keystore.js?test=${Date.now()}`);
-    await keystore.loadKeystore(); 
-    
+    await keystore.loadKeystore();
+
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(dbFile);
     db.exec('DROP TABLE api_keys');
     db.close();
-    
+
     await assert.rejects(keystore.addKeyEntry('new-key', {}), /no such table: api_keys/);
   });
 
   it('legacy mode success', async () => {
     const keysFile = path.join(tmpDir, 'api-keys-legacy.json');
-    await fs.writeFile(keysFile, JSON.stringify({
-      hash1: { keyId: 'legacy-success' }
-    }));
-    
+    await fs.writeFile(
+      keysFile,
+      JSON.stringify({
+        hash1: { keyId: 'legacy-success' },
+      })
+    );
+
     process.env.KEYSTORE_FILE = keysFile;
     delete process.env.MCP_STATE_DB; // Enable legacy mode
-    
+
     const keystore = await import(`../keystore.js?test=${Date.now()}`);
     await keystore.loadKeystore();
   });
@@ -78,15 +84,14 @@ describe('keystore rollbacks', async () => {
   it('legacy mode throw non-ENOENT', async () => {
     const keysFile = path.join(tmpDir, 'api-keys-legacy-err.json');
     await fs.writeFile(keysFile, 'invalid-json'); // This will throw SyntaxError on parse
-    
+
     process.env.KEYSTORE_FILE = keysFile;
     delete process.env.MCP_STATE_DB; // Enable legacy mode
-    
+
     const keystore = await import(`../keystore.js?test=${Date.now()}`);
     await assert.rejects(keystore.loadKeystore(), /Unable to load keystore/);
   });
 });
-
 
 describe('keystore.js branches', async () => {
   it('covers missing branches', async () => {
@@ -106,16 +111,16 @@ describe('keystore.js branches', async () => {
     await fs.writeFile(keysFile, '[]');
     keystore = await import(`../keystore.js?test=${Date.now()}`);
     await assert.rejects(keystore.loadKeystore(), /API key migration failed/);
-    
+
     // reset
     await fs.rm(dbFile, { force: true });
     await fs.rm(keysFile, { force: true });
-    
+
     keystore = await import(`../keystore.js?test=${Date.now()}`);
     await keystore.loadKeystore();
-    
+
     const key = await keystore.addKeyEntry('testkey', { role: 'admin' });
-    
+
     // line 109
     await assert.rejects(keystore.addKeyEntry('testkey', { role: 'admin' }), /already exists/);
 
@@ -144,13 +149,16 @@ describe('keystore.js missing branches part 2', async () => {
   it('covers migration branch with missing keyId', async () => {
     const keysFile = path.join(tmpDir, 'keys.json');
     const dbFile = path.join(tmpDir, 'state.sqlite');
-    
+
     // line 58: migration with missing keyId
     process.env.KEYSTORE_FILE = keysFile;
     process.env.MCP_STATE_DB = dbFile;
-    await fs.writeFile(keysFile, JSON.stringify({
-      hash_without_id: { role: 'admin' }
-    }));
+    await fs.writeFile(
+      keysFile,
+      JSON.stringify({
+        hash_without_id: { role: 'admin' },
+      })
+    );
     let keystore = await import(`../keystore.js?test=${Date.now()}`);
     await keystore.loadKeystore();
   });

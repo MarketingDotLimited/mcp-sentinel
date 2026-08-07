@@ -498,24 +498,54 @@ describe('broker operational integration', () => {
     assert.equal(valid.ok, true);
     const invalid = await exchange('{bad json');
     assert.equal(invalid.ok, false);
-    
+
     // My custom tests for 371-375 and 390-400
     const db = new (await import('node:sqlite')).DatabaseSync(process.env.MCP_STATE_DB);
-    db.exec("INSERT OR REPLACE INTO projects (id, payload, updated_at) VALUES ('22222222-2222-4222-8222-222222222222', '{\"repoPath\":\"" + projectRoot + "\",\"runAsUser\":\"testuser\",\"permittedGitActions\":[\"pull\"],\"protectedPaths\":[\"..\", \"/abs\", 123, \"valid\"]}', 'now');");
-    db.exec("INSERT OR REPLACE INTO projects (id, payload, updated_at) VALUES ('33333333-3333-4333-8333-333333333333', '{\"repoPath\":\"" + projectRoot + "\",\"runAsUser\":\"testuser\",\"permittedGitActions\":[\"pull\"]}', 'now');");
-    
-    try { fsSync.mkdirSync('/tmp/testuser', { recursive: true }); } catch(e) {}
-    try { fsSync.mkdirSync('/tmp/fake-ssh', { recursive: true }); } catch(e) {}
-    try { fsSync.symlinkSync('/tmp/fake-ssh', '/tmp/testuser/.ssh'); } catch(e) {}
-    try { fsSync.mkdirSync('${projectRoot}/.git', { recursive: true }); } catch(e) {}
+    db.exec(
+      'INSERT OR REPLACE INTO projects (id, payload, updated_at) VALUES (\'22222222-2222-4222-8222-222222222222\', \'{"repoPath":"' +
+        projectRoot +
+        '","runAsUser":"testuser","permittedGitActions":["pull"],"protectedPaths":["..", "/abs", 123, "valid"]}\', \'now\');'
+    );
+    db.exec(
+      'INSERT OR REPLACE INTO projects (id, payload, updated_at) VALUES (\'33333333-3333-4333-8333-333333333333\', \'{"repoPath":"' +
+        projectRoot +
+        '","runAsUser":"testuser","permittedGitActions":["pull"]}\', \'now\');'
+    );
 
-    const r1 = await exchange(JSON.stringify({ requestId: '11111111-1111-4111-8111-111111111111', operation: 'project.git', parameters: { projectId: '22222222-2222-4222-8222-222222222222', action: 'pull' } }));
+    try {
+      fsSync.mkdirSync('/tmp/testuser', { recursive: true });
+    } catch (e) {}
+    try {
+      fsSync.mkdirSync('/tmp/fake-ssh', { recursive: true });
+    } catch (e) {}
+    try {
+      fsSync.symlinkSync('/tmp/fake-ssh', '/tmp/testuser/.ssh');
+    } catch (e) {}
+    try {
+      fsSync.mkdirSync('${projectRoot}/.git', { recursive: true });
+    } catch (e) {}
+
+    const r1 = await exchange(
+      JSON.stringify({
+        requestId: '11111111-1111-4111-8111-111111111111',
+        operation: 'project.git',
+        parameters: { projectId: '22222222-2222-4222-8222-222222222222', action: 'pull' },
+      })
+    );
     console.log('R1', r1);
-    
-    const r2 = await exchange(JSON.stringify({ requestId: '22222222-1111-4111-8111-111111111111', operation: 'project.git', parameters: { projectId: '33333333-3333-4333-8333-333333333333', action: 'pull' } }));
+
+    const r2 = await exchange(
+      JSON.stringify({
+        requestId: '22222222-1111-4111-8111-111111111111',
+        operation: 'project.git',
+        parameters: { projectId: '33333333-3333-4333-8333-333333333333', action: 'pull' },
+      })
+    );
     console.log('R2', r2);
-    
-    try { fsSync.unlinkSync('/tmp/testuser/.ssh'); } catch(e) {}
+
+    try {
+      fsSync.unlinkSync('/tmp/testuser/.ssh');
+    } catch (e) {}
     await new Promise(resolve => brokerServer.close(resolve));
   });
 });

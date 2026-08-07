@@ -14,21 +14,21 @@ function setupEnv() {
   process.env.CONTROL_PLANE_KEY = 'a'.repeat(64);
 }
 
-test('state-crypto tests', async (t) => {
+test('state-crypto tests', async t => {
   mock.module('../lib/key-provider.js', {
     namedExports: {
       createKeyProvider: () => {
         return {
-          get: (id) => {
+          get: id => {
             if (id === 'state-v1') return { value: undefined };
             if (id === 'archived-key-invalid') return { value: 'bad' };
             if (id === 'archived-key-valid') return { value: 'b'.repeat(64) };
             if (id === 'throw-error') throw new Error('Provider Error');
             throw new Error('Not found');
-          }
-        }
-      }
-    }
+          },
+        };
+      },
+    },
   });
 
   const stateCrypto = await import('../lib/state-crypto.js?' + Date.now());
@@ -40,7 +40,7 @@ test('state-crypto tests', async (t) => {
     delete process.env.CONTROL_PLANE_KEY;
     delete process.env.CREDENTIALS_DIRECTORY;
     delete process.env.MCP_KEY_DIRECTORY;
-    
+
     assert.throws(() => stateCrypto.stateEncryptionConfigured(), /Production state encryption credential is missing/);
   });
 
@@ -49,7 +49,7 @@ test('state-crypto tests', async (t) => {
     process.env.NODE_ENV = 'production';
     process.env.CONTROL_PLANE_KEY_ID = 'throw-error';
     delete process.env.CONTROL_PLANE_KEY;
-    
+
     assert.throws(() => stateCrypto.stateEncryptionConfigured(), /Provider Error/);
   });
 
@@ -58,7 +58,7 @@ test('state-crypto tests', async (t) => {
     process.env.NODE_ENV = 'development';
     process.env.CONTROL_PLANE_KEY_ID = 'throw-error';
     delete process.env.CONTROL_PLANE_KEY;
-    
+
     assert.equal(stateCrypto.stateEncryptionConfigured(), false);
   });
 
@@ -82,9 +82,12 @@ test('state-crypto tests', async (t) => {
       keyId: 'archived-key-invalid',
       iv: 'dummy',
       tag: 'dummy',
-      ciphertext: 'dummy'
+      ciphertext: 'dummy',
     };
-    assert.throws(() => stateCrypto.decryptStateValue(encValue), /Archived state key 'archived-key-invalid' is invalid/);
+    assert.throws(
+      () => stateCrypto.decryptStateValue(encValue),
+      /Archived state key 'archived-key-invalid' is invalid/
+    );
   });
 
   await t.test('keyForId with MCP_KEY_PROVIDER !== local (valid key)', () => {
@@ -95,7 +98,7 @@ test('state-crypto tests', async (t) => {
       keyId: 'archived-key-valid',
       iv: Buffer.alloc(12).toString('base64'),
       tag: Buffer.alloc(16).toString('base64'),
-      ciphertext: Buffer.alloc(10).toString('base64')
+      ciphertext: Buffer.alloc(10).toString('base64'),
     };
     assert.throws(() => stateCrypto.decryptStateValue(encValue), /Unsupported state or unable to authenticate data/);
   });
@@ -128,10 +131,12 @@ test('state-crypto tests', async (t) => {
     process.env.CREDENTIALS_DIRECTORY = dir;
     delete process.env.MCP_KEY_PROVIDER;
     fs.writeFileSync(path.join(dir, 'state-key-archived-key'), 'b'.repeat(64));
-    const encValue = { v: 1, keyId: 'archived-key', 
-      iv: Buffer.alloc(12).toString('base64'), 
-      tag: Buffer.alloc(16).toString('base64'), 
-      ciphertext: Buffer.alloc(10).toString('base64') 
+    const encValue = {
+      v: 1,
+      keyId: 'archived-key',
+      iv: Buffer.alloc(12).toString('base64'),
+      tag: Buffer.alloc(16).toString('base64'),
+      ciphertext: Buffer.alloc(10).toString('base64'),
     };
     try {
       assert.throws(() => stateCrypto.decryptStateValue(encValue), /Unsupported state or unable to authenticate data/);
@@ -160,7 +165,10 @@ test('state-crypto tests', async (t) => {
     process.env.CONTROL_PLANE_KEY_ID = 'state-v1';
     delete process.env.CONTROL_PLANE_KEY;
     const encValue = { v: 1, keyId: 'archived-key', iv: 'd', tag: 'd', ciphertext: 'd' };
-    assert.throws(() => stateCrypto.decryptStateValue(encValue), /Encrypted state cannot be read without the state credential/);
+    assert.throws(
+      () => stateCrypto.decryptStateValue(encValue),
+      /Encrypted state cannot be read without the state credential/
+    );
   });
 
   await t.test('decryptStateValue on unencrypted value', () => {
@@ -178,9 +186,9 @@ test('state-crypto tests', async (t) => {
         token: 'my-token',
         empty: '',
         nullVal: null,
-        undef: undefined
+        undef: undefined,
       },
-      arr: [{ secret: 'arr-secret' }]
+      arr: [{ secret: 'arr-secret' }],
     };
     const encrypted = stateCrypto.encryptSensitiveFields(val);
     assert.equal(encrypted.normal, 'plaintext');

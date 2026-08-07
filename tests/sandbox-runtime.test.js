@@ -130,7 +130,10 @@ describe('rootless OCI sandbox contract', () => {
 
   it('validates files content properly', async () => {
     await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: { 'a.txt': 123 } }), /string content/);
-    await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: { 'a.txt': 'a'.repeat(1024 * 1024 + 1) } }), /byte limit/);
+    await assert.rejects(
+      runSandboxedCode({ language: 'node', code: 'x', files: { 'a.txt': 'a'.repeat(1024 * 1024 + 1) } }),
+      /byte limit/
+    );
     const manyFiles = {};
     for (let i = 0; i < 51; i++) manyFiles[`f${i}.txt`] = 'x';
     await assert.rejects(runSandboxedCode({ language: 'node', code: 'x', files: manyFiles }), /at most/);

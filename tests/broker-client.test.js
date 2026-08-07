@@ -10,7 +10,7 @@ describe('broker-client.js complete coverage', () => {
 
     mock.method(net, 'createConnection', () => {
       const socket = new net.Socket();
-      socket.write = (data) => {
+      socket.write = data => {
         const req = JSON.parse(data.toString());
         setTimeout(() => {
           // no-op
@@ -21,7 +21,10 @@ describe('broker-client.js complete coverage', () => {
             socket.emit('data', Buffer.from(JSON.stringify({ requestId: 'wrong', ok: true })));
             socket.emit('end');
           } else if (req.operation === 'reject') {
-            socket.emit('data', Buffer.from(JSON.stringify({ requestId: req.requestId, ok: false, error: 'rejected' })));
+            socket.emit(
+              'data',
+              Buffer.from(JSON.stringify({ requestId: req.requestId, ok: false, error: 'rejected' }))
+            );
             socket.emit('end');
           } else if (req.operation === 'reject-no-msg') {
             socket.emit('data', Buffer.from(JSON.stringify({ requestId: req.requestId, ok: false })));
@@ -42,7 +45,10 @@ describe('broker-client.js complete coverage', () => {
         if (!socket.destroyed) socket.emit('connect');
       }, 5);
       const origDestroy = socket.destroy;
-      socket.destroy = () => { clearTimeout(t); origDestroy.call(socket); };
+      socket.destroy = () => {
+        clearTimeout(t);
+        origDestroy.call(socket);
+      };
       return socket;
     });
 
@@ -55,7 +61,10 @@ describe('broker-client.js complete coverage', () => {
     await assert.rejects(broker.brokerCall('bad-json', {}));
     await assert.rejects(broker.brokerCall('too-large', {}), /too large/);
     await assert.equal(await broker.brokerCall('double-finish', {}), 'first');
-    await assert.rejects(broker.brokerCall('timeout', {}, { timeoutMs: 20 }), (err) => err.code === 'E_BROKER_UNAVAILABLE');
+    await assert.rejects(
+      broker.brokerCall('timeout', {}, { timeoutMs: 20 }),
+      err => err.code === 'E_BROKER_UNAVAILABLE'
+    );
   });
 
   it('covers abort', async () => {
@@ -67,7 +76,10 @@ describe('broker-client.js complete coverage', () => {
         if (!socket.destroyed) socket.emit('error', { code: 'ENOENT' });
       }, 50);
       const origDestroy = socket.destroy;
-      socket.destroy = () => { clearTimeout(t); origDestroy.call(socket); };
+      socket.destroy = () => {
+        clearTimeout(t);
+        origDestroy.call(socket);
+      };
       return socket;
     });
 
@@ -75,8 +87,8 @@ describe('broker-client.js complete coverage', () => {
     const ac = new AbortController();
     const p = broker.brokerCall('abort', {}, { signal: ac.signal });
     setTimeout(() => ac.abort(), 10);
-    
-    await assert.rejects(p, (err) => err.code === 'E_BROKER_UNAVAILABLE');
+
+    await assert.rejects(p, err => err.code === 'E_BROKER_UNAVAILABLE');
   });
   it('covers custom socket path from env', async () => {
     process.env.MCP_BROKER_SOCKET = '/custom/path.sock';

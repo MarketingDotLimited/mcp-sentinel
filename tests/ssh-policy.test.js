@@ -178,7 +178,13 @@ describe('SSH policy evaluation', () => {
 
   it('throws in subjectClientSshPreferenceId on missing fields', () => {
     assert.throws(() => subjectClientSshPreferenceId({}), /OAuth issuer, subject, and client ID are required/);
-    assert.throws(() => subjectClientSshPreferenceId({ oauthIssuer: 'a' }), /OAuth issuer, subject, and client ID are required/);
-    assert.throws(() => subjectClientSshPreferenceId({ oauthIssuer: 'a', oauthSubject: 'b' }), /OAuth issuer, subject, and client ID are required/);
+    assert.throws(
+      () => subjectClientSshPreferenceId({ oauthIssuer: 'a' }),
+      /OAuth issuer, subject, and client ID are required/
+    );
+    assert.throws(
+      () => subjectClientSshPreferenceId({ oauthIssuer: 'a', oauthSubject: 'b' }),
+      /OAuth issuer, subject, and client ID are required/
+    );
   });
 });

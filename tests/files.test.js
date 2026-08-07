@@ -6,7 +6,7 @@ let callCount = 0;
 
 mock.module('../lib/control-plane.js', {
   namedExports: {
-    getProject: async (projectId) => {
+    getProject: async projectId => {
       callCount++;
       if (callCount === 1) return { id: 'project-1' };
       if (callCount === 2) return { id: 'project-2' };

@@ -34,32 +34,35 @@ describe('policy.js full coverage', () => {
   it('getPolicyStatus with and without policy', async () => {
     await fs.writeFile(policyFile, JSON.stringify({ rules: [{ effect: 'deny', tools: ['a'] }] }));
     const { getPolicyStatus, evaluatePolicy } = await import(`../lib/policy.js?t=${Date.now()}`);
-    
+
     const status1 = await getPolicyStatus();
     assert.equal(status1.enabled, true);
-    
+
     // hit cache line 24
     await evaluatePolicy({ tool: 't', identity: { role: 'r' } });
-    
+
     const orig = process.env.MCP_POLICY_FILE;
     delete process.env.MCP_POLICY_FILE;
-    const { getPolicyStatus: getPolicyStatusEmpty, evaluatePolicy: evalEmpty } = await import(`../lib/policy.js?t=${Date.now()}`);
-    
+    const { getPolicyStatus: getPolicyStatusEmpty, evaluatePolicy: evalEmpty } = await import(
+      `../lib/policy.js?t=${Date.now()}`
+    );
+
     const status2 = await getPolicyStatusEmpty();
     assert.equal(status2.enabled, false);
-    
+
     const res = await evalEmpty({ tool: 't', identity: { role: 'r' } });
     assert.equal(res.allowed, true);
-    
+
     process.env.MCP_POLICY_FILE = orig;
   });
 
   it('evaluatePolicy deny branch', async () => {
-    await fs.writeFile(policyFile, JSON.stringify({
-      rules: [
-        { effect: 'deny', tools: ['deny_tool'] }
-      ]
-    }));
+    await fs.writeFile(
+      policyFile,
+      JSON.stringify({
+        rules: [{ effect: 'deny', tools: ['deny_tool'] }],
+      })
+    );
     const { evaluatePolicy } = await import(`../lib/policy.js?t=${Date.now()}`);
     const res = await evaluatePolicy({ tool: 'deny_tool', identity: { role: 'dev' } });
     assert.equal(res.allowed, false);
@@ -67,24 +70,27 @@ describe('policy.js full coverage', () => {
   });
 
   it('simulatePolicy covers all branches', async () => {
-    await fs.writeFile(policyFile, JSON.stringify({
-      rules: [
-        { effect: 'deny', tools: ['deny_tool'], roles: ['dev'] },
-        { effect: 'require_approval', tools: ['approve_tool'] },
-        { effect: 'require_approval', tools: ['*'], roles: ['admin'] } // admin requires approval for everything else
-      ]
-    }));
+    await fs.writeFile(
+      policyFile,
+      JSON.stringify({
+        rules: [
+          { effect: 'deny', tools: ['deny_tool'], roles: ['dev'] },
+          { effect: 'require_approval', tools: ['approve_tool'] },
+          { effect: 'require_approval', tools: ['*'], roles: ['admin'] }, // admin requires approval for everything else
+        ],
+      })
+    );
     const { simulatePolicy } = await import(`../lib/policy.js?t=${Date.now()}`);
 
     // Validation
     await assert.rejects(simulatePolicy({ tool: 123, identity: {} }), /Invalid tool/);
     await assert.rejects(simulatePolicy({ tool: 'abc', identity: null }), /A role-bearing identity is required/);
-    
+
     // Deny
     const res1 = await simulatePolicy({ tool: 'deny_tool', identity: { role: 'dev', userId: 'u' } });
     assert.equal(res1.allowed, false);
     assert.equal(res1.reason, 'This action is denied by server policy');
-    
+
     // Require approval
     const res2 = await simulatePolicy({ tool: 'approve_tool', identity: { role: 'dev' } });
     assert.equal(res2.allowed, true);
@@ -97,20 +103,22 @@ describe('policy.js full coverage', () => {
     assert.equal(res3.requireApproval, false);
     assert.equal(res3.reason, 'No matching deny or approval rule applies');
   });
-  
+
   it('covers missing tool array via global JSON.parse mock', async () => {
     await fs.writeFile(policyFile, 'magic');
     const originalParse = JSON.parse;
-    JSON.parse = function(text) {
+    JSON.parse = function (text) {
       if (text === 'magic') {
         let callCount = 0;
         return {
-          rules: [{
-            effect: 'deny',
-            get tools() {
-              return callCount++ === 0 ? ['magic_tool'] : null;
-            }
-          }]
+          rules: [
+            {
+              effect: 'deny',
+              get tools() {
+                return callCount++ === 0 ? ['magic_tool'] : null;
+              },
+            },
+          ],
         };
       }
       return originalParse(text);

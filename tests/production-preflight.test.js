@@ -35,7 +35,7 @@ describe('production deployment preflight', () => {
     ]);
     for (const unsafe of ['/', '/var/www', '/srv', 'relative/path', '/srv/path with space', '/srv/apps/../escape'])
       assert.throws(() => validateProjectWritePaths(unsafe), /too broad|normalized absolute/);
-      
+
     assert.throws(() => validateProjectWritePaths(), /must contain at least one project repository/);
     assert.throws(() => validateProjectWritePaths(''), /must contain at least one project repository/);
   });
@@ -43,17 +43,31 @@ describe('production deployment preflight', () => {
   it('validates signed release metadata and archive boundaries', () => {
     const hash = 'a'.repeat(64);
     const commit = 'b'.repeat(40);
-    
+
     // manifest validations
     assert.throws(() => validateReleaseManifest(null, 'art', 'hash'), /Invalid release manifest/);
     assert.throws(() => validateReleaseManifest([], 'art', 'hash'), /Invalid release manifest/);
     assert.throws(() => validateReleaseManifest('not obj', 'art', 'hash'), /Invalid release manifest/);
     assert.throws(() => validateReleaseManifest({ version: '1.0.0' }, 'art', 'hash'), /unknown fields/);
-    assert.throws(() => validateReleaseManifest({ version: 'invalid', commit, sha256: hash, artifact: 'art' }, 'art', hash), /Invalid release version/);
-    assert.throws(() => validateReleaseManifest({ version: '2.0.0', commit: 'invalid', sha256: hash, artifact: 'art' }, 'art', hash), /Invalid release commit/);
-    assert.throws(() => validateReleaseManifest({ version: '2.0.0', commit, sha256: 'invalid', artifact: 'art' }, 'art', hash), /Release artifact hash does not match/);
-    assert.throws(() => validateReleaseManifest({ version: '2.0.0', commit, sha256: hash, artifact: 'art' }, 'art', 'different-hash'), /Release artifact hash does not match/);
-    
+    assert.throws(
+      () => validateReleaseManifest({ version: 'invalid', commit, sha256: hash, artifact: 'art' }, 'art', hash),
+      /Invalid release version/
+    );
+    assert.throws(
+      () =>
+        validateReleaseManifest({ version: '2.0.0', commit: 'invalid', sha256: hash, artifact: 'art' }, 'art', hash),
+      /Invalid release commit/
+    );
+    assert.throws(
+      () => validateReleaseManifest({ version: '2.0.0', commit, sha256: 'invalid', artifact: 'art' }, 'art', hash),
+      /Release artifact hash does not match/
+    );
+    assert.throws(
+      () =>
+        validateReleaseManifest({ version: '2.0.0', commit, sha256: hash, artifact: 'art' }, 'art', 'different-hash'),
+      /Release artifact hash does not match/
+    );
+
     assert.equal(
       validateReleaseManifest(
         { version: '2.0.0', commit, artifact: 'mcp-sentinel-2.0.0.tar.gz', sha256: hash },
@@ -88,9 +102,15 @@ describe('production deployment preflight', () => {
     assert.throws(() => validateArchiveListing(), /Release archive listing is empty/);
     assert.throws(() => validateArchiveListing([]), /Release archive listing is empty/);
     assert.throws(() => validateArchiveListing(new Array(20001)), /Release archive contains too many entries/);
-    assert.throws(() => validateArchiveListing(['-rw-rw-r-- 0/0 9007199254740992 2026-07-23 00:00 file']), /Release archive contains an invalid file size/);
-    assert.throws(() => validateArchiveListing(['-rw-rw-r-- 0/0 1073741825 2026-07-23 00:00 file']), /Release archive expands beyond the permitted size/);
-    
+    assert.throws(
+      () => validateArchiveListing(['-rw-rw-r-- 0/0 9007199254740992 2026-07-23 00:00 file']),
+      /Release archive contains an invalid file size/
+    );
+    assert.throws(
+      () => validateArchiveListing(['-rw-rw-r-- 0/0 1073741825 2026-07-23 00:00 file']),
+      /Release archive expands beyond the permitted size/
+    );
+
     assert.throws(() => validateArchiveEntries([], '2.0.0'), /Release archive is empty/);
     assert.throws(() => validateArchiveEntries(new Array(20001), '2.0.0'), /Release archive contains too many entries/);
     assert.throws(() => validateArchiveEntries(['invalid'], '2.0.0'), /Unsafe release archive entry/);
@@ -111,7 +131,10 @@ describe('production deployment preflight', () => {
     assert.throws(() => parseValidSignatureFingerprint(undefined), /No valid/);
     assert.throws(() => parseValidSignatureFingerprint('[GNUPG:] VALIDSIG X'), /invalid signing fingerprint/);
     assert.throws(() => parseValidSignatureFingerprint('[GNUPG:] VALIDSIG  '), /invalid signing fingerprint/);
-    assert.throws(() => parseValidSignatureFingerprint(`[GNUPG:] VALIDSIG invalid-fingerprint`), /invalid signing fingerprint/);
+    assert.throws(
+      () => parseValidSignatureFingerprint(`[GNUPG:] VALIDSIG invalid-fingerprint`),
+      /invalid signing fingerprint/
+    );
     assert.throws(() => validateSigningFingerprint(undefined, fingerprint), /untrusted key/);
     assert.throws(() => validateSigningFingerprint(fingerprint, undefined), /40 or 64/);
   });

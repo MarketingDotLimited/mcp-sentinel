@@ -6,7 +6,7 @@ import os from 'os';
 
 describe('security.js OIDC edges 2', async () => {
   let tmpDir;
-  
+
   before(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-security-oidc-edges2-'));
   });
@@ -26,31 +26,34 @@ describe('security.js OIDC edges 2', async () => {
     let calls = 0;
     mock.module('jose', {
       namedExports: {
-        createRemoteJWKSet: () => { 
+        createRemoteJWKSet: () => {
           calls++;
           if (calls === 2) throw new Error('refresh failed');
-          return { type: 'mock-jwks' }; 
+          return { type: 'mock-jwks' };
         },
         jwtVerify: async () => {
           throw new Error('invalid signature');
-        }
-      }
+        },
+      },
     });
 
     const security = await import(`../security.js?test=${Date.now()}`);
     const req = { headers: { authorization: 'Bearer some-token' }, socket: { remoteAddress: '127.0.0.1' } };
     let statusCalled = 0;
-    const res = { 
-      status: (c) => { statusCalled = c; return res; }, 
+    const res = {
+      status: c => {
+        statusCalled = c;
+        return res;
+      },
       json: () => res,
-      set: () => res 
+      set: () => res,
     };
 
     // First call will cache jwks on import or on first use.
     // wait, it is called on first authenticateJWT
     await new Promise(resolve => {
-       security.authenticateJWT(req, res, () => {});
-       setTimeout(resolve, 50);
+      security.authenticateJWT(req, res, () => {});
+      setTimeout(resolve, 50);
     });
     // The inner catch throws `invalid signature` because refresh failed (which returns null, so it throws the original error)
     assert.equal(statusCalled, 401);

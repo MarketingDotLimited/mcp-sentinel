@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 mock.module('../lib/broker-client.js', {
   namedExports: {
     brokerCall: mock.fn(),
-  }
+  },
 });
 
 const { applyConfig, listConfigBackups, restoreConfig } = await import('../tools/rollback.js');
@@ -18,10 +18,7 @@ describe('rollback tool', () => {
 
   describe('applyConfig', () => {
     test('throws if not admin', async () => {
-      await assert.rejects(
-        applyConfig({}, { role: 'user' }),
-        /Configuration tools require admin role/
-      );
+      await assert.rejects(applyConfig({}, { role: 'user' }), /Configuration tools require admin role/);
     });
 
     test('throws if configId is invalid', async () => {
@@ -44,10 +41,7 @@ describe('rollback tool', () => {
         applyConfig({ configId: 'valid-id', newContent: '' }, { role: 'admin' }),
         /newContent is required/
       );
-      await assert.rejects(
-        applyConfig({ configId: 'valid-id' }, { role: 'admin' }),
-        /newContent is required/
-      );
+      await assert.rejects(applyConfig({ configId: 'valid-id' }, { role: 'admin' }), /newContent is required/);
     });
 
     test('calls brokerCall with default healthCheckTimeout', async () => {
@@ -56,7 +50,7 @@ describe('rollback tool', () => {
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'config.apply',
         { configId: 'valid-id', content: 'content', healthCheckTimeout: 20 },
-        { timeoutMs: 60000 }
+        { timeoutMs: 60000 },
       ]);
     });
 
@@ -66,7 +60,7 @@ describe('rollback tool', () => {
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'config.apply',
         { configId: 'valid-id', content: 'content', healthCheckTimeout: 30 },
-        { timeoutMs: 70000 }
+        { timeoutMs: 70000 },
       ]);
 
       brokerCall.mock.resetCalls();
@@ -74,7 +68,7 @@ describe('rollback tool', () => {
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'config.apply',
         { configId: 'valid-id', content: 'content', healthCheckTimeout: 3 },
-        { timeoutMs: 45000 }
+        { timeoutMs: 45000 },
       ]);
 
       brokerCall.mock.resetCalls();
@@ -82,50 +76,41 @@ describe('rollback tool', () => {
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'config.apply',
         { configId: 'valid-id', content: 'content', healthCheckTimeout: 100 },
-        { timeoutMs: 100000 }
+        { timeoutMs: 100000 },
       ]);
 
       brokerCall.mock.resetCalls();
-      await applyConfig({ configId: 'valid-id', newContent: 'content', healthCheckTimeout: 'invalid' }, { role: 'admin' });
+      await applyConfig(
+        { configId: 'valid-id', newContent: 'content', healthCheckTimeout: 'invalid' },
+        { role: 'admin' }
+      );
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'config.apply',
         { configId: 'valid-id', content: 'content', healthCheckTimeout: 'invalid' },
-        { timeoutMs: 60000 }
+        { timeoutMs: 60000 },
       ]);
     });
   });
 
   describe('listConfigBackups', () => {
     test('throws if not admin', async () => {
-      await assert.rejects(
-        listConfigBackups({}, { role: 'user' }),
-        /Configuration tools require admin role/
-      );
+      await assert.rejects(listConfigBackups({}, { role: 'user' }), /Configuration tools require admin role/);
     });
 
     test('throws if configId is invalid', async () => {
-      await assert.rejects(
-        listConfigBackups({ configId: '1invalid' }, { role: 'admin' }),
-        /Invalid configId/
-      );
+      await assert.rejects(listConfigBackups({ configId: '1invalid' }, { role: 'admin' }), /Invalid configId/);
     });
 
     test('calls brokerCall successfully', async () => {
       await listConfigBackups({ configId: 'valid-id' }, { role: 'admin' });
       assert.equal(brokerCall.mock.calls.length, 1);
-      assert.deepEqual(brokerCall.mock.calls[0].arguments, [
-        'config.backups',
-        { configId: 'valid-id' }
-      ]);
+      assert.deepEqual(brokerCall.mock.calls[0].arguments, ['config.backups', { configId: 'valid-id' }]);
     });
   });
 
   describe('restoreConfig', () => {
     test('throws if not admin', async () => {
-      await assert.rejects(
-        restoreConfig({}, { role: 'user' }),
-        /Configuration tools require admin role/
-      );
+      await assert.rejects(restoreConfig({}, { role: 'user' }), /Configuration tools require admin role/);
     });
 
     test('throws if configId is invalid', async () => {
@@ -160,7 +145,7 @@ describe('rollback tool', () => {
       assert.deepEqual(brokerCall.mock.calls[0].arguments, [
         'config.restore',
         { configId: 'valid-id', timestamp: '1234567890' },
-        { timeoutMs: 75000 }
+        { timeoutMs: 75000 },
       ]);
     });
   });

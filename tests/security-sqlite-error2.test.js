@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 describe('security.js SQLite errors', async () => {
   let tmpDir;
-  
+
   before(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-security-sqlite-err-'));
   });
@@ -29,7 +29,10 @@ describe('security.js SQLite errors', async () => {
     db.exec('DROP TABLE jwt_revocations');
     db.close();
 
-    const req = { identity: { authType: 'apiKey', jti: 'test-jti', tokenExpiresAt: Date.now() + 10000 }, clientIP: '127.0.0.1' };
+    const req = {
+      identity: { authType: 'apiKey', jti: 'test-jti', tokenExpiresAt: Date.now() + 10000 },
+      clientIP: '127.0.0.1',
+    };
     const res = { json: () => {} };
 
     try {

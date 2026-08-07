@@ -10,13 +10,15 @@ function importAuditModule(env = {}) {
   const originalEnv = { ...process.env };
   Object.assign(process.env, env);
   const m = import(`../audit.js?t=${Date.now()}${Math.random()}`);
-  return m.then(mod => {
-    process.env = originalEnv;
-    return mod;
-  }).catch(err => {
-    process.env = originalEnv;
-    throw err;
-  });
+  return m
+    .then(mod => {
+      process.env = originalEnv;
+      return mod;
+    })
+    .catch(err => {
+      process.env = originalEnv;
+      throw err;
+    });
 }
 
 describe('Audit Module', () => {
@@ -52,7 +54,7 @@ describe('Audit Module', () => {
       AUDIT_HMAC_KEY: validHmac,
       AUDIT_LOG_DIR: logDir,
       AUDIT_CHECKPOINT_FILE: checkpointFile,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
     const status = audit.getAuditChainStatus();
     assert.strictEqual(status.sequence, 0);
@@ -65,7 +67,7 @@ describe('Audit Module', () => {
       importAuditModule({
         AUDIT_HMAC_KEY: validHmac,
         AUDIT_LOG_DIR: logDir,
-        AUDIT_CHECKPOINT_FILE: checkpointFile
+        AUDIT_CHECKPOINT_FILE: checkpointFile,
       }),
       /Invalid audit checkpoint:/
     );
@@ -78,7 +80,7 @@ describe('Audit Module', () => {
       importAuditModule({
         AUDIT_HMAC_KEY: validHmac,
         AUDIT_LOG_DIR: logDir,
-        AUDIT_CHECKPOINT_FILE: checkpointFile
+        AUDIT_CHECKPOINT_FILE: checkpointFile,
       }),
       /Audit checkpoint exists but the audit log is missing/
     );
@@ -87,12 +89,15 @@ describe('Audit Module', () => {
   it('throws when log exists but does not match checkpoint', async () => {
     fs.writeFileSync(checkpointFile, JSON.stringify({ seqNo: 1, hash: 'b'.repeat(64) }));
     fs.mkdirSync(logDir);
-    fs.writeFileSync(path.join(logDir, 'audit-2023-01-01.log'), JSON.stringify({ seqNo: 2, hash: 'c'.repeat(64) }) + '\n');
+    fs.writeFileSync(
+      path.join(logDir, 'audit-2023-01-01.log'),
+      JSON.stringify({ seqNo: 2, hash: 'c'.repeat(64) }) + '\n'
+    );
     await assert.rejects(
       importAuditModule({
         AUDIT_HMAC_KEY: validHmac,
         AUDIT_LOG_DIR: logDir,
-        AUDIT_CHECKPOINT_FILE: checkpointFile
+        AUDIT_CHECKPOINT_FILE: checkpointFile,
       }),
       /does not match the durable audit log tail/
     );
@@ -101,12 +106,15 @@ describe('Audit Module', () => {
   it('loads checkpoint and verifies uncompressed log tail', async () => {
     fs.writeFileSync(checkpointFile, JSON.stringify({ seqNo: 1, hash: 'b'.repeat(64) }));
     fs.mkdirSync(logDir);
-    fs.writeFileSync(path.join(logDir, 'audit-2023-01-01.log'), JSON.stringify({ seqNo: 1, hash: 'b'.repeat(64) }) + '\n');
+    fs.writeFileSync(
+      path.join(logDir, 'audit-2023-01-01.log'),
+      JSON.stringify({ seqNo: 1, hash: 'b'.repeat(64) }) + '\n'
+    );
     const audit = await importAuditModule({
       AUDIT_HMAC_KEY: validHmac,
       AUDIT_LOG_DIR: logDir,
       AUDIT_CHECKPOINT_FILE: checkpointFile,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
     const status = audit.getAuditChainStatus();
     assert.strictEqual(status.sequence, 1);
@@ -122,20 +130,20 @@ describe('Audit Module', () => {
       AUDIT_HMAC_KEY: validHmac,
       AUDIT_LOG_DIR: logDir,
       AUDIT_CHECKPOINT_FILE: checkpointFile,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
     const status = audit.getAuditChainStatus();
     assert.strictEqual(status.sequence, 1);
   });
-  
+
   it('loads checkpoint but ignores invalid seqNo/hash', async () => {
-    fs.writeFileSync(checkpointFile, JSON.stringify({ seqNo: "invalid", hash: 'b' }));
+    fs.writeFileSync(checkpointFile, JSON.stringify({ seqNo: 'invalid', hash: 'b' }));
     fs.mkdirSync(logDir);
     const audit = await importAuditModule({
       AUDIT_HMAC_KEY: validHmac,
       AUDIT_LOG_DIR: logDir,
       AUDIT_CHECKPOINT_FILE: checkpointFile,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
     const status = audit.getAuditChainStatus();
     assert.strictEqual(status.sequence, 0);
@@ -146,9 +154,17 @@ describe('Audit Module', () => {
       AUDIT_HMAC_KEY: validHmac,
       AUDIT_LOG_DIR: logDir,
       AUDIT_CHECKPOINT_FILE: checkpointFile,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
-    audit.logAccess({ ip: '127.0.0.1', apiKey: 'secretkey', userId: 'user', tool: 'test', args: null, result: 'success', duration: 10 });
+    audit.logAccess({
+      ip: '127.0.0.1',
+      apiKey: 'secretkey',
+      userId: 'user',
+      tool: 'test',
+      args: null,
+      result: 'success',
+      duration: 10,
+    });
     assert.strictEqual(fs.existsSync(checkpointFile), true);
     const data = JSON.parse(fs.readFileSync(checkpointFile, 'utf8'));
     assert.strictEqual(data.seqNo, 1);
@@ -157,7 +173,7 @@ describe('Audit Module', () => {
   it('tests various log functions', async () => {
     const audit = await importAuditModule({
       AUDIT_LOG_DIR: logDir,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
 
     // default.info
@@ -179,10 +195,10 @@ describe('Audit Module', () => {
         myToken: 'qwe',
         command: '-pSecretPass mysql://user:pass@host/db Bearer tokenxyz',
         content: 'a'.repeat(250),
-        largeCommand: 'c'.repeat(510)
+        largeCommand: 'c'.repeat(510),
       },
       result: 'failure',
-      duration: 50
+      duration: 50,
     });
 
     // logAccess with long API key
@@ -193,7 +209,7 @@ describe('Audit Module', () => {
       tool: 'test',
       args: undefined,
       result: 'success',
-      duration: 10
+      duration: 10,
     });
 
     // logAuth
@@ -210,20 +226,20 @@ describe('Audit Module', () => {
 
     // logServerStart
     audit.logServerStart({ port: 8080, host: '0.0.0.0', https: false });
-    
+
     // verify some files were created
     assert.strictEqual(fs.existsSync(logDir), true);
-    
+
     // shutdownLoggers
-    await new Promise((resolve) => audit.shutdownLoggers(resolve));
+    await new Promise(resolve => audit.shutdownLoggers(resolve));
   });
-  
+
   it('tests sanitizeArgs directly', async () => {
     const audit = await importAuditModule({
       AUDIT_LOG_DIR: logDir,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
-    
+
     // Test function args to bypass [REDACTED] and hit length truncation
     const f = () => {};
     f.content = 'x'.repeat(300);
@@ -231,7 +247,7 @@ describe('Audit Module', () => {
     const res2 = audit.sanitizeArgs(f);
     assert.strictEqual(res2.content.length, 114);
     assert.strictEqual(res2.command.length, 514);
-    
+
     const res = audit.sanitizeArgs({
       password: 'test',
       a: null,
@@ -239,9 +255,9 @@ describe('Audit Module', () => {
       c: { d: 'e' },
       str: '-p 123 --password=456 mysql://u:p@db Bearer abcdef',
       content: 'x'.repeat(201),
-      command: 'y'.repeat(501)
+      command: 'y'.repeat(501),
     });
-    
+
     assert.strictEqual(res.password, '[REDACTED]');
     assert.strictEqual(res.a, null);
     assert.strictEqual(res.b[2].secret, '[REDACTED]');
@@ -255,7 +271,7 @@ describe('Audit Module', () => {
       importAuditModule({
         AUDIT_HMAC_KEY: validHmac,
         AUDIT_LOG_DIR: logDir,
-        AUDIT_CHECKPOINT_FILE: checkpointFile
+        AUDIT_CHECKPOINT_FILE: checkpointFile,
       }),
       /does not match the durable audit log tail/
     );
@@ -264,7 +280,7 @@ describe('Audit Module', () => {
   it('handles ephemeral unanchored status', async () => {
     const audit = await importAuditModule({
       AUDIT_LOG_DIR: logDir,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
     const status = audit.getAuditChainStatus();
     assert.strictEqual(status.protection, 'ephemeral-unanchored');
@@ -273,7 +289,7 @@ describe('Audit Module', () => {
   it('handles logAccess with no apiKey', async () => {
     const audit = await importAuditModule({
       AUDIT_LOG_DIR: logDir,
-      AUDIT_CONSOLE: 'false'
+      AUDIT_CONSOLE: 'false',
     });
     audit.logAccess({
       ip: '10.0.0.1',
@@ -281,7 +297,7 @@ describe('Audit Module', () => {
       tool: 'test',
       args: undefined,
       result: 'success',
-      duration: 10
+      duration: 10,
     });
   });
 });

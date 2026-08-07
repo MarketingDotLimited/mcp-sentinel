@@ -175,11 +175,11 @@ describe('SQLite state migrations', () => {
     const databaseFile = path.join(directory, 'state.sqlite3');
     const database = await openSqliteState(databaseFile);
     const originalExec = database.exec;
-    database.exec = (sql) => {
+    database.exec = sql => {
       if (sql.startsWith('DELETE FROM projects')) throw new Error('Simulated DELETE failure');
       return originalExec.call(database, sql);
     };
-    
+
     const state = loadSqliteState(database);
     state.projects.push({ id: 'dummy' });
     assert.throws(() => saveSqliteState(database, state), /Simulated DELETE failure/);
@@ -196,7 +196,11 @@ describe('SQLite state migrations', () => {
 
     const version5 = new DatabaseSync(databaseFile);
     version5.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
-    version5.prepare('INSERT INTO task_runs(id, project_id, owner, state, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('tr1', 'p1', 'me', 'failed', 'INVALID JSON', '2026-01-01', '2026-01-01');
+    version5
+      .prepare(
+        'INSERT INTO task_runs(id, project_id, owner, state, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run('tr1', 'p1', 'me', 'failed', 'INVALID JSON', '2026-01-01', '2026-01-01');
     version5.close();
 
     const previousDirectory = process.env.CREDENTIALS_DIRECTORY;
@@ -205,7 +209,7 @@ describe('SQLite state migrations', () => {
     temporaryDirectories.push(process.env.CREDENTIALS_DIRECTORY);
     await fs.writeFile(path.join(process.env.CREDENTIALS_DIRECTORY, 'state-key'), 'ab'.repeat(32), { mode: 0o600 });
     process.env.CONTROL_PLANE_KEY_ID = 'test-state-v1';
-    
+
     try {
       await assert.rejects(openSqliteState(databaseFile), /Unexpected token/i);
     } finally {
@@ -242,7 +246,10 @@ describe('SQLite state migrations', () => {
     await assert.rejects(openSqliteState(databaseFile, legacyFile), /unsafe export path/);
 
     // 5. Unavailable export
-    await fs.writeFile(markerFile, JSON.stringify({ sha256: 'a', counts: fullCounts, output: path.join(directory, 'a.json') }));
+    await fs.writeFile(
+      markerFile,
+      JSON.stringify({ sha256: 'a', counts: fullCounts, output: path.join(directory, 'a.json') })
+    );
     await assert.rejects(openSqliteState(databaseFile, legacyFile), /unavailable/);
 
     // 6. Checksum mismatch
@@ -266,14 +273,26 @@ describe('SQLite state migrations', () => {
 
     // 9. Legacy state migration fails (ENOENT is ignored, but other errors throw)
     await fs.mkdir(path.join(directory, 'dir.json'));
-    await assert.rejects(openSqliteState(path.join(directory, 'new.db'), path.join(directory, 'dir.json')), /Legacy state migration failed/);
+    await assert.rejects(
+      openSqliteState(path.join(directory, 'new.db'), path.join(directory, 'dir.json')),
+      /Legacy state migration failed/
+    );
 
     // 10. Success path
     const successExport = JSON.stringify({ counts: fullCounts });
     const successSha = crypto.createHash('sha256').update(successExport).digest('hex');
     await fs.writeFile(exportFile, successExport);
     await fs.writeFile(markerFile, JSON.stringify({ sha256: successSha, counts: fullCounts, output: exportFile }));
-    await fs.writeFile(legacyFile, JSON.stringify({ automations: [{ id: '1' }], projects: [{ name: 'no-id', path: '/foo' }, { id: '', path: '/bar' }] }));
+    await fs.writeFile(
+      legacyFile,
+      JSON.stringify({
+        automations: [{ id: '1' }],
+        projects: [
+          { name: 'no-id', path: '/foo' },
+          { id: '', path: '/bar' },
+        ],
+      })
+    );
     const successDb = await openSqliteState(path.join(directory, 'success.db'), legacyFile);
     successDb.close();
   });
@@ -299,11 +318,11 @@ describe('SQLite state migrations', () => {
     const successExport = JSON.stringify({ counts: fullCounts });
     const successSha = crypto.createHash('sha256').update(successExport).digest('hex');
     await fs.writeFile(exportFile, successExport);
-    
+
     const db2 = new DatabaseSync(databaseFile);
-    db2.prepare("INSERT INTO state_meta(key, value) VALUES ('legacy_export_verified', ?)").run(
-      JSON.stringify({ sha256: successSha, counts: fullCounts, output: exportFile })
-    );
+    db2
+      .prepare("INSERT INTO state_meta(key, value) VALUES ('legacy_export_verified', ?)")
+      .run(JSON.stringify({ sha256: successSha, counts: fullCounts, output: exportFile }));
     db2.close();
 
     process.env.MCP_LEGACY_EXPORT_DIR = directory;
@@ -325,7 +344,7 @@ describe('SQLite state migrations', () => {
     database.close();
 
     const originalExec = DatabaseSync.prototype.exec;
-    DatabaseSync.prototype.exec = function(sql) {
+    DatabaseSync.prototype.exec = function (sql) {
       if (sql.includes('DROP TABLE automations')) throw new Error('Simulated drop failure');
       return originalExec.call(this, sql);
     };
@@ -346,7 +365,9 @@ describe('SQLite state migrations', () => {
     const version4 = new DatabaseSync(databaseFile);
     version4.prepare('DELETE FROM schema_migrations WHERE version = 5').run();
     version4.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
-    version4.prepare('INSERT INTO projects(id, payload, updated_at) VALUES (?, ?, ?)').run('invalid', JSON.stringify({ id: 'invalid', rootPath: '/' }), '2026-01-01');
+    version4
+      .prepare('INSERT INTO projects(id, payload, updated_at) VALUES (?, ?, ?)')
+      .run('invalid', JSON.stringify({ id: 'invalid', rootPath: '/' }), '2026-01-01');
     version4.close();
 
     const migrated = await openSqliteState(databaseFile);
@@ -366,7 +387,9 @@ describe('SQLite state migrations', () => {
     const version4 = new DatabaseSync(databaseFile);
     version4.prepare('DELETE FROM schema_migrations WHERE version = 5').run();
     version4.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
-    version4.prepare('INSERT INTO projects(id, payload, updated_at) VALUES (?, ?, ?)').run('p1', 'INVALID JSON', '2026-01-01');
+    version4
+      .prepare('INSERT INTO projects(id, payload, updated_at) VALUES (?, ?, ?)')
+      .run('p1', 'INVALID JSON', '2026-01-01');
     version4.close();
 
     await assert.rejects(openSqliteState(databaseFile), /Unexpected token/i);
@@ -379,12 +402,24 @@ describe('SQLite state migrations', () => {
     const legacyFile = path.join(directory, 'control-plane.json');
     const markerFile = `${legacyFile}.legacy-export-verified.json`;
 
-    await fs.writeFile(legacyFile, JSON.stringify({ automations: [{ id: '1' }], projects: [{ name: 'no-id', path: '/foo' }, { id: '', path: '/bar' }] }));
-    await fs.writeFile(markerFile, JSON.stringify({ sha256: 'a', counts: { automations: 1, fleets: 0, backupTargets: 0, webhooks: 0 } }));
-    
+    await fs.writeFile(
+      legacyFile,
+      JSON.stringify({
+        automations: [{ id: '1' }],
+        projects: [
+          { name: 'no-id', path: '/foo' },
+          { id: '', path: '/bar' },
+        ],
+      })
+    );
+    await fs.writeFile(
+      markerFile,
+      JSON.stringify({ sha256: 'a', counts: { automations: 1, fleets: 0, backupTargets: 0, webhooks: 0 } })
+    );
+
     const previous = process.env.MCP_LEGACY_EXPORT_DIR;
     delete process.env.MCP_LEGACY_EXPORT_DIR;
-    
+
     try {
       await assert.rejects(openSqliteState(databaseFile, legacyFile), /unsafe export path/);
     } finally {
@@ -409,10 +444,18 @@ describe('SQLite state migrations', () => {
     const encryptedPayload = encryptStateValue({ stdout: 'hello' });
     const version5 = new DatabaseSync(databaseFile);
     version5.prepare('DELETE FROM schema_migrations WHERE version = 6').run();
-    version5.prepare('INSERT INTO task_runs(id, project_id, owner, state, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('tr1', 'p1', 'me', 'failed', JSON.stringify(encryptedPayload), '2026-01-01', '2026-01-01');
-    version5.prepare('INSERT INTO task_runs(id, project_id, owner, state, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('tr2', 'p1', 'me', 'failed', JSON.stringify({ runId: 'tr2', stdout: 'hello' }), '2026-01-01', '2026-01-01');
+    version5
+      .prepare(
+        'INSERT INTO task_runs(id, project_id, owner, state, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run('tr1', 'p1', 'me', 'failed', JSON.stringify(encryptedPayload), '2026-01-01', '2026-01-01');
+    version5
+      .prepare(
+        'INSERT INTO task_runs(id, project_id, owner, state, payload, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run('tr2', 'p1', 'me', 'failed', JSON.stringify({ runId: 'tr2', stdout: 'hello' }), '2026-01-01', '2026-01-01');
     version5.close();
-    
+
     try {
       const db = await openSqliteState(databaseFile);
       db.close();
@@ -452,14 +495,17 @@ describe('SQLite state migrations', () => {
     const legacyFile = path.join(directory, 'control-plane.json');
     const markerFile = `${legacyFile}.legacy-export-verified.json`;
     const fullCounts = { automations: 0, fleets: 0, backupTargets: 0, webhooks: 0 };
-    
+
     await fs.writeFile(legacyFile, JSON.stringify({ version: 1 }));
-    
+
     const successExport = JSON.stringify({ counts: fullCounts });
     const successSha = crypto.createHash('sha256').update(successExport).digest('hex');
     await fs.writeFile(path.join(directory, 'a.json'), successExport);
-    await fs.writeFile(markerFile, JSON.stringify({ sha256: successSha, counts: fullCounts, output: path.join(directory, 'a.json') }));
-    
+    await fs.writeFile(
+      markerFile,
+      JSON.stringify({ sha256: successSha, counts: fullCounts, output: path.join(directory, 'a.json') })
+    );
+
     const db = await openSqliteState(databaseFile, legacyFile);
     db.close();
   });

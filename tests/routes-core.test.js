@@ -13,7 +13,7 @@ describe('core router', () => {
     app = express();
     app.use(coreRouter);
     server = http.createServer(app);
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       server.listen(0, () => {
         baseUrl = `http://localhost:${server.address().port}`;
         resolve();
@@ -22,7 +22,7 @@ describe('core router', () => {
   });
 
   after(async () => {
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise(resolve => server.close(resolve));
   });
 
   const makeRequest = (path, headers = {}, removeHost = false) => {
@@ -35,9 +35,9 @@ describe('core router', () => {
           method: 'GET',
           headers,
         },
-        (res) => {
+        res => {
           let body = '';
-          res.on('data', (c) => (body += c));
+          res.on('data', c => (body += c));
           res.on('end', () => resolve(JSON.parse(body)));
         }
       );
@@ -52,9 +52,9 @@ describe('core router', () => {
   test('GET /.well-known/oauth-protected-resource with env vars', async () => {
     process.env.OAUTH_EXTERNAL_URL = 'https://custom.host:1234';
     process.env.AUTHELIA_ISSUER = 'https://auth.custom:1234';
-    
+
     const data = await makeRequest('/.well-known/oauth-protected-resource');
-    
+
     assert.strictEqual(data.resource, 'https://custom.host:1234');
     assert.strictEqual(data.authorization_servers[0], 'https://auth.custom:1234');
 
@@ -68,11 +68,15 @@ describe('core router', () => {
 
     const req = { get: () => undefined };
     let responseData;
-    const res = { json: (data) => { responseData = data; } };
+    const res = {
+      json: data => {
+        responseData = data;
+      },
+    };
 
     const routeLayer = coreRouter.stack.find(l => l.route && l.route.path === '/.well-known/oauth-protected-resource');
     const handler = routeLayer.route.stack[0].handle;
-    
+
     handler(req, res, () => {});
 
     assert.strictEqual(responseData.resource, 'https://begin.shopping:2053');
@@ -84,7 +88,7 @@ describe('core router', () => {
     delete process.env.AUTHELIA_ISSUER;
 
     const data = await makeRequest('/.well-known/oauth-protected-resource', { host: 'myhost.com:9999' }, false);
-    
+
     assert.strictEqual(data.resource, 'https://myhost.com:9999');
     assert.strictEqual(data.authorization_servers[0], 'https://begin.shopping:2083');
   });

@@ -8,9 +8,6 @@ text = text.replace(
 );
 
 // 2. Update DB insertion to include permittedTasks
-text = text.replace(
-  '"allowRecursiveDelete":true}',
-  '"allowRecursiveDelete":true,"permittedTasks":["jest"]}'
-);
+text = text.replace('"allowRecursiveDelete":true}', '"allowRecursiveDelete":true,"permittedTasks":["jest"]}');
 
 fs.writeFileSync('tests/broker-missing.test.js', text);

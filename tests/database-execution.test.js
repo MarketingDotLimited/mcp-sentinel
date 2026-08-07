@@ -56,7 +56,8 @@ class FakePgClient {
       throw new Error('pg error');
     }
     if (input.text?.includes('pg_no_rows_trigger')) return { rowCount: 0 };
-    if (input.text?.includes('pg_bytes_trigger')) return { rows: [{ value: 'a'.repeat(2000) }], rowCount: 1, fields: [{ name: 'value' }] };
+    if (input.text?.includes('pg_bytes_trigger'))
+      return { rows: [{ value: 'a'.repeat(2000) }], rowCount: 1, fields: [{ name: 'value' }] };
     if (typeof input === 'object') return { rows: [[1], [2], [3]], rowCount: 3, fields: [{ name: 'value' }] };
     return { rows: [] };
   }
@@ -155,16 +156,25 @@ describe('registered TLS database execution', () => {
   });
 
   it('rolls back on error and throws (mysql)', async () => {
-    await assert.rejects(database.executeQuery({ alias: 'mysql_read', query: 'SELECT mysql_error_trigger' }, {}), /mysql error/);
+    await assert.rejects(
+      database.executeQuery({ alias: 'mysql_read', query: 'SELECT mysql_error_trigger' }, {}),
+      /mysql error/
+    );
   });
 
   it('handles non-array results for mysql', async () => {
-    const result = await database.executeQuery({ alias: 'mysql_write', query: 'UPDATE mysql_object_trigger SET x=1', confirm: true }, {});
+    const result = await database.executeQuery(
+      { alias: 'mysql_write', query: 'UPDATE mysql_object_trigger SET x=1', confirm: true },
+      {}
+    );
     assert.equal(result.rowCount, 5);
   });
 
   it('handles undefined rows for pg', async () => {
-    const result = await database.executeQuery({ alias: 'pg_write', query: 'UPDATE pg_no_rows_trigger SET x=1', confirm: true }, {});
+    const result = await database.executeQuery(
+      { alias: 'pg_write', query: 'UPDATE pg_no_rows_trigger SET x=1', confirm: true },
+      {}
+    );
     assert.equal(result.rowCount, 0);
   });
 
@@ -180,7 +190,10 @@ describe('registered TLS database execution', () => {
   });
 
   it('handles query > 102400 bytes', async () => {
-    await assert.rejects(database.executeQuery({ alias: 'pg_read', query: 'a'.repeat(102401) }, {}), /query is required/);
+    await assert.rejects(
+      database.executeQuery({ alias: 'pg_read', query: 'a'.repeat(102401) }, {}),
+      /query is required/
+    );
   });
 
   it('handles query with no verb', async () => {
@@ -197,16 +210,48 @@ describe('registered TLS database execution', () => {
   });
 
   it('handles bad configurations', async () => {
-    await fs.writeFile(registry, JSON.stringify({
-      bad_host: { mode: 'read', driver: 'pg' },
-      bad_user: { mode: 'read', driver: 'pg', host: 'h', database: 'd' },
-      bad_tls: { mode: 'read', driver: 'pg', host: 'h', database: 'd', user: 'u' },
-      bad_ca_file: { mode: 'read', driver: 'pg', host: 'h', database: 'd', user: 'u', tls: { rejectUnauthorized: true, caFile: '/tmp/outside' } },
-      custom_bounds: { mode: 'read', driver: 'pg', host: 'h', database: 'd', user: 'u', passwordCredential: 'db-password', tls: { rejectUnauthorized: true }, maxRows: 9999, maxBytes: 9999999, queryTimeout: 99999 },
-      custom_bounds_low: { mode: 'read', driver: 'pg', host: 'h', database: 'd', user: 'u', passwordCredential: 'db-password', tls: { rejectUnauthorized: true }, maxRows: 0, maxBytes: 0, queryTimeout: 0 },
-      bad_driver: { mode: 'read', driver: 'oracle', host: 'h', database: 'd', user: 'u' },
-      bad_mode: { mode: 'execute', driver: 'pg', host: 'h', database: 'd', user: 'u' },
-    }));
+    await fs.writeFile(
+      registry,
+      JSON.stringify({
+        bad_host: { mode: 'read', driver: 'pg' },
+        bad_user: { mode: 'read', driver: 'pg', host: 'h', database: 'd' },
+        bad_tls: { mode: 'read', driver: 'pg', host: 'h', database: 'd', user: 'u' },
+        bad_ca_file: {
+          mode: 'read',
+          driver: 'pg',
+          host: 'h',
+          database: 'd',
+          user: 'u',
+          tls: { rejectUnauthorized: true, caFile: '/tmp/outside' },
+        },
+        custom_bounds: {
+          mode: 'read',
+          driver: 'pg',
+          host: 'h',
+          database: 'd',
+          user: 'u',
+          passwordCredential: 'db-password',
+          tls: { rejectUnauthorized: true },
+          maxRows: 9999,
+          maxBytes: 9999999,
+          queryTimeout: 99999,
+        },
+        custom_bounds_low: {
+          mode: 'read',
+          driver: 'pg',
+          host: 'h',
+          database: 'd',
+          user: 'u',
+          passwordCredential: 'db-password',
+          tls: { rejectUnauthorized: true },
+          maxRows: 0,
+          maxBytes: 0,
+          queryTimeout: 0,
+        },
+        bad_driver: { mode: 'read', driver: 'oracle', host: 'h', database: 'd', user: 'u' },
+        bad_mode: { mode: 'execute', driver: 'pg', host: 'h', database: 'd', user: 'u' },
+      })
+    );
 
     await assert.rejects(database.executeQuery({ alias: 'bad_host', query: 'SELECT 1' }, {}), /Database host/);
     await assert.rejects(database.executeQuery({ alias: 'bad_user', query: 'SELECT 1' }, {}), /Database user/);
@@ -222,7 +267,12 @@ describe('registered TLS database execution', () => {
   });
 
   it('handles empty DB_CA_ROOT', async () => {
-    await fs.writeFile(registry, JSON.stringify({ pg_ca_root: { ...base, driver: 'pg', mode: 'read', tls: { rejectUnauthorized: true, caFile: caRoot } } }));
+    await fs.writeFile(
+      registry,
+      JSON.stringify({
+        pg_ca_root: { ...base, driver: 'pg', mode: 'read', tls: { rejectUnauthorized: true, caFile: caRoot } },
+      })
+    );
     delete process.env.DB_CA_ROOT;
     try {
       await assert.rejects(database.executeQuery({ alias: 'pg_ca_root', query: 'SELECT 1' }, {}), /outside DB_CA_ROOT/);
@@ -238,11 +288,17 @@ describe('registered TLS database execution', () => {
 
   it('handles missing registry', async () => {
     await fs.rm(registry, { force: true });
-    await assert.rejects(database.executeQuery({ alias: 'pg_read', query: 'SELECT 1' }, {}), /registry is not configured/);
+    await assert.rejects(
+      database.executeQuery({ alias: 'pg_read', query: 'SELECT 1' }, {}),
+      /registry is not configured/
+    );
   });
 
   it('handles bad password credential format', async () => {
-    await fs.writeFile(registry, JSON.stringify({ bad_cred: { ...base, driver: 'pg', mode: 'read', passwordCredential: 'bad' } }));
+    await fs.writeFile(
+      registry,
+      JSON.stringify({ bad_cred: { ...base, driver: 'pg', mode: 'read', passwordCredential: 'bad' } })
+    );
     await assert.rejects(database.executeQuery({ alias: 'bad_cred', query: 'SELECT 1' }, {}), /systemd credential/);
   });
 
@@ -250,16 +306,31 @@ describe('registered TLS database execution', () => {
     await fs.writeFile(registry, JSON.stringify({ pg_read: { ...base, driver: 'pg', mode: 'read' } }));
     delete process.env.CREDENTIALS_DIRECTORY;
     try {
-      await assert.rejects(database.executeQuery({ alias: 'pg_read', query: 'SELECT 1' }, {}), /Systemd credentials are unavailable/);
+      await assert.rejects(
+        database.executeQuery({ alias: 'pg_read', query: 'SELECT 1' }, {}),
+        /Systemd credentials are unavailable/
+      );
     } finally {
       process.env.CREDENTIALS_DIRECTORY = credentials;
     }
   });
 
   it('rolls back on error without throwing in rollback', async () => {
-    await fs.writeFile(registry, JSON.stringify({ pg_read: { ...base, driver: 'pg', mode: 'read' }, mysql_read: { ...base, driver: 'mysql', mode: 'read' } }));
-    await assert.rejects(database.executeQuery({ alias: 'pg_read', query: 'SELECT pg_error_trigger_safe' }, {}), /pg safe error/);
-    await assert.rejects(database.executeQuery({ alias: 'mysql_read', query: 'SELECT mysql_error_trigger_safe' }, {}), /mysql safe error/);
+    await fs.writeFile(
+      registry,
+      JSON.stringify({
+        pg_read: { ...base, driver: 'pg', mode: 'read' },
+        mysql_read: { ...base, driver: 'mysql', mode: 'read' },
+      })
+    );
+    await assert.rejects(
+      database.executeQuery({ alias: 'pg_read', query: 'SELECT pg_error_trigger_safe' }, {}),
+      /pg safe error/
+    );
+    await assert.rejects(
+      database.executeQuery({ alias: 'mysql_read', query: 'SELECT mysql_error_trigger_safe' }, {}),
+      /mysql safe error/
+    );
   });
 
   it('handles module level branches', async () => {

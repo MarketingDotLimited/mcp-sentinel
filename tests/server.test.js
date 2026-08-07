@@ -8,23 +8,27 @@ import express from 'express';
 
 const handlers = [];
 const originalGet = express.application.get;
-express.application.get = function(p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/')) handlers.push({ method: 'get', path: p, handler: args[args.length - 1] });
+express.application.get = function (p, ...args) {
+  if (typeof p === 'string' && p.startsWith('/'))
+    handlers.push({ method: 'get', path: p, handler: args[args.length - 1] });
   return originalGet.apply(this, [p, ...args]);
 };
 const originalPost = express.application.post;
-express.application.post = function(p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/')) handlers.push({ method: 'post', path: p, handler: args[args.length - 1] });
+express.application.post = function (p, ...args) {
+  if (typeof p === 'string' && p.startsWith('/'))
+    handlers.push({ method: 'post', path: p, handler: args[args.length - 1] });
   return originalPost.apply(this, [p, ...args]);
 };
 const originalPut = express.application.put;
-express.application.put = function(p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/')) handlers.push({ method: 'put', path: p, handler: args[args.length - 1] });
+express.application.put = function (p, ...args) {
+  if (typeof p === 'string' && p.startsWith('/'))
+    handlers.push({ method: 'put', path: p, handler: args[args.length - 1] });
   return originalPut.apply(this, [p, ...args]);
 };
 const originalDelete = express.application.delete;
-express.application.delete = function(p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/')) handlers.push({ method: 'delete', path: p, handler: args[args.length - 1] });
+express.application.delete = function (p, ...args) {
+  if (typeof p === 'string' && p.startsWith('/'))
+    handlers.push({ method: 'delete', path: p, handler: args[args.length - 1] });
   return originalDelete.apply(this, [p, ...args]);
 };
 
@@ -53,7 +57,7 @@ function freePort() {
 
 describe('server.js exhaustive fuzzer', async () => {
   before(async () => {
-    brokerServer = net.createServer((socket) => {
+    brokerServer = net.createServer(socket => {
       let data = '';
       socket.on('data', chunk => {
         data += chunk;
@@ -81,7 +85,7 @@ describe('server.js exhaustive fuzzer', async () => {
     process.env.AUDIT_LOG_DIR = tmpDir;
     process.env.AUDIT_CHECKPOINT_FILE = checkpointPath;
     process.env.MCP_BROKER_SOCKET = brokerSocketPath;
-    
+
     await import('../server.js');
   });
 
@@ -92,12 +96,12 @@ describe('server.js exhaustive fuzzer', async () => {
         if (prop === 'then') return undefined; // so it's not treated as a Promise
         if (typeof prop === 'symbol') return undefined;
         return '123';
-      }
+      },
     };
-    
+
     for (const r of handlers) {
       if (typeof r.handler !== 'function') continue;
-      
+
       const res = {
         status: () => res,
         json: () => res,
@@ -105,22 +109,26 @@ describe('server.js exhaustive fuzzer', async () => {
         writeHead: () => res,
         write: () => res,
         end: () => res,
-        redirect: () => res
+        redirect: () => res,
       };
-      
+
       const req = {
         identity: { role: 'admin', userId: 'test-admin' },
         query: new Proxy({}, proxyHandler),
         body: new Proxy({}, proxyHandler),
         params: new Proxy({}, proxyHandler),
         headers: {},
-        clientIP: '127.0.0.1'
+        clientIP: '127.0.0.1',
       };
-      
-      try { await r.handler(req, res); } catch (e) {}
-      
+
+      try {
+        await r.handler(req, res);
+      } catch (e) {}
+
       const reqNonAdmin = { ...req, identity: { role: 'user', userId: 'test-user' } };
-      try { await r.handler(reqNonAdmin, res); } catch (e) {}
+      try {
+        await r.handler(reqNonAdmin, res);
+      } catch (e) {}
     }
   });
 
@@ -128,27 +136,36 @@ describe('server.js exhaustive fuzzer', async () => {
     const baseUrl = `http://127.0.0.1:${port}`;
     const transport = new SSEClientTransport(new URL('/mcp', baseUrl), {
       requestInit: { headers: { 'x-api-key': 'test-admin' } },
-      eventSourceInit: { headers: { 'x-api-key': 'test-admin' } }
+      eventSourceInit: { headers: { 'x-api-key': 'test-admin' } },
     });
     const client = new Client({ name: 'fuzzer', version: '1.0' }, { capabilities: {} });
-    
+
     try {
       await client.connect(transport);
       const tools = await client.listTools();
-      
+
       for (const t of tools.tools) {
-        try { await client.callTool({ name: t.name, arguments: {} }); } catch (e) {}
-        try { await client.callTool({ name: t.name, arguments: { flowId: 'f1', resumeFromPassed: true, forceReplay: true, params: {} } }); } catch (e) {}
+        try {
+          await client.callTool({ name: t.name, arguments: {} });
+        } catch (e) {}
+        try {
+          await client.callTool({
+            name: t.name,
+            arguments: { flowId: 'f1', resumeFromPassed: true, forceReplay: true, params: {} },
+          });
+        } catch (e) {}
       }
-    } catch(e) {
+    } catch (e) {
     } finally {
-      try { await client.close(); } catch(e) {}
+      try {
+        await client.close();
+      } catch (e) {}
     }
   });
 
   after(() => {
     process.removeAllListeners();
     brokerServer.close();
-    setImmediate(() => process.exit(0)); 
+    setImmediate(() => process.exit(0));
   });
 });

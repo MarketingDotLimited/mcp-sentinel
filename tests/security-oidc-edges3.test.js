@@ -6,7 +6,7 @@ import os from 'os';
 
 describe('security.js OIDC edges 3', async () => {
   let tmpDir;
-  
+
   before(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-security-oidc-edges3-'));
   });
@@ -26,27 +26,30 @@ describe('security.js OIDC edges 3', async () => {
 
     mock.module('jose', {
       namedExports: {
-        createRemoteJWKSet: () => { 
-          return { type: 'mock-jwks' }; 
+        createRemoteJWKSet: () => {
+          return { type: 'mock-jwks' };
         },
         jwtVerify: async () => {
           return { payload: {}, protectedHeader: {} };
-        }
-      }
+        },
+      },
     });
 
     const security = await import(`../security.js?test=${Date.now()}`);
     const req = { headers: { authorization: 'Bearer some-token' }, socket: { remoteAddress: '127.0.0.1' } };
     let statusCalled = 0;
-    const res = { 
-      status: (c) => { statusCalled = c; return res; }, 
+    const res = {
+      status: c => {
+        statusCalled = c;
+        return res;
+      },
       json: () => res,
-      set: () => res 
+      set: () => res,
     };
 
     await new Promise(resolve => {
-       security.authenticateJWT(req, res, () => {});
-       setTimeout(resolve, 50);
+      security.authenticateJWT(req, res, () => {});
+      setTimeout(resolve, 50);
     });
 
     assert.equal(statusCalled, 401);

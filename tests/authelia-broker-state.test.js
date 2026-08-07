@@ -270,7 +270,10 @@ describe('typed Authelia administration state', () => {
     const backupDir = process.env.AUTHELIA_BACKUP_DIR;
     await fs.rm(backupDir, { recursive: true, force: true });
     await fs.writeFile(backupDir, 'im a file now'); // file instead of dir makes mkdir fail
-    await assert.rejects(authelia.addOAuthUser({ username: 'baddir', password: 'pw', email: 'a@b.com' }), /Cannot prepare Authelia backup directory/);
+    await assert.rejects(
+      authelia.addOAuthUser({ username: 'baddir', password: 'pw', email: 'a@b.com' }),
+      /Cannot prepare Authelia backup directory/
+    );
     await fs.rm(backupDir);
     await fs.mkdir(backupDir, { recursive: true });
 
@@ -284,7 +287,10 @@ describe('typed Authelia administration state', () => {
     console.error = (msg, ...args) => {
       if (typeof msg === 'string' && msg.includes('Rollback failed:')) rollbackFailedCalled = true;
     };
-    const p = assert.rejects(authelia.addOAuthUser({ username: 'restartfail', password: 'pw', email: 'a@b.com' }), /Authelia failed to restart/);
+    const p = assert.rejects(
+      authelia.addOAuthUser({ username: 'restartfail', password: 'pw', email: 'a@b.com' }),
+      /Authelia failed to restart/
+    );
     const p2 = (async () => {
       let found = false;
       for (let i = 0; i < 50 && !found; i++) {
@@ -310,7 +316,9 @@ describe('typed Authelia administration state', () => {
 
     // line 166-168: wildcard scopes restricted migration (existing mapping has wildcard but role is not admin)
     const db = new DatabaseSync(process.env.MCP_STATE_DB);
-    db.prepare("UPDATE oauth_mappings SET payload = json_set(payload, '$.scopes', json('[\" * \"]')) WHERE username = 'scopes-match'").run();
+    db.prepare(
+      "UPDATE oauth_mappings SET payload = json_set(payload, '$.scopes', json('[\" * \"]')) WHERE username = 'scopes-match'"
+    ).run();
     db.close();
     await assert.rejects(authelia.updateOAuthUser('scopes-match', { scopes: ['*'] }), /Wildcard OAuth scope/);
 
@@ -329,7 +337,10 @@ describe('typed Authelia administration state', () => {
 
     // line 349-350: User already exists
     await authelia.addOAuthUser({ username: 'existing', password: 'pw', email: 'e@e.com' });
-    await assert.rejects(authelia.addOAuthUser({ username: 'existing', password: 'pw', email: 'e@e.com' }), /already exists/);
+    await assert.rejects(
+      authelia.addOAuthUser({ username: 'existing', password: 'pw', email: 'e@e.com' }),
+      /already exists/
+    );
 
     // line 404-418: updateOAuthUser with groups and password
     await authelia.updateOAuthUser('existing', { groups: ['new-group'], password: 'new-password' });
@@ -349,7 +360,10 @@ describe('typed Authelia administration state', () => {
 
     // line 522-523: addOAuthClient secret generation fails
     process.env.FAKE_AUTHELIA_COMMAND_FAIL = 'true';
-    await assert.rejects(authelia.addOAuthClient({ clientId: 'fail-client', redirectUris: ['https://example.test'] }), /secret generation failed/);
+    await assert.rejects(
+      authelia.addOAuthClient({ clientId: 'fail-client', redirectUris: ['https://example.test'] }),
+      /secret generation failed/
+    );
     delete process.env.FAKE_AUTHELIA_COMMAND_FAIL;
 
     // line 651-652: forceRestartAuthelia
@@ -357,7 +371,7 @@ describe('typed Authelia administration state', () => {
 
     // branch coverage: invalid linuxUser
     await assert.rejects(authelia.updateOAuthUser('existing', { linuxUser: '1invalid' }), /Invalid OAuth Linux user/);
-    
+
     // branch coverage: falsy AUTHELIA_URL and AUTHELIA_JWKS_URL
     const oldIssuer = process.env.AUTHELIA_ISSUER;
     const oldJwks = process.env.AUTHELIA_JWKS_URL;
@@ -370,17 +384,27 @@ describe('typed Authelia administration state', () => {
     const health = await autheliaFalsy.getAutheliaHealth();
     assert.equal(health.discoveryUrl, '');
     assert.equal(health.jwksUrl, '');
-    
+
     // branch coverage: falsy resourceAudience in addOAuthClient
-    await autheliaFalsy.addOAuthClient({ clientId: 'no-audience', redirectUris: ['https://example.test', 123], clientName: '' });
+    await autheliaFalsy.addOAuthClient({
+      clientId: 'no-audience',
+      redirectUris: ['https://example.test', 123],
+      clientName: '',
+    });
 
     // branch coverage: bad digest in addOAuthClient (line 519)
     process.env.FAKE_AUTHELIA_BAD_DIGEST = 'true';
-    await assert.rejects(autheliaFalsy.addOAuthClient({ clientId: 'bad-digest-client', redirectUris: ['https://example.test'] }), /Failed to parse secret hash/);
+    await assert.rejects(
+      autheliaFalsy.addOAuthClient({ clientId: 'bad-digest-client', redirectUris: ['https://example.test'] }),
+      /Failed to parse secret hash/
+    );
     delete process.env.FAKE_AUTHELIA_BAD_DIGEST;
 
     // branch coverage: non-array redirectUris
-    await assert.rejects(autheliaFalsy.addOAuthClient({ clientId: 'no-array-redirect', redirectUris: 'not-an-array' }), /At least one redirect URI is required/);
+    await assert.rejects(
+      autheliaFalsy.addOAuthClient({ clientId: 'no-array-redirect', redirectUris: 'not-an-array' }),
+      /At least one redirect URI is required/
+    );
     delete process.env.FAKE_AUTHELIA_BAD_DIGEST;
 
     // branch coverage: client with falsy attributes

@@ -34,7 +34,7 @@ describe('auth router', () => {
     app.set('trust proxy', 1);
     app.use('/auth', authRouter);
     server = http.createServer(app);
-    await new Promise((resolve) => {
+    await new Promise(resolve => {
       server.listen(0, () => {
         baseUrl = `http://localhost:${server.address().port}`;
         resolve();
@@ -43,7 +43,7 @@ describe('auth router', () => {
   });
 
   after(async () => {
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise(resolve => server.close(resolve));
   });
 
   test('rate limiter blocks after 10 requests', async () => {
@@ -54,8 +54,8 @@ describe('auth router', () => {
       const res = await fetch(`${baseUrl}/auth/token`, {
         method: 'POST',
         headers: {
-          'x-forwarded-for': '1.2.3.4'
-        }
+          'x-forwarded-for': '1.2.3.4',
+        },
       });
       lastStatus = res.status;
       lastBody = await res.json();

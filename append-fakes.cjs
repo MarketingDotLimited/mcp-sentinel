@@ -12,6 +12,9 @@ if (name === 'systemctl' && args.includes('start')) {
 }
 `;
 
-text = text.replace("if (name === 'userdel' && args.includes('failuser')) {", toAdd + "if (name === 'userdel' && args.includes('failuser')) {");
+text = text.replace(
+  "if (name === 'userdel' && args.includes('failuser')) {",
+  toAdd + "if (name === 'userdel' && args.includes('failuser')) {"
+);
 
 fs.writeFileSync('tests/broker-missing.test.js', text);

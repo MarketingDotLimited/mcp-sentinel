@@ -176,7 +176,11 @@ describe('SSH node gateway client', () => {
     const runner = async (args, options = {}) => {
       if (args.includes('-O')) throw new Error('mock check failure');
       if (args.includes('-MNf')) return { exitCode: 0, stdout: '', stderr: '' };
-      return { exitCode: 0, stdout: JSON.stringify({ requestId: JSON.parse(options.input).requestId, ok: true, result: {} }), stderr: '' };
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({ requestId: JSON.parse(options.input).requestId, ok: true, result: {} }),
+        stderr: '',
+      };
     };
     const result = await sshGatewayCall(connection, 'broker.health', { projectId: 'p' }, { runner });
     assert.equal(result.ok, undefined); // result is just the result object itself since we return ok:true
@@ -220,13 +224,15 @@ describe('SSH node gateway client', () => {
     // Port 22 should not include the port in the known hosts file label
     const port22Connection = { ...connection, port: 22, host: 'port22.example.test' };
     const ac = new AbortController();
-    // Use the real runSshProcess by omitting runner in options. 
+    // Use the real runSshProcess by omitting runner in options.
     // We expect it to fail quickly due to a timeout.
     const p = sshGatewayCall(port22Connection, 'broker.health', {}, { timeoutMs: 1000 });
     await assert.rejects(p, /SSH connection failed/);
-    
+
     // Verify the known host file was written for port 22
-    const knownHostFiles = (await fs.readdir(runtime)).filter(name => name.startsWith(`known-hosts-${port22Connection.id}-`));
+    const knownHostFiles = (await fs.readdir(runtime)).filter(name =>
+      name.startsWith(`known-hosts-${port22Connection.id}-`)
+    );
     let found = false;
     for (const file of knownHostFiles) {
       const knownHosts = await fs.readFile(path.join(runtime, file), 'utf8');
@@ -243,11 +249,11 @@ describe('SSH node gateway client', () => {
         'broker.health',
         {},
         {
-          runner: async (args) => {
+          runner: async args => {
             if (args.includes('-O')) return { exitCode: 0, stdout: '', stderr: '' };
             // Invalid JSON, exitCode != 0, empty stderr -> falls back to "exit CODE"
             return { exitCode: 255, stdout: 'not-json', stderr: '' };
-          }
+          },
         }
       ),
       /exit 255/
@@ -265,7 +271,7 @@ describe('SSH node gateway client', () => {
             // ok: false but no error message -> falls back to "rejected the request"
             const req = JSON.parse(options.input);
             return { exitCode: 0, stdout: JSON.stringify({ requestId: req.requestId, ok: false }), stderr: '' };
-          }
+          },
         }
       ),
       /rejected the request/
@@ -286,7 +292,7 @@ describe('SSH node gateway client', () => {
       process.env.MCP_SSH_CREDENTIAL_DIR = origCred;
       process.env.MCP_SSH_RUNTIME_DIR = origRun;
     }
-    
+
     // Test the absolute fallback '/etc/mcp-sentinel/credentials'
     delete process.env.MCP_SSH_CREDENTIAL_DIR;
     try {
@@ -298,14 +304,15 @@ describe('SSH node gateway client', () => {
 
   it('covers known hosts read non-ENOENT error', async () => {
     clearSshConnectionCache();
-    const fp = connection.id + '-mock'; 
+    const fp = connection.id + '-mock';
     // We can just create a directory in place of known hosts file so it fails with EISDIR
     const files = await fs.readdir(runtime);
-    for (const f of files) if (f.startsWith('known-hosts-')) await fs.rm(path.join(runtime, f), { recursive: true, force: true });
-    
+    for (const f of files)
+      if (f.startsWith('known-hosts-')) await fs.rm(path.join(runtime, f), { recursive: true, force: true });
+
     // we need to know the fingerprint, let's just make ALL possible ones directories
     // Wait, the easiest way is to mock fs.readFile in a subtest, but we can't easily mock it.
-    // Instead we can just make a dummy directory with the exact name. 
+    // Instead we can just make a dummy directory with the exact name.
     // Since we don't have connectionFingerprint exported, we can just intercept via runner? No, connectionFiles runs before runner.
     // Let's just create 10,000 directories? No.
     // Let's monkeypatch fs.readFile briefly!
@@ -325,12 +332,17 @@ describe('SSH node gateway client', () => {
   it('covers master connection fallback to authentication failed', async () => {
     clearSshConnectionCache();
     await assert.rejects(
-      sshGatewayCall(connection, 'broker.health', {}, {
-        runner: async (args) => {
-          if (args.includes('-O')) return { exitCode: 255, stdout: '', stderr: '' };
-          return { exitCode: 255, stdout: '', stderr: '' }; // no stderr
+      sshGatewayCall(
+        connection,
+        'broker.health',
+        {},
+        {
+          runner: async args => {
+            if (args.includes('-O')) return { exitCode: 255, stdout: '', stderr: '' };
+            return { exitCode: 255, stdout: '', stderr: '' }; // no stderr
+          },
         }
-      }),
+      ),
       /authentication failed/
     );
   });
@@ -359,10 +371,7 @@ describe('SSH runSshProcess', () => {
   });
 
   it('enforces timeout', async () => {
-    await assert.rejects(
-      runSshProcess(['-o', 'ConnectTimeout=10', '192.0.2.1'], { timeoutMs: 1 }),
-      /timed out/
-    );
+    await assert.rejects(runSshProcess(['-o', 'ConnectTimeout=10', '192.0.2.1'], { timeoutMs: 1 }), /timed out/);
   });
 
   it('enforces maxOutputBytes limit', async () => {
@@ -371,7 +380,9 @@ describe('SSH runSshProcess', () => {
 
   it('falls back to child.kill if process.kill fails during abort', async () => {
     const originalKill = process.kill;
-    process.kill = () => { throw new Error('mock'); };
+    process.kill = () => {
+      throw new Error('mock');
+    };
     try {
       const ac = new AbortController();
       const p = runSshProcess(['-o', 'ConnectTimeout=10', '192.0.2.1'], { signal: ac.signal });

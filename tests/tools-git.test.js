@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 mock.module('../lib/control-plane.js', {
   namedExports: {
     getProject: mock.fn(),
-  }
+  },
 });
 
 mock.module('../lib/project-operation-dispatcher.js', {
   namedExports: {
     dispatchProjectOperation: mock.fn(),
-  }
+  },
 });
 
 const { gitOperation } = await import('../tools/git.js');
@@ -24,14 +24,11 @@ describe('git tool', () => {
   });
 
   test('gitOperation throws if projectId missing', async () => {
-    await assert.rejects(
-      gitOperation({ action: 'pull' }, {}),
-      /projectId is required/
-    );
+    await assert.rejects(gitOperation({ action: 'pull' }, {}), /projectId is required/);
   });
 
   test('gitOperation calls dispatchProjectOperation correctly for push/pull', async () => {
-    getProject.mock.mockImplementation(async (id) => ({ id }));
+    getProject.mock.mockImplementation(async id => ({ id }));
     dispatchProjectOperation.mock.mockImplementation(async () => ({ success: true }));
 
     const res = await gitOperation({ projectId: 'proj-1', action: 'pull' }, { user: 'u1' });
@@ -46,12 +43,12 @@ describe('git tool', () => {
       { user: 'u1' },
       'project.git',
       { projectId: 'proj-1', action: 'pull', args: {} },
-      { timeoutMs: 120000 }
+      { timeoutMs: 120000 },
     ]);
   });
 
   test('gitOperation calls dispatchProjectOperation correctly for other actions', async () => {
-    getProject.mock.mockImplementation(async (id) => ({ id }));
+    getProject.mock.mockImplementation(async id => ({ id }));
     dispatchProjectOperation.mock.mockImplementation(async () => ({ success: true }));
 
     const res = await gitOperation({ projectId: 'proj-1', action: 'status', args: { foo: 'bar' } }, { user: 'u2' });
@@ -66,7 +63,7 @@ describe('git tool', () => {
       { user: 'u2' },
       'project.git',
       { projectId: 'proj-1', action: 'status', args: { foo: 'bar' } },
-      { timeoutMs: 35000 }
+      { timeoutMs: 35000 },
     ]);
   });
 });

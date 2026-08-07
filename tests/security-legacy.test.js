@@ -12,8 +12,16 @@ describe('security.js legacy state', async () => {
   before(async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-security-leg-'));
     revFile = path.join(tmpDir, 'rev.json');
-    fs.writeFileSync(revFile, JSON.stringify({ revocations: [ { jti: 'test-jti', expiresAt: Date.now() + 10000 }, { jti: 'expired', expiresAt: Date.now() - 10000 } ] }));
-    
+    fs.writeFileSync(
+      revFile,
+      JSON.stringify({
+        revocations: [
+          { jti: 'test-jti', expiresAt: Date.now() + 10000 },
+          { jti: 'expired', expiresAt: Date.now() - 10000 },
+        ],
+      })
+    );
+
     // Write invalid file to test error path
     const revFile2 = path.join(tmpDir, 'rev2.json');
     fs.writeFileSync(revFile2, '{ bad_json }');
@@ -30,15 +38,18 @@ describe('security.js legacy state', async () => {
   });
 
   it('handles legacy revocations', () => {
-    const res = { json: (b) => b };
-    security.revokeSessionToken({ identity: { authType: 'apiKey', jti: 'new-jti', tokenExpiresAt: Date.now() + 10000 }, clientIP: '1.2.3.4' }, res);
-    
+    const res = { json: b => b };
+    security.revokeSessionToken(
+      { identity: { authType: 'apiKey', jti: 'new-jti', tokenExpiresAt: Date.now() + 10000 }, clientIP: '1.2.3.4' },
+      res
+    );
+
     const saved = JSON.parse(fs.readFileSync(revFile, 'utf8'));
     assert.ok(saved.revocations.find(r => r.jti === 'new-jti'));
     assert.ok(saved.revocations.find(r => r.jti === 'test-jti'));
     assert.ok(!saved.revocations.find(r => r.jti === 'expired'));
   });
-  
+
   it('handles invalid legacy file parsing gracefully', async () => {
     process.env.JWT_REVOCATION_FILE = path.join(tmpDir, 'rev2.json');
     try {

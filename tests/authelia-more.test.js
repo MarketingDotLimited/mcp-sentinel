@@ -23,11 +23,11 @@ describe('authelia extra branches', async () => {
     const authelia = await import(`../lib/authelia.js?test=${Date.now()}`);
     // 346: add user with empty users file
     await authelia.addOAuthUser({ username: 'u1', password: 'p1', email: 'u1@x.com' });
-    
+
     // 373: update user with empty users file
     await fs.writeFile(process.env.AUTHELIA_USERS_FILE, 'null');
     await assert.rejects(authelia.updateOAuthUser('u1', { email: 'u2@x.com' }), /User 'u1' not found/);
-    
+
     // 438: delete user with empty users file
     await assert.rejects(authelia.deleteOAuthUser('u1'), /User 'u1' not found/);
 

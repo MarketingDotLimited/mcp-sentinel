@@ -16,15 +16,19 @@ function request(operation = 'project.file.read', parameters = { projectId: rand
 }
 
 function runGatewayProcess(inputStr, envOverrides = {}) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const child = spawn(process.execPath, [GATEWAY_BIN], {
-      env: { ...process.env, ...envOverrides }
+      env: { ...process.env, ...envOverrides },
     });
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (d) => { stdout += d.toString(); });
-    child.stderr.on('data', (d) => { stderr += d.toString(); });
-    child.on('close', (code) => {
+    child.stdout.on('data', d => {
+      stdout += d.toString();
+    });
+    child.stderr.on('data', d => {
+      stderr += d.toString();
+    });
+    child.on('close', code => {
       resolve({ code, stdout, stderr });
     });
     child.stdin.write(inputStr);
@@ -53,7 +57,7 @@ describe('forced-command node gateway', () => {
     await assert.rejects(handleGatewayInput(`${JSON.stringify(extra)}\n`), /unknown or missing/);
     await assert.rejects(handleGatewayInput(`${request()}${request()}`), /exactly one/);
     await assert.rejects(handleGatewayInput('invalid-json\n'), /Node gateway request must be JSON/);
-    
+
     // Test direct too large request
     const largeStr = 'A'.repeat(65 * 1024) + '\n';
     await assert.rejects(handleGatewayInput(largeStr), /Node gateway request is too large/);
@@ -69,8 +73,8 @@ describe('forced-command node gateway', () => {
     const socketPath = join(__dirname, '..', `test-broker-${randomUUID()}.sock`);
 
     it('sets up dummy broker', () => {
-      return new Promise((resolve) => {
-        brokerServer = net.createServer((socket) => {
+      return new Promise(resolve => {
+        brokerServer = net.createServer(socket => {
           let data = '';
           socket.on('data', chunk => {
             data += chunk;
@@ -91,51 +95,51 @@ describe('forced-command node gateway', () => {
     });
 
     it('executes normally and handles input via mocked broker', async () => {
-       const req = request('project.file.read', { path: 'test' });
-       const reqId = JSON.parse(req).requestId;
-       const res = await runGatewayProcess(req, { MCP_BROKER_SOCKET: socketPath });
-       assert.equal(res.code, 0);
-       const outObj = JSON.parse(res.stdout.trim());
-       assert.equal(outObj.requestId, reqId);
-       assert.equal(outObj.ok, true);
+      const req = request('project.file.read', { path: 'test' });
+      const reqId = JSON.parse(req).requestId;
+      const res = await runGatewayProcess(req, { MCP_BROKER_SOCKET: socketPath });
+      assert.equal(res.code, 0);
+      const outObj = JSON.parse(res.stdout.trim());
+      assert.equal(outObj.requestId, reqId);
+      assert.equal(outObj.ok, true);
     });
 
     it('handles broker error', async () => {
-       const req = request('project.file.read', { path: 'test' });
-       const reqId = JSON.parse(req).requestId;
-       const res = await runGatewayProcess(req, { MCP_BROKER_SOCKET: '/tmp/non-existent.sock' });
-       assert.equal(res.code, 1);
-       const outObj = JSON.parse(res.stdout.trim());
-       assert.equal(outObj.requestId, reqId);
-       assert.equal(outObj.ok, false);
+      const req = request('project.file.read', { path: 'test' });
+      const reqId = JSON.parse(req).requestId;
+      const res = await runGatewayProcess(req, { MCP_BROKER_SOCKET: '/tmp/non-existent.sock' });
+      assert.equal(res.code, 1);
+      const outObj = JSON.parse(res.stdout.trim());
+      assert.equal(outObj.requestId, reqId);
+      assert.equal(outObj.ok, false);
     });
 
     it('handles invalid json', async () => {
-       const invalidReq = 'invalid json';
-       const res = await runGatewayProcess(invalidReq);
-       assert.equal(res.code, 1);
-       const outObj = JSON.parse(res.stdout.trim());
-       assert.equal(outObj.ok, false);
-       assert.match(outObj.error, /Node gateway request must be JSON/);
+      const invalidReq = 'invalid json';
+      const res = await runGatewayProcess(invalidReq);
+      assert.equal(res.code, 1);
+      const outObj = JSON.parse(res.stdout.trim());
+      assert.equal(outObj.ok, false);
+      assert.match(outObj.error, /Node gateway request must be JSON/);
     });
 
     it('handles json without requestId (tests fallback in main catch block)', async () => {
-       const noIdReq = JSON.stringify({ operation: 'project.file.read', parameters: {} }) + '\n';
-       const res = await runGatewayProcess(noIdReq);
-       assert.equal(res.code, 1);
-       const outObj = JSON.parse(res.stdout.trim());
-       assert.equal(outObj.requestId, null);
+      const noIdReq = JSON.stringify({ operation: 'project.file.read', parameters: {} }) + '\n';
+      const res = await runGatewayProcess(noIdReq);
+      assert.equal(res.code, 1);
+      const outObj = JSON.parse(res.stdout.trim());
+      assert.equal(outObj.requestId, null);
     });
 
     it('handles too large request', async () => {
-       const largeStr = 'A'.repeat(65 * 1024) + '\n';
-       const res = await runGatewayProcess(largeStr);
-       assert.equal(res.code, 1);
-       assert.match(res.stderr, /Node gateway request is too large/);
+      const largeStr = 'A'.repeat(65 * 1024) + '\n';
+      const res = await runGatewayProcess(largeStr);
+      assert.equal(res.code, 1);
+      assert.match(res.stderr, /Node gateway request is too large/);
     });
 
     it('teardown dummy broker', () => {
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         brokerServer.close(() => {
           if (fs.existsSync(socketPath)) fs.unlinkSync(socketPath);
           resolve();

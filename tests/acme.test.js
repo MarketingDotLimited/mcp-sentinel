@@ -11,7 +11,7 @@ mock.module('fs/promises', {
     mkdir: fsMkdir,
     readFile: fsReadFile,
     writeFile: fsWriteFile,
-  }
+  },
 });
 
 const forgeCreatePrivateKey = mock.fn();
@@ -35,9 +35,9 @@ mock.module('acme-client', {
     directory: {
       letsencrypt: {
         production: 'test-url',
-      }
-    }
-  }
+      },
+    },
+  },
 });
 
 const { AcmeManager } = await import('../lib/acme.js');
@@ -64,7 +64,7 @@ describe('AcmeManager', () => {
   it('init reads account.key if exists', async () => {
     fsMkdir.mock.mockImplementation(async () => {});
     fsReadFile.mock.mockImplementation(async () => 'existing-key');
-    
+
     const manager = new AcmeManager('example.com', 'admin@example.com');
     await manager.init();
 
@@ -75,10 +75,12 @@ describe('AcmeManager', () => {
 
   it('init creates account.key if does not exist', async () => {
     fsMkdir.mock.mockImplementation(async () => {});
-    fsReadFile.mock.mockImplementation(async () => { throw new Error('ENOENT'); });
+    fsReadFile.mock.mockImplementation(async () => {
+      throw new Error('ENOENT');
+    });
     forgeCreatePrivateKey.mock.mockImplementation(async () => 'new-key');
     fsWriteFile.mock.mockImplementation(async () => {});
-    
+
     const manager = new AcmeManager('example.com', 'admin@example.com');
     await manager.init();
 
@@ -91,14 +93,14 @@ describe('AcmeManager', () => {
 
   it('checkAndRenew returns cert if valid for > 30 days', async () => {
     const manager = new AcmeManager('example.com', 'admin@example.com');
-    fsReadFile.mock.mockImplementation(async (filePath) => {
+    fsReadFile.mock.mockImplementation(async filePath => {
       if (filePath.endsWith('server.crt')) return 'cert-data';
       if (filePath.endsWith('server.key')) return 'key-data';
       return null;
     });
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 40);
-    
+
     forgeReadCertificateInfo.mock.mockImplementation(async () => {
       return { notAfter: futureDate };
     });
@@ -110,8 +112,8 @@ describe('AcmeManager', () => {
   it('checkAndRenew provisions if cert valid for <= 30 days', async () => {
     const manager = new AcmeManager('example.com', 'admin@example.com');
     await manager.init();
-    
-    fsReadFile.mock.mockImplementation(async (filePath) => {
+
+    fsReadFile.mock.mockImplementation(async filePath => {
       if (filePath.endsWith('account.key')) return 'account-key';
       if (filePath.endsWith('server.crt')) return 'cert-data';
       if (filePath.endsWith('server.key')) return 'key-data';
@@ -119,7 +121,7 @@ describe('AcmeManager', () => {
     });
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + 20);
-    
+
     forgeReadCertificateInfo.mock.mockImplementation(async () => {
       return { notAfter: futureDate };
     });
@@ -135,25 +137,25 @@ describe('AcmeManager', () => {
   it('checkAndRenew provisions if no valid cert found', async () => {
     const manager = new AcmeManager('example.com', 'admin@example.com');
     await manager.init();
-    
-    fsReadFile.mock.mockImplementation(async (filePath) => {
+
+    fsReadFile.mock.mockImplementation(async filePath => {
       if (filePath.endsWith('account.key')) return 'account-key';
-      throw new Error('ENOENT'); 
+      throw new Error('ENOENT');
     });
     forgeCreateCsr.mock.mockImplementation(async () => ['cert-key', 'cert-csr']);
-    acmeAuto.mock.mockImplementation(async (opts) => {
+    acmeAuto.mock.mockImplementation(async opts => {
       // test challengeCreateFn and challengeRemoveFn
       await opts.challengeCreateFn({ identifier: { value: 'test' } }, { type: 'http-01', token: 'token1' }, 'keyAuth');
       assert.equal(manager.challenges.get('token1'), 'keyAuth');
       assert.equal(manager.getChallengeResponse('token1'), 'keyAuth');
-      
+
       // non-http-01 should be ignored
       await opts.challengeCreateFn({ identifier: { value: 'test' } }, { type: 'dns-01', token: 'token2' }, 'keyAuth2');
       assert.equal(manager.challenges.has('token2'), false);
 
       await opts.challengeRemoveFn({ identifier: { value: 'test' } }, { type: 'http-01', token: 'token1' }, 'keyAuth');
       assert.equal(manager.challenges.has('token1'), false);
-      
+
       // non-http-01 should be ignored
       await opts.challengeRemoveFn({ identifier: { value: 'test' } }, { type: 'dns-01', token: 'token2' }, 'keyAuth2');
 
