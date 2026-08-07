@@ -113,6 +113,7 @@ describe('server.js exhaustive fuzzer', async () => {
         write: () => res,
         end: () => res,
         redirect: () => res,
+        type: () => res,
       };
 
       const req = {
@@ -122,6 +123,8 @@ describe('server.js exhaustive fuzzer', async () => {
         params: new Proxy({}, proxyHandler),
         headers: {},
         clientIP: '127.0.0.1',
+        protocol: 'https',
+        get: () => 'mcp.example.test',
       };
 
       try {
