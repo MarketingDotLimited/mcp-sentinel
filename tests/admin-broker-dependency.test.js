@@ -26,7 +26,9 @@ async function waitFor(baseUrl) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
       if ((await fetch(baseUrl)).ok) return;
-    } catch {}
+    } catch (fetchErr) {
+      // Retry waiting for server readiness
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('Timed out waiting for the Sentinel admin server');

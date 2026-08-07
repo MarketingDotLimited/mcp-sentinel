@@ -82,4 +82,3 @@ describe('Server internal functions', async () => {
   });
 });
 
-after(() => process.exit(0));

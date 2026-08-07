@@ -393,10 +393,10 @@ it('covers remaining', async () => {
   const dir2 = path.join('/tmp/myrepo', 'test_delete_dir');
   try {
     fsSync.mkdirSync(dir2);
-  } catch {}
+  } catch (mkdirErr) {}
   try {
     fsSync.writeFileSync(path.join(dir2, 'file.txt'), 'data');
-  } catch {}
+  } catch (writeErr) {}
   await handleRequest({
     requestId: '11111111-1111-4111-8111-111111111111',
     operation: 'project.file.delete',

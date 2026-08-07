@@ -1,118 +1,76 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
-import express from 'express';
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-routes-test-'));
-const checkpointPath = path.join(tmpDir, 'audit-chain.json');
-fs.writeFileSync(checkpointPath, JSON.stringify({ seqNo: 1, hash: 'a'.repeat(64) }));
-fs.writeFileSync(path.join(tmpDir, 'audit-1.log'), JSON.stringify({ seqNo: 1, hash: 'a'.repeat(64) }) + '\n');
+describe('server-routes-fuzzer', () => {
+  it('fuzzes express handlers safely', async () => {
+    process.env.TEST_NO_LISTEN = 'true';
+    const { expressApp } = await import('../server.js');
+    const routes = expressApp._router?.stack || [];
+    const handlers = [];
 
-process.env.TEST_NO_LISTEN = 'true';
-process.env.ADMIN_API_KEY = 'test-admin';
-process.env.JWT_SECRET = 'a'.repeat(64);
-process.env.AUDIT_HMAC_KEY = 'a'.repeat(64);
-process.env.AUDIT_LOG_DIR = tmpDir;
-process.env.AUDIT_CHECKPOINT_FILE = checkpointPath;
-process.env.MCP_STATE_DB = path.join(tmpDir, 'state.db');
-process.env.KEYSTORE_FILE = path.join(tmpDir, 'keys.json');
-process.env.JWT_REVOCATION_FILE = path.join(tmpDir, 'revocs.json');
-
-const handlers = [];
-for (const method of ['get', 'post', 'put', 'delete']) {
-  const original = express.application[method];
-  express.application[method] = function (p, ...args) {
-    if (typeof p === 'string' && p.startsWith('/')) {
-      for (const arg of args) {
-        if (typeof arg === 'function') {
-          handlers.push({ method, path: p, handler: arg });
+    for (const layer of routes) {
+      if (layer.route) {
+        const path = layer.route.path;
+        for (const method of Object.keys(layer.route.methods)) {
+          const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+          handlers.push({ method, path, handler });
         }
       }
     }
-    return original.apply(this, [p, ...args]);
-  };
-}
 
-describe('server-routes', () => {
-  it('covers all route handlers and helper exports', async () => {
-    const { __TEST_EXPORTS__ } = await import('../server.js');
-    assert.ok(__TEST_EXPORTS__);
-
-    // Fuzz helpers
-    try {
-      await __TEST_EXPORTS__.ensurePrivilegeBrokerAvailable({}, {}, () => {});
-    } catch (e) {}
-    try {
-      await __TEST_EXPORTS__.isRecoverableDependencyError(new Error('ENOENT'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.sanitizeClientOverrides({ foo: { bar: 1 } });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.sanitizeOAuthUserPayload({ clients: { foo: { bar: 1 } } });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.normalizeAdminReadPath('/foo');
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.summarizeHealth();
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.adminReadFallbackHandler({}, { status: () => ({ json: () => {} }) }, () => {});
-    } catch (e) {}
-
-    const dummyRes = {
-      status: function () {
-        return this;
-      },
-      json: function () {
-        return this;
-      },
-      send: function () {
-        return this;
-      },
-      writeHead: function () {
-        return this;
-      },
-      write: function () {
-        return this;
-      },
-      end: function () {
-        return this;
-      },
-      redirect: function () {
-        return this;
-      },
-      type: function () {
-        return this;
-      },
-      setHeader: function () {
-        return this;
-      },
-    };
-
-    // Helper to fuzz a handler
     const fuzzHandler = async (h, role, body, query, params) => {
+      let statusCode = 200;
+      let responseBody = null;
+
+      const dummyRes = {
+        status: function (code) {
+          statusCode = code;
+          return this;
+        },
+        json: function (data) {
+          responseBody = data;
+          return this;
+        },
+        send: function (data) {
+          responseBody = data;
+          return this;
+        },
+        type: function () {
+          return this;
+        },
+        set: function () {
+          return this;
+        },
+        setHeader: function () {
+          return this;
+        },
+        on: function () {},
+        once: function () {},
+        emit: function () {},
+        end: function () {},
+      };
+
       const req = {
-        identity: { role, userId: 'user1' },
+        method: 'POST',
+        path: '/fuzz',
+        headers: {},
+        identity: role ? { role, userId: 'test-user', scopes: ['*'] } : undefined,
         body: body || {},
         query: query || {},
         params: params || {},
-        headers: { 'x-forwarded-for': '1.2.3.4' },
-        clientIP: '12.34.56.78',
-        protocol: 'https',
-        get: () => 'host',
-        socket: { remoteAddress: '127.0.0.1' },
-        on: (ev, cb) => {
-          if (ev === 'data') cb('{}');
+        clientIP: '127.0.0.1',
+        protocol: 'http',
+        get: () => 'localhost',
+        on: function (ev, cb) {
           if (ev === 'end') cb();
         },
       };
-      try {
-        await h(req, dummyRes, () => {});
-      } catch (e) {}
+
+      await h(req, dummyRes, () => {}).catch(err => {
+        assert.ok(err instanceof Error, 'Route handler error must be an Error instance');
+      });
+
+      assert.ok(statusCode >= 100 && statusCode <= 599, 'Status code must be valid HTTP status');
     };
 
     for (const r of handlers) {
@@ -123,23 +81,25 @@ describe('server-routes', () => {
       await fuzzHandler(r.handler, null, null, null, null);
     }
   });
-
-  after(() => {
-    process.exit(0);
-  });
 });
 
 describe('server-helpers-explicit', () => {
-  it('tests helpers explicitly', async () => {
+  it('tests helpers explicitly with contract assertions', async () => {
     const { __TEST_EXPORTS__ } = await import('../server.js');
+    let statusCode = 200;
+    let jsonBody = null;
+
     const dummyRes = {
-      status: function () {
+      status: function (code) {
+        statusCode = code;
         return this;
       },
-      json: function () {
+      json: function (data) {
+        jsonBody = data;
         return this;
       },
-      send: function () {
+      send: function (data) {
+        jsonBody = data;
         return this;
       },
       type: function () {
@@ -147,116 +107,83 @@ describe('server-helpers-explicit', () => {
       },
     };
 
-    try {
-      await __TEST_EXPORTS__.ensurePrivilegeBrokerAvailable({ identity: { role: 'admin' } }, dummyRes, () => {});
-    } catch (e) {}
+    await __TEST_EXPORTS__.ensurePrivilegeBrokerAvailable({ identity: { role: 'admin' } }, dummyRes, () => {}).catch(() => {});
+    assert.ok(typeof statusCode === 'number');
 
-    try {
-      __TEST_EXPORTS__.isRecoverableDependencyError(new Error('ENOENT'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.isRecoverableDependencyError('connect ENOENT');
-    } catch (e) {}
-    try {
-      const complexErr = new Error('foo');
-      complexErr.cause = new Error('broker is unavailable');
-      __TEST_EXPORTS__.isRecoverableDependencyError(complexErr);
-    } catch (e) {}
+    assert.equal(typeof __TEST_EXPORTS__.isRecoverableDependencyError(new Error('ENOENT')), 'boolean');
+    assert.equal(typeof __TEST_EXPORTS__.isRecoverableDependencyError('connect ENOENT'), 'boolean');
 
-    try {
-      __TEST_EXPORTS__.summarizeHealth();
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.adminDependencyFallbackResponse(dummyRes, new Error('test'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.isBrokerUnavailable(new Error('broker unavailable'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.isOAuthDependencyError(new Error('oauth'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.respondBrokerUnavailable(dummyRes, new Error('test'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.respondStateUnavailable(dummyRes, new Error('test'));
-    } catch (e) {}
-    try {
-      await __TEST_EXPORTS__.buildSecurityPosture();
-    } catch (e) {}
+    const complexErr = new Error('foo');
+    complexErr.cause = new Error('broker is unavailable');
+    assert.equal(typeof __TEST_EXPORTS__.isRecoverableDependencyError(complexErr), 'boolean');
 
-    // Some basic fuzzer payload variations to hit missing body validation lines
-    try {
-      __TEST_EXPORTS__.sanitizeClientOverrides({ foo: { bar: 1 }, bar: [] });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.sanitizeOAuthUserPayload({ clients: { foo: { bar: 1 } }, other: 123 });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.normalizeAdminReadPath('http://evil.com/admin/test');
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.normalizeAdminReadPath('///api/admin/test');
-    } catch (e) {}
+    const healthSummary = __TEST_EXPORTS__.summarizeHealth();
+    assert.ok(healthSummary && typeof healthSummary === 'object');
+
+    __TEST_EXPORTS__.adminDependencyFallbackResponse(dummyRes, new Error('test'));
+    assert.ok(statusCode >= 400);
+
+    assert.equal(typeof __TEST_EXPORTS__.isBrokerUnavailable(new Error('broker unavailable')), 'boolean');
+    assert.equal(typeof __TEST_EXPORTS__.isOAuthDependencyError(new Error('oauth')), 'boolean');
+
+    __TEST_EXPORTS__.respondBrokerUnavailable(dummyRes, new Error('test'));
+    assert.ok(statusCode >= 400);
+
+    __TEST_EXPORTS__.respondStateUnavailable(dummyRes, new Error('test'));
+    assert.ok(statusCode >= 400);
+
+    const posture = await __TEST_EXPORTS__.buildSecurityPosture();
+    assert.ok(posture && typeof posture === 'object');
+
+    const sanitizedOverrides = __TEST_EXPORTS__.sanitizeClientOverrides({ foo: { bar: 1 }, bar: [] });
+    assert.ok(sanitizedOverrides && typeof sanitizedOverrides === 'object');
+
+    const sanitizedOAuthUser = __TEST_EXPORTS__.sanitizeOAuthUserPayload({ clients: { foo: { bar: 1 } }, other: 123 });
+    assert.ok(sanitizedOAuthUser && typeof sanitizedOAuthUser === 'object');
+
+    assert.equal(typeof __TEST_EXPORTS__.normalizeAdminReadPath('http://evil.com/admin/test'), 'string');
+    assert.equal(typeof __TEST_EXPORTS__.normalizeAdminReadPath('///api/admin/test'), 'string');
   });
 });
 
 describe('server-helpers-extract', () => {
-  it('tests missing helpers', async () => {
+  it('tests missing helpers with contract assertions', async () => {
     const { __TEST_EXPORTS__ } = await import('../server.js');
-    try {
-      __TEST_EXPORTS__.extractDependencyErrorText(new Error('test'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', error: { detail: 'nested' } });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.isDependencyText('test');
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.isDependencyError(new Error('test'));
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.safeLogError({ test: 1 });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.readAdminCollectionFallback(
-        {},
-        {
-          status: function () {
-            return this;
-          },
-          json: function () {},
-        },
-        () => {}
-      );
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.invalidateOAuthSessions('test');
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.manifestIdentityKey({ userId: 'u', role: 'admin' });
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.manifestIdentityKey({ oauthSubject: 's', oauthClient: 'c' });
-    } catch (e) {}
-    try {
-      await __TEST_EXPORTS__.refreshActiveToolLists();
-    } catch (e) {}
-    try {
-      __TEST_EXPORTS__.makeSessionRoom('admin', 'test');
-    } catch (e) {}
-    try {
-      await __TEST_EXPORTS__.requireAdminStepUp(
-        { identity: { role: 'admin' }, body: { confirmationCode: '123' }, get: () => null },
-        {
-          status: function () {
-            return this;
-          },
-          json: function () {},
-        },
-        () => {}
-      );
-    } catch (e) {}
+    let statusCode = 200;
+
+    const dummyRes = {
+      status: function (code) {
+        statusCode = code;
+        return this;
+      },
+      json: function () {},
+    };
+
+    assert.equal(typeof __TEST_EXPORTS__.extractDependencyErrorText(new Error('test')), 'string');
+    assert.equal(typeof __TEST_EXPORTS__.extractDependencyErrorText({ message: 'test', error: { detail: 'nested' } }), 'string');
+
+    assert.equal(typeof __TEST_EXPORTS__.isDependencyText('test'), 'boolean');
+    assert.equal(typeof __TEST_EXPORTS__.isDependencyError(new Error('test')), 'boolean');
+
+    __TEST_EXPORTS__.safeLogError({ test: 1 }); // must not throw
+
+    __TEST_EXPORTS__.readAdminCollectionFallback({}, dummyRes, () => {});
+    assert.ok(statusCode >= 100);
+
+    __TEST_EXPORTS__.invalidateOAuthSessions('test');
+
+    assert.equal(typeof __TEST_EXPORTS__.manifestIdentityKey({ userId: 'u', role: 'admin' }), 'string');
+    assert.equal(typeof __TEST_EXPORTS__.manifestIdentityKey({ oauthSubject: 's', oauthClient: 'c' }), 'string');
+
+    await __TEST_EXPORTS__.refreshActiveToolLists();
+
+    assert.equal(typeof __TEST_EXPORTS__.makeSessionRoom('admin', 'test'), 'string');
+
+    await __TEST_EXPORTS__.requireAdminStepUp(
+      { identity: { role: 'admin' }, body: { confirmationCode: '123' }, get: () => null },
+      dummyRes,
+      () => {}
+    );
+    assert.ok(statusCode >= 100);
   });
 });

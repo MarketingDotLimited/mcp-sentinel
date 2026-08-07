@@ -28,7 +28,9 @@ async function waitFor(url) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       if ((await fetch(url)).ok) return;
-    } catch {}
+    } catch (fetchErr) {
+      // Server not ready yet, retry after delay
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('Timed out waiting for the UI server');

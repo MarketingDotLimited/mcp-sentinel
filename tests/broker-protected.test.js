@@ -21,4 +21,4 @@ describe('protected services', () => {
     srv.close();
   });
 });
-after(() => process.exit(0));
+

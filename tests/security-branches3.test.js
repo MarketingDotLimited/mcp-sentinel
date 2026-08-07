@@ -17,10 +17,11 @@ test('security.js branches', async () => {
 
   // Test 555: process.env.OAUTH_RESOURCE_URL
   process.env.OAUTH_RESOURCE_URL = 'https://resource/';
-  const res = { locals: { authenticateOptions: {} } };
-  try {
-    await sec.authenticate(null, res, () => {});
-  } catch (e) {}
+  const req = { headers: {} };
+  const mockRes = { status: code => ({ json: err => ({ code, err }) }) };
+  await sec.authenticate(req, mockRes, () => {}).catch(err => {
+    assert.ok(err instanceof Error);
+  });
 
   process.env.AUTHELIA_JWKS_URL = originalJwks;
 });

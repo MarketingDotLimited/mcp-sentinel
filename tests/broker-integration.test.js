@@ -514,16 +514,16 @@ describe('broker operational integration', () => {
 
     try {
       fsSync.mkdirSync('/tmp/testuser', { recursive: true });
-    } catch (e) {}
+    } catch (mkdirErr) {}
     try {
       fsSync.mkdirSync('/tmp/fake-ssh', { recursive: true });
-    } catch (e) {}
+    } catch (mkdirErr) {}
     try {
       fsSync.symlinkSync('/tmp/fake-ssh', '/tmp/testuser/.ssh');
-    } catch (e) {}
+    } catch (symlinkErr) {}
     try {
       fsSync.mkdirSync('${projectRoot}/.git', { recursive: true });
-    } catch (e) {}
+    } catch (mkdirErr) {}
 
     const r1 = await exchange(
       JSON.stringify({

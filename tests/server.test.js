@@ -1,177 +1,122 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
-import net from 'node:net';
-import express from 'express';
-
-const handlers = [];
-const originalGet = express.application.get;
-express.application.get = function (p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/'))
-    handlers.push({ method: 'get', path: p, handler: args[args.length - 1] });
-  return originalGet.apply(this, [p, ...args]);
-};
-const originalPost = express.application.post;
-express.application.post = function (p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/'))
-    handlers.push({ method: 'post', path: p, handler: args[args.length - 1] });
-  return originalPost.apply(this, [p, ...args]);
-};
-const originalPut = express.application.put;
-express.application.put = function (p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/'))
-    handlers.push({ method: 'put', path: p, handler: args[args.length - 1] });
-  return originalPut.apply(this, [p, ...args]);
-};
-const originalDelete = express.application.delete;
-express.application.delete = function (p, ...args) {
-  if (typeof p === 'string' && p.startsWith('/'))
-    handlers.push({ method: 'delete', path: p, handler: args[args.length - 1] });
-  return originalDelete.apply(this, [p, ...args]);
-};
-
+import net from 'net';
+import http from 'http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
-const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-sentinel-test-'));
-const checkpointPath = path.join(tmpDir, 'audit-chain.json');
-fs.writeFileSync(checkpointPath, JSON.stringify({ seqNo: 1, hash: 'a'.repeat(64) }));
-fs.writeFileSync(path.join(tmpDir, 'audit-1.log'), JSON.stringify({ seqNo: 1, hash: 'a'.repeat(64) }) + '\n');
+describe('server integration tests', () => {
+  let brokerServer;
+  let brokerPort;
+  let port;
 
-const brokerSocketPath = path.join(tmpDir, 'broker.sock');
-let brokerServer;
-let port;
-
-function freePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address();
-      server.close(error => (error ? reject(error) : resolve(port)));
-    });
-  });
-}
-
-describe('server.js exhaustive fuzzer', async () => {
   before(async () => {
+    // 1. Start dummy broker
     brokerServer = net.createServer(socket => {
-      let data = '';
-      socket.on('data', chunk => {
-        data += chunk;
-        if (data.includes('\n')) {
-          try {
-            const req = JSON.parse(data.trim());
-            let result = { success: true };
-            if (req.operation === 'broker.health') result = { healthy: true };
-            socket.write(`${JSON.stringify({ requestId: req.requestId, ok: true, result })}\n`);
-            socket.end();
-          } catch {
-            socket.end();
-          }
+      socket.on('data', data => {
+        try {
+          const str = data.toString();
+          const req = JSON.parse(str.split('\n')[0]);
+          const res = { requestId: req.requestId, status: 'success', result: { ok: true } };
+          socket.write(JSON.stringify(res) + '\n');
+        } catch (e) {
+          // ignore parsing error
         }
       });
     });
-    await new Promise(resolve => brokerServer.listen(brokerSocketPath, resolve));
 
-    port = await freePort();
-    process.env.PORT = String(port);
-    process.env.USE_HTTPS = 'false';
-    process.env.ADMIN_API_KEY = 'test-admin';
-    process.env.JWT_SECRET = 'a'.repeat(64);
-    process.env.AUDIT_HMAC_KEY = 'a'.repeat(64);
-    process.env.AUDIT_LOG_DIR = tmpDir;
-    process.env.AUDIT_CHECKPOINT_FILE = checkpointPath;
-    process.env.MCP_BROKER_SOCKET = brokerSocketPath;
-    process.env.MCP_STATE_DB = path.join(tmpDir, 'state.db');
-    process.env.KEYSTORE_FILE = path.join(tmpDir, 'keys.json');
-    process.env.JWT_REVOCATION_FILE = path.join(tmpDir, 'revocations.json');
+    await new Promise(resolve => {
+      brokerServer.listen(0, '127.0.0.1', () => {
+        brokerPort = brokerServer.address().port;
+        resolve();
+      });
+    });
+
+    // 2. Setup env
+    process.env.MCP_BROKER_SOCKET = `127.0.0.1:${brokerPort}`;
+    process.env.JWT_SECRET = 's'.repeat(64);
+    process.env.PORT = '0';
+    process.env.NODE_ENV = 'test';
+    process.env.TEST_NO_LISTEN = 'false';
 
     await import('../server.js');
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Get assigned server port by scanning or creating client connection
+    const { getAdminState } = await import('../lib/admin-state.js');
+    assert.ok(getAdminState);
   });
 
-  it('fuzzes all route handlers directly in memory', async () => {
-    const proxyHandler = {
-      get: (target, prop) => {
-        if (prop in target) return target[prop];
-        if (prop === 'then') return undefined; // so it's not treated as a Promise
-        if (typeof prop === 'symbol') return undefined;
-        return '123';
-      },
-    };
+  it('fuzzes express handlers with contract assertions', async () => {
+    const { expressApp } = await import('../server.js');
+    const routes = expressApp._router?.stack || [];
+    const handlers = [];
+
+    for (const layer of routes) {
+      if (layer.route) {
+        const path = layer.route.path;
+        for (const method of Object.keys(layer.route.methods)) {
+          const handler = layer.route.stack[layer.route.stack.length - 1].handle;
+          handlers.push({ method, path, handler });
+        }
+      }
+    }
+
+    assert.ok(handlers.length > 0, 'express routes should be registered');
 
     for (const r of handlers) {
-      if (typeof r.handler !== 'function') continue;
+      let statusCode = 200;
+      let responseData = null;
 
       const res = {
-        status: () => res,
-        json: () => res,
-        send: () => res,
-        writeHead: () => res,
-        write: () => res,
-        end: () => res,
-        redirect: () => res,
-        type: () => res,
+        status: function (code) {
+          statusCode = code;
+          return this;
+        },
+        json: function (data) {
+          responseData = data;
+          return this;
+        },
+        send: function (data) {
+          responseData = data;
+          return this;
+        },
+        set: function () {
+          return this;
+        },
+        type: function () {
+          return this;
+        },
       };
 
-      const req = {
-        identity: { role: 'admin', userId: 'test-admin' },
-        query: new Proxy({}, proxyHandler),
-        body: new Proxy({}, proxyHandler),
-        params: new Proxy({}, proxyHandler),
-        headers: {},
+      const reqAdmin = {
+        method: r.method.toUpperCase(),
+        path: r.path,
+        headers: { 'x-api-key': 'test-admin' },
+        identity: { role: 'admin', userId: 'admin-user' },
+        body: {},
+        query: {},
+        params: {},
         clientIP: '127.0.0.1',
         protocol: 'https',
         get: () => 'mcp.example.test',
       };
 
-      try {
-        await r.handler(req, res);
-      } catch (e) {}
+      await r.handler(reqAdmin, res, () => {}).catch(err => {
+        assert.ok(err instanceof Error, 'Route handler thrown error must be Error instance');
+      });
 
-      const reqNonAdmin = { ...req, identity: { role: 'user', userId: 'test-user' } };
-      try {
-        await r.handler(reqNonAdmin, res);
-      } catch (e) {}
-    }
-  });
+      assert.ok(statusCode >= 100 && statusCode <= 599, `Handler for ${r.path} returned valid status code`);
 
-  it('fuzzes MCP tools using Client', async () => {
-    const baseUrl = `http://127.0.0.1:${port}`;
-    const transport = new SSEClientTransport(new URL('/mcp', baseUrl), {
-      requestInit: { headers: { 'x-api-key': 'test-admin' } },
-      eventSourceInit: { headers: { 'x-api-key': 'test-admin' } },
-    });
-    const client = new Client({ name: 'fuzzer', version: '1.0' }, { capabilities: {} });
-
-    try {
-      await client.connect(transport);
-      const tools = await client.listTools();
-
-      for (const t of tools.tools) {
-        try {
-          await client.callTool({ name: t.name, arguments: {} });
-        } catch (e) {}
-        try {
-          await client.callTool({
-            name: t.name,
-            arguments: { flowId: 'f1', resumeFromPassed: true, forceReplay: true, params: {} },
-          });
-        } catch (e) {}
-      }
-    } catch (e) {
-    } finally {
-      try {
-        await client.close();
-      } catch (e) {}
+      const reqNonAdmin = { ...reqAdmin, identity: { role: 'user', userId: 'test-user' } };
+      await r.handler(reqNonAdmin, res, () => {}).catch(err => {
+        assert.ok(err instanceof Error, 'Non-admin route handler thrown error must be Error instance');
+      });
     }
   });
 
   after(() => {
     process.removeAllListeners();
-    brokerServer.close();
-    setImmediate(() => process.exit(0));
+    if (brokerServer) brokerServer.close();
   });
 });

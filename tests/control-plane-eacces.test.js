@@ -24,7 +24,7 @@ test('control-plane.js loadState EACCES', () => {
       } catch (err) {
         if (err.code !== 'EACCES') {
           console.error('Unexpected error:', err);
-          process.exit(1);
+          throw err;
         }
       }
       fs.chmodSync(file, 0o644);

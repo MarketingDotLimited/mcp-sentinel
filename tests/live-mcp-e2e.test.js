@@ -32,7 +32,9 @@ async function waitFor(url) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       if ((await fetch(url)).ok) return;
-    } catch {}
+    } catch (fetchErr) {
+      // Retry waiting for server readiness
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('Timed out waiting for the live Sentinel instance');
@@ -42,7 +44,9 @@ async function waitForSocket(socketPath) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       if ((await fs.stat(socketPath)).isSocket()) return;
-    } catch {}
+    } catch (statErr) {
+      // Retry waiting for socket readiness
+    }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('Timed out waiting for the privilege broker');

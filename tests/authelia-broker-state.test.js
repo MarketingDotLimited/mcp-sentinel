@@ -301,7 +301,9 @@ describe('typed Authelia administration state', () => {
             for (const b of backups) await fs.rm(path.join(backupDir, b));
             found = true;
           }
-        } catch (e) {}
+        } catch (readErr) {
+          // Retry reading backup directory until file is present
+        }
       }
     })();
     await Promise.all([p, p2]);
