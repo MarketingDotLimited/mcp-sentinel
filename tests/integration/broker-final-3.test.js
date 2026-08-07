@@ -105,12 +105,14 @@ describe('broker final branches 3', async () => {
       fs.copyFileSync(from, to);
       fs.unlinkSync(from);
     });
+    t.mock.method(fs, 'chownSync', () => {});
     try {
       await handleRequest({ operation: 'project.file.write', parameters: { projectId: '00000000-0000-4000-8000-000000000001', path: 'fail-rename', content: 'xyz' }, requestId: '00000000-0000-0000-0000-000000000000' });
     } catch (e) {
       assert.match(e.message, /RENAME_FAILED/);
     }
     fs.renameSync.mock.restore();
+    fs.chownSync.mock.restore();
 
     // 4. systemdSandboxOptions unsafe SSH (396, 399, 400)
     db.exec(`INSERT INTO projects (id, payload) VALUES ('00000000-0000-4000-8000-000000000002', '{"id":"00000000-0000-4000-8000-000000000002","rootPath":"/tmp/test-project-2","repoPath":"/tmp/test-project-2","runAsUser":"testuser","allowNetwork":true,"permittedTasks":["git"],"permittedGitActions":["pull"]}') ON CONFLICT(id) DO UPDATE SET payload=excluded.payload;`);
