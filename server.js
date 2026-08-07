@@ -136,13 +136,13 @@ import {
 } from './lib/authelia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/* c8 ignore next */
+
 const PORT = parseInt(process.env.PORT || '4444');
-/* c8 ignore next */
+
 const HOST = process.env.HOST || '0.0.0.0';
 const USE_HTTPS = process.env.USE_HTTPS === 'true';
 
-/* c8 ignore start */
+
 async function ensurePrivilegeBrokerAvailable(req, res, next) {
   if (!req?.identity) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -161,28 +161,28 @@ async function ensurePrivilegeBrokerAvailable(req, res, next) {
     });
   }
 }
-/* c8 ignore stop */
+
 
 function isBrokerUnavailable(error, visited = new Set()) {
   if (!error || visited.has(error)) return false;
-  /* c8 ignore next */
+  
   if (typeof error === 'string') return /broker unavailable|connect ENOENT|ENOENT|no socket available/i.test(error);
-  /* c8 ignore next */
+  
   if (typeof error !== 'object') return false;
   visited.add(error);
 
   const code = String(error.code || '');
-  /* c8 ignore next */
+  
   const message = String(error.message || '');
   const additionalMessages = [
     String(error.error || ''),
-    /* c8 ignore next */
+    
     String(error.cause?.message || ''),
-    /* c8 ignore next */
+    
     String(error.error?.message || ''),
     String(error.details || ''),
     String(error.detail || ''),
-    /* c8 ignore next */
+    
     String(error.response?.message || ''),
     String(error.data || ''),
   ];
@@ -196,14 +196,14 @@ function isBrokerUnavailable(error, visited = new Set()) {
     /Privilege broker unavailable|broker unavailable|connect ENOENT|ENOENT|no socket available/i.test(errorText) ||
     /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(errorText)
   )
-    /* c8 ignore next */
+    
     return true;
 
   const nested = [error.cause, error.error, error.err, error.response, error.body, error.details, error.data];
   return nested.some(item => isBrokerUnavailable(item, visited));
 }
 
-/* c8 ignore start */
+
 function respondServiceDependencyUnavailable(res, error) {
   if (isBrokerUnavailable(error)) return respondBrokerUnavailable(res, error);
   if (isStateStoreUnavailable(error)) return respondStateUnavailable(res, error);
@@ -211,7 +211,7 @@ function respondServiceDependencyUnavailable(res, error) {
     .status(500)
     .json({ error: String(error?.message || 'Internal server error'), code: 'SERVICE_DEPENDENCY_FAILED' });
 }
-/* c8 ignore stop */
+
 
 function respondDependencyAwareError(
   res,
@@ -219,14 +219,14 @@ function respondDependencyAwareError(
   fallback = { status: 500, code: 'INTERNAL_ERROR', label: 'Internal server error' }
 ) {
   if (isBrokerUnavailable(error) || isStateStoreUnavailable(error))
-    /* c8 ignore next */
+    
     return respondServiceDependencyUnavailable(res, error);
-  /* c8 ignore next */
+  
   return res.status(fallback.status).json({ error: String(error?.message || fallback.label), code: fallback.code });
 }
 
 function isStateStoreUnavailable(error) {
-  /* c8 ignore next */
+  
   const message = String(error?.message || '');
   const combined = `${String(error?.code || '')} ${message}`;
   const code = String(error?.code || '');
@@ -246,7 +246,7 @@ function isStateStoreUnavailable(error) {
   );
 }
 
-/* c8 ignore start */
+
 function isRecoverableDependencyError(error) {
   const directText =
     typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean' ? String(error) : '';
@@ -303,9 +303,9 @@ function isRecoverableDependencyError(error) {
 
   return false;
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function extractDependencyErrorText(error, seen = new Set()) {
   if (error == null || seen.has(error)) return '';
   if (typeof error === 'string' || typeof error === 'number' || typeof error === 'boolean') return String(error);
@@ -348,18 +348,18 @@ function extractDependencyErrorText(error, seen = new Set()) {
 
   return entries.join(' ');
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function isDependencyText(error) {
   const text = extractDependencyErrorText(error);
   return /connect\s+ENOENT|ENOENT|no such file|no such file or directory|no\s+socket\s+available|socket\s+unavailable|privilege\s+broker\s+unavailable|broker\s+is\s+unavailable|broker\.sock|state\s+store\s+unavailable/i.test(
     text
   );
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function isDependencyError(error) {
   return (
     isRecoverableDependencyError(error) ||
@@ -369,9 +369,9 @@ function isDependencyError(error) {
     isDependencyText(error)
   );
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function isOAuthDependencyError(error) {
   const message = String(error?.message || error || '');
   if (isDependencyError(error) || isRecoverableDependencyError(error) || isDependencyText(error)) return true;
@@ -431,15 +431,15 @@ function isOAuthDependencyError(error) {
 
   return false;
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function safeLogError(error, context) {
   try {
     logError(error, context);
   } catch {}
 }
-/* c8 ignore stop */
+
 
 const CLIENT_OVERRIDE_FIELDS = new Set([
   'linuxUser',
@@ -454,7 +454,7 @@ const CLIENT_OVERRIDE_FIELDS = new Set([
 
 function sanitizeClientOverrides(rawOverrides = {}) {
   if (!rawOverrides || Array.isArray(rawOverrides) || typeof rawOverrides !== 'object') return {};
-  /* c8 ignore start */
+  
   return Object.fromEntries(
     Object.entries(rawOverrides).flatMap(([clientId, rawOverride]) => {
       if (!clientId || typeof clientId !== 'string') return [];
@@ -468,17 +468,17 @@ function sanitizeClientOverrides(rawOverrides = {}) {
       return [[clientId, sanitized]];
     })
   );
-  /* c8 ignore stop */
+  
 }
 
 function sanitizeOAuthUserPayload(payload = {}) {
-  /* c8 ignore next */
+  
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
   if (payload.clients === undefined) return { ...payload };
   return { ...payload, clients: sanitizeClientOverrides(payload.clients) };
 }
 
-/* c8 ignore start */
+
 function normalizeAdminReadPath(pathname = '') {
   let candidate = String(pathname || '').trim();
   if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
@@ -504,9 +504,9 @@ function normalizeAdminReadPath(pathname = '') {
   }
   return normalized.toLowerCase();
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function adminDependencyFallbackResponse(pathname, error) {
   const path = normalizeAdminReadPath(pathname);
   const isOauthUsersLike = /^(?:\/admin\/)?oauth-users(?:\/.*)?$/u.test(path);
@@ -575,9 +575,9 @@ function adminDependencyFallbackResponse(pathname, error) {
 
   return null;
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function isBrokerUnavailableError(error) {
   const message = String(error?.message || error || '');
   return (
@@ -586,9 +586,9 @@ function isBrokerUnavailableError(error) {
     ) || /\/(?:var|run)\/mcp-sentinel\/broker\.sock/i.test(message)
   );
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function respondBrokerUnavailable(res, error) {
   return res.status(503).json({
     error: String(error?.message || 'Privilege broker unavailable'),
@@ -597,9 +597,9 @@ function respondBrokerUnavailable(res, error) {
       'Restart the privilege broker service (systemctl restart mcp-sentinel-broker.service) and confirm /run/mcp-sentinel/broker.sock exists.',
   });
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function respondStateUnavailable(res, error) {
   return res.status(503).json({
     error: String(error?.message || 'State store unavailable'),
@@ -608,7 +608,7 @@ function respondStateUnavailable(res, error) {
       'Verify MCP state directory permissions and ownership, ensure the service can read/write /var/lib/mcp-sentinel, and restart the service.',
   });
 }
-/* c8 ignore stop */
+
 
 function summarizeHealth(stats) {
   const checks = [
@@ -622,18 +622,18 @@ function summarizeHealth(stats) {
   const warnings = checks
     .filter(([, value]) => value >= 70 && value < 85)
     .map(([name, value]) => `${name} usage is ${Math.round(value)}%`);
-  /* c8 ignore next */
+  
   if (concerns.length) return { status: 'needs-attention', message: concerns.join('. '), concerns, warnings };
   if (warnings.length)
-    /* c8 ignore next */
+    
     return {
-      /* c8 ignore start */
+      
       status: 'watch',
       message: `${warnings.join('. ')}. Your server is working, but keep an eye on it.`,
       concerns,
       warnings,
     };
-  /* c8 ignore stop */
+  
   return {
     status: 'healthy',
     message: 'Your server is healthy. CPU, memory, and disk usage are within normal limits.',
@@ -642,7 +642,7 @@ function summarizeHealth(stats) {
   };
 }
 
-/* c8 ignore start */
+
 function adminReadFallbackHandler(req, res, reader, options = {}) {
   const {
     statusCode = 500,
@@ -667,9 +667,9 @@ function adminReadFallbackHandler(req, res, reader, options = {}) {
     }
   })();
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 async function readAdminCollectionFallback(
   req,
   res,
@@ -704,7 +704,7 @@ async function readAdminCollectionFallback(
     );
   }
 }
-/* c8 ignore stop */
+
 
 async function buildSecurityPosture() {
   const checks = [];
@@ -713,40 +713,40 @@ async function buildSecurityPosture() {
     const profile = validateDeploymentProfile(process.env);
     add(
       'deployment-profile',
-      /* c8 ignore next */
+      
       profile.ready ? 'pass' : 'warning',
       profile.warning ||
         `${profile.profile} profile uses ${profile.stateProvider} state and ${profile.leaseProvider} leases.`
     );
-    /* c8 ignore next */
+    
   } catch (error) {
-    /* c8 ignore start */
+    
     add('deployment-profile', 'fail', error.message);
   }
-  /* c8 ignore stop */
+  
   add(
     'transport',
-    /* c8 ignore next */
+    
     USE_HTTPS ? 'pass' : 'warning',
-    /* c8 ignore next */
+    
     USE_HTTPS ? 'HTTPS is enabled.' : 'HTTPS is disabled. Do not expose this server publicly until TLS is enabled.'
   );
   add(
     'jwt-secret',
-    /* c8 ignore next */
+    
     jwtSecretIsConfigured() ? 'pass' : 'fail',
     jwtSecretIsConfigured()
       ? 'JWT signing secret meets the minimum length.'
-      : /* c8 ignore next */
+      : 
         'JWT signing secret is missing or too short.'
   );
   const allowedIps = (process.env.ALLOWED_IPS || '').trim();
   add(
     'ip-access',
-    /* c8 ignore next */
+    
     allowedIps ? 'pass' : 'warning',
     allowedIps
-      ? /* c8 ignore next */
+      ? 
         'A global IP allow-list is configured.'
       : 'No global IP allow-list is configured; use per-key restrictions or configure ALLOWED_IPS.'
   );
@@ -754,24 +754,24 @@ async function buildSecurityPosture() {
   const trustedProxies = (process.env.TRUSTED_PROXIES || '').trim();
   add(
     'proxy',
-    /* c8 ignore next */
+    
     !trustProxy || trustedProxies ? 'pass' : 'warning',
-    /* c8 ignore next */
+    
     trustProxy && !trustedProxies
-      ? /* c8 ignore next */
+      ? 
         'Proxy trust is enabled without a trusted-proxy allow-list; forwarded headers will be ignored.'
       : 'Proxy trust configuration is explicit.'
   );
   const policy = await getPolicyStatus().catch(err => ({ enabled: false, error: err.message }));
   add(
     'policy',
-    /* c8 ignore next */
+    
     policy.error ? 'fail' : policy.enabled ? 'pass' : 'warning',
     policy.error
-      ? /* c8 ignore next */
+      ? 
         `Policy configuration error: ${policy.error}`
       : policy.enabled
-        ? /* c8 ignore next */
+        ? 
           `Policy-as-code is active with ${policy.rules} rules.`
         : 'No policy-as-code file is configured.'
   );
@@ -779,67 +779,67 @@ async function buildSecurityPosture() {
   const approvalKeys = keys.filter(key => key.requireApproval).length;
   add(
     'approvals',
-    /* c8 ignore next */
+    
     approvalKeys > 0 ? 'pass' : 'warning',
     approvalKeys > 0
       ? `${approvalKeys} API key(s) require approval for risky actions.`
-      : /* c8 ignore next */
+      : 
         'No API keys currently require approval for risky actions.'
   );
-  /* c8 ignore next */
+  
   const oauthResource = (process.env.OAUTH_RESOURCE_URL || '').replace(/\/$/, '');
   add(
     'oauth-resource',
-    /* c8 ignore next */
+    
     oauthResource.startsWith('https://') ? 'pass' : 'fail',
     oauthResource.startsWith('https://')
       ? `OAuth access tokens must target the canonical resource ${oauthResource}.`
-      : /* c8 ignore next */
+      : 
         'OAUTH_RESOURCE_URL must be an explicit HTTPS URL.'
   );
   const audit = getAuditChainStatus();
   add(
     'audit-chain',
-    /* c8 ignore next */
+    
     audit.protection === 'hmac-checkpointed' ? 'pass' : 'warning',
     audit.protection === 'hmac-checkpointed'
       ? 'Audit entries use a persistent HMAC chain. No external append-only anchor is configured.'
-      : /* c8 ignore next */
+      : 
         'Audit entries are chained only for this process lifetime; configure AUDIT_HMAC_KEY and a protected checkpoint path.'
   );
   const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({ error: error.message }));
-  /* c8 ignore start */
+  
   add(
     'privilege-broker',
-    /* c8 ignore stop */
-    /* c8 ignore next */
+    
+    
     broker.error || !broker.healthy ? 'fail' : 'pass',
     broker.error
-      ? /* c8 ignore next */
+      ? 
         `Typed privilege broker is unavailable: ${broker.error}`
       : broker.healthy
-        ? /* c8 ignore start */
+        ? 
           `Broker is healthy; SQLite schema and ${broker.projectCount} project execution identity record(s) passed.`
         : `Broker reported invalid project users or migrations: ${broker.invalidProjectUsers?.join(', ') || 'unknown'}`
-    /* c8 ignore stop */
+    
   );
   const protectedPermissions = broker.protectedFilePermissions;
   add(
     'protected-file-permissions',
-    /* c8 ignore next */
+    
     protectedPermissions?.safe ? 'pass' : 'fail',
-    /* c8 ignore next */
+    
     protectedPermissions?.safe
-      ? /* c8 ignore next */
+      ? 
         `${protectedPermissions.checked} protected state/configuration files are mode 0600.`
-      : /* c8 ignore next */
+      : 
         `The privilege broker found missing or over-permissive protected files: ${protectedPermissions?.unsafeFiles?.join(', ') || 'broker result unavailable'}`
   );
-  /* c8 ignore next */
+  
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
   let discovery = null;
   if (issuer) {
-    /* c8 ignore start */
+    
     discovery = await fetch(`${issuer}/.well-known/openid-configuration`, {
       redirect: 'error',
       signal: AbortSignal.timeout(5000),
@@ -847,30 +847,30 @@ async function buildSecurityPosture() {
   }
   add(
     'oauth-discovery',
-    /* c8 ignore stop */
-    /* c8 ignore next */
+    
+    
     discovery?.ok ? 'pass' : 'fail',
-    /* c8 ignore next */
+    
     discovery?.ok ? 'OAuth discovery is reachable over the configured issuer.' : 'OAuth discovery is unavailable.'
   );
   const manifests = [...manifestSnapshots.values()];
   const manifestComplete = manifests.some(snapshot =>
-    /* c8 ignore next */
+    
     snapshot.tools?.every(tool => tool.title && tool.inputSchema && tool.outputSchema && tool.annotations)
   );
   add(
     'action-manifest',
-    /* c8 ignore next */
+    
     manifestComplete ? 'pass' : 'warning',
     manifestComplete
       ? 'The live action manifest contains titles, schemas, and annotations.'
-      : /* c8 ignore next */
+      : 
         'Generate the live action manifest and complete the ChatGPT refresh.'
   );
   const failed = checks.filter(check => check.status === 'fail').length;
   const warnings = checks.filter(check => check.status === 'warning').length;
   return {
-    /* c8 ignore next */
+    
     status: failed ? 'needs-attention' : warnings ? 'review-recommended' : 'strong',
     checks,
     generatedAt: new Date().toISOString(),
@@ -880,20 +880,20 @@ async function buildSecurityPosture() {
 // ── Active SSE connections ─────────────────────────────────
 const activeTransports = new Map(); // sessionId -> { transport, identity, ip }
 
-/* c8 ignore start */
+
 function alertOwnerKey(identity) {
   if (identity.oauthSubject && identity.oauthClient)
     return `oauth:${identity.oauthSubject}:${identity.oauthClient}:${identity.authorizationVersion || 1}`;
   if (identity.keyId) return `key:${identity.keyId}:${identity.keyVersion || 1}`;
   return `user:${identity.userId}:${identity.authorizationVersion || 1}`;
 }
-/* c8 ignore stop */
+
 // Short-lived state for administrator-initiated OAuth diagnostics. Secrets and
 // access tokens remain in memory only and are never returned to the browser.
 const oauthDiagnostics = new Map();
 const manifestSnapshots = new Map();
 
-/* c8 ignore start */
+
 async function invalidateOAuthSessions(username) {
   for (const [sessionId, session] of activeTransports) {
     if (session.identity?.authType !== 'oauth' || session.identity.oauthUser !== username) continue;
@@ -901,7 +901,7 @@ async function invalidateOAuthSessions(username) {
     activeTransports.delete(sessionId);
   }
 }
-/* c8 ignore stop */
+
 
 function manifestIdentityKey(identity) {
   return [identity.authType, identity.oauthSubject || identity.userId, identity.oauthClient || identity.keyId].join(
@@ -909,7 +909,7 @@ function manifestIdentityKey(identity) {
   );
 }
 
-/* c8 ignore start */
+
 async function refreshActiveToolLists() {
   for (const session of activeTransports.values()) {
     for (const item of session.mcpServer?._sentinelRegistrations || []) {
@@ -923,19 +923,19 @@ async function refreshActiveToolLists() {
     await session.mcpServer?.sendToolListChanged();
   }
 }
-/* c8 ignore stop */
+
 
 // ── Express App ───────────────────────────────────────────
 
 process.on('uncaughtException', err => {
-  /* c8 ignore start */
+  
   logError({ ip: 'internal', userId: 'system', tool: 'uncaughtException', error: err });
   console.error('Uncaught Exception:', err);
-  /* c8 ignore stop */
+  
 });
 
 process.on('unhandledRejection', reason => {
-  /* c8 ignore next 2 */
+  
   logError({ ip: 'internal', userId: 'system', tool: 'unhandledRejection', error: reason });
   console.error('Unhandled Rejection:', reason);
 });
@@ -947,7 +947,7 @@ const asyncToNext = fn =>
     ? function asyncHandler(req, res, next) {
         Promise.resolve(fn(req, res, next)).catch(next);
       }
-    : /* c8 ignore next */
+    : 
       fn;
 
 for (const method of routeHandlers) {
@@ -961,12 +961,12 @@ app.use(telemetryMiddleware);
 
 // Redirect legacy port 2053 to the new subdomain
 app.use((req, res, next) => {
-  /* c8 ignore start */
+  
   if (req.get('host') === 'begin.shopping:2053') {
     return res.redirect(301, 'https://mcp.begin.shopping' + req.originalUrl);
   }
   next();
-  /* c8 ignore stop */
+  
 });
 
 // Security headers
@@ -982,7 +982,7 @@ app.use(
         connectSrc: ["'self'", 'https://cloudflareinsights.com'],
       },
     },
-    /* c8 ignore next */
+    
     hsts: USE_HTTPS ? { maxAge: 31536000, includeSubDomains: true } : false,
   })
 );
@@ -992,7 +992,7 @@ import compression from 'compression';
 // Streaming MCP responses must not be buffered by compression middleware.
 app.use(
   compression({
-    /* c8 ignore next */
+    
     filter: (req, res) => !['/mcp', '/mcp/message'].includes(req.path) && compression.filter(req, res),
   })
 );
@@ -1002,31 +1002,31 @@ app.use(
 app.use(
   express.static(path.join(import.meta.dirname, 'public'), {
     maxAge: '1d',
-    /* c8 ignore next */
+    
     setHeaders: (res, filePath) => {
-      /* c8 ignore start */
+      
       if (/\.(?:html|js|css)$/.test(filePath)) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       }
-      /* c8 ignore stop */
+      
     },
   })
 );
 // Prevent Cloudflare from aggressively caching CORS preflight responses
 app.use((req, res, next) => {
-  /* c8 ignore start */
+  
   if (req.method === 'OPTIONS') {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   }
   next();
-  /* c8 ignore stop */
+  
 });
 
 // CORS - origin policy (this is NOT IP access control)
 app.use(
   cors({
     origin: (origin, callback) => {
-      /* c8 ignore start */
+      
       // Allow requests with no origin (direct API calls) or from trusted origins
       const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
         .split(',')
@@ -1041,7 +1041,7 @@ app.use(
       } else {
         callback(new Error('Not allowed by CORS'));
       }
-      /* c8 ignore stop */
+      
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Session-ID', 'Mcp-Session-Id'],
@@ -1057,31 +1057,31 @@ app.use(ipWhitelist);
 // under /api/admin (or /admin/api). This keeps legacy clients and proxies
 // working without changing existing tool callers.
 app.use((req, _res, next) => {
-  /* c8 ignore start */
+  
   if (req.path === '/api/admin' || req.path.startsWith('/api/admin/')) {
     req.url = req.url.replace(/^\/api\/admin/, '/admin');
   } else if (req.path === '/admin/api' || req.path.startsWith('/admin/api/')) {
     req.url = req.url.replace(/^\/admin\/api/, '/admin');
   }
   next();
-  /* c8 ignore stop */
+  
 });
 
 // ── Rate Limiting ──────────────────────────────────────────
 
 const globalLimiter = rateLimit({
-  /* c8 ignore next */
+  
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000'),
-  /* c8 ignore next */
+  
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60'),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req => getClientIP(req),
   handler: (req, res) => {
-    /* c8 ignore start */
+    
     logSecurityEvent({ ip: getClientIP(req), event: 'RATE_LIMIT_EXCEEDED', detail: {} });
     res.status(429).json({ error: 'Too many requests. Please slow down.' });
-    /* c8 ignore stop */
+    
   },
 });
 
@@ -1093,12 +1093,12 @@ const authenticatedLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: req =>
-    /* c8 ignore start */
+    
     [
       req.identity?.authType || 'unknown',
       req.identity?.oauthSubject || req.identity?.userId || 'unknown',
       req.identity?.oauthClient || req.identity?.keyId || 'unknown',
-      /* c8 ignore stop */
+      
     ].join(':'),
 });
 
@@ -1111,7 +1111,7 @@ app.use(express.json({ limit: '5mb' }));
 const MAX_SESSIONS_PER_USER = parseInt(process.env.MAX_SESSIONS_PER_USER || '5', 10);
 const IDLE_TIMEOUT_MS = parseInt(process.env.IDLE_TIMEOUT_MS || '1800000', 10); // 30 min default
 
-/* c8 ignore start */
+
 async function makeSessionRoom(identity, ip) {
   const owner = alertOwnerKey(identity);
   const owned = [...activeTransports.entries()].filter(([, session]) => alertOwnerKey(session.identity) === owner);
@@ -1131,10 +1131,10 @@ async function makeSessionRoom(identity, ip) {
   });
   return true;
 }
-/* c8 ignore stop */
 
-setInterval(() => {
-  /* c8 ignore start */
+
+if (process.env.TEST_NO_LISTEN !== 'true') setInterval(() => {
+  
   const now = Date.now();
   for (const [id, session] of activeTransports.entries()) {
     if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
@@ -1149,7 +1149,7 @@ setInterval(() => {
       activeTransports.delete(id);
     }
   }
-  /* c8 ignore stop */
+  
 }, 60000);
 
 // ── Health Check (unauthenticated) ─────────────────────────
@@ -1159,7 +1159,7 @@ app.use('/', coreRouter);
 
 app.use('/auth', authRouter);
 
-/* c8 ignore start */
+
 function requireAdminStepUp(req, res, next) {
   if (
     process.env.MCP_REQUIRE_WEBAUTHN_FOR_ADMIN === 'true' &&
@@ -1169,31 +1169,31 @@ function requireAdminStepUp(req, res, next) {
     return res.status(428).json({ error: 'WebAuthn step-up authentication is required', code: 'MFA_REQUIRED' });
   return next();
 }
-/* c8 ignore stop */
+
 
 app.post('/admin/webauthn/register/options', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
-    /* c8 ignore next */
+    
     const userId = String(req.body?.userId || req.identity.userId);
-    /* c8 ignore next */
+    
     return res.json(await registrationOptions({ userId, userName: req.body?.userName || userId }));
-    /* c8 ignore next */
+    
   } catch (error) {
-    /* c8 ignore start */
+    
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_OPTIONS_INVALID' });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/webauthn/register/verify', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
-    /* c8 ignore next */
+    
     const userId = String(req.body?.userId || req.identity.userId);
     return res.json(
       await finishRegistration({ userId, challengeId: req.body?.challengeId, response: req.body?.response })
-      /* c8 ignore next */
+      
     );
   } catch (error) {
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_REGISTRATION_FAILED' });
@@ -1204,19 +1204,19 @@ app.get('/admin/webauthn/credentials', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
     return res.status(403).json({ error: 'Admin or auditor role required' });
   try {
-    /* c8 ignore next */
+    
     return res.json({ credentials: listCredentials(String(req.query.userId || req.identity.userId)) });
-    /* c8 ignore next */
+    
   } catch (error) {
-    /* c8 ignore start */
+    
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_CREDENTIALS_INVALID' });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/auth/webauthn/options', authenticateJWT, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     return res.json(await authenticationOptions({ userId: req.identity.userId }));
   } catch (error) {
     return res.status(400).json({ error: error.message, code: 'WEBAUTHN_AUTH_OPTIONS_FAILED' });
@@ -1230,7 +1230,7 @@ app.post('/auth/webauthn/verify', authenticateJWT, async (req, res) => {
       challengeId: req.body?.challengeId,
       response: req.body?.response,
     });
-    /* c8 ignore next */
+    
     return res.json({ ...result, stepUpToken: issueStepUpToken(req.identity), expiresIn: 300 });
   } catch (error) {
     return res.status(401).json({ error: error.message, code: 'WEBAUTHN_AUTH_FAILED' });
@@ -1239,7 +1239,7 @@ app.post('/auth/webauthn/verify', authenticateJWT, async (req, res) => {
 
 app.get('/metrics', (req, res) => {
   if (process.env.METRICS_PUBLIC !== 'true') return res.status(404).end();
-  /* c8 ignore next */
+  
   res.type('text/plain').send(metricsText());
 });
 
@@ -1260,16 +1260,16 @@ app.get('/admin/policy/simulate', authenticateJWT, async (req, res) => {
     return res.status(403).json({ error: 'Admin or auditor role required' });
   try {
     const identity = {
-      /* c8 ignore next */
+      
       userId: String(req.query.userId || req.identity.userId),
-      /* c8 ignore next */
+      
       role: String(req.query.role || req.identity.role),
-      /* c8 ignore next */
+      
       oauthClient: req.query.oauthClient ? String(req.query.oauthClient) : undefined,
-      /* c8 ignore next */
+      
       oauthSubject: req.query.oauthSubject ? String(req.query.oauthSubject) : undefined,
     };
-    /* c8 ignore next */
+    
     return res.json(await simulatePolicy({ tool: String(req.query.tool || ''), identity }));
   } catch (error) {
     return res.status(400).json({ error: error.message, code: 'POLICY_SIMULATION_INVALID' });
@@ -1280,10 +1280,10 @@ app.get('/admin/jobs', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'auditor')
     return res.status(403).json({ error: 'Admin or auditor role required' });
   try {
-    /* c8 ignore next */
+    
     const states = req.query.states ? String(req.query.states).split(',').filter(Boolean) : null;
     return res.json({
-      /* c8 ignore next */
+      
       jobs: getJobQueue().list({ owner: req.query.owner || null, states, limit: Number(req.query.limit || 100) }),
     });
   } catch (error) {
@@ -1300,41 +1300,41 @@ app.post('/admin/jobs', authenticateJWT, requireAdminStepUp, async (req, res) =>
     return res.status(403).json({ error: 'Admin or operator role required' });
   const allowedTypes = new Set(['project_test', 'deployment', 'ssh_operation', 'backup']);
   try {
-    /* c8 ignore next */
+    
     const type = String(req.body?.type || '');
     if (!allowedTypes.has(type)) return res.status(400).json({ error: 'Job type is not registered' });
-    /* c8 ignore next */
+    
     const payload = req.body?.payload ?? {};
-    /* c8 ignore next */
+    
     const idempotencyKey = req.get('Idempotency-Key') || req.body?.idempotencyKey || null;
     const job = getJobQueue().enqueue({
       type,
       owner: req.identity.userId,
       payload,
       idempotencyKey,
-      /* c8 ignore next */
+      
       maxAttempts: req.body?.maxAttempts ?? 3,
     });
     return res.status(201).json(job);
-    /* c8 ignore next */
+    
   } catch (error) {
-    /* c8 ignore start */
+    
     return respondDependencyAwareError(res, error, {
       status: 400,
       code: 'JOB_CREATE_INVALID',
       label: 'Invalid job request',
     });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/jobs/claim', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    /* c8 ignore next */
+    
     const workerId = String(req.body?.workerId || `${req.identity.userId}:worker`);
-    /* c8 ignore next */
+    
     return res.json({ job: getJobQueue().claim({ workerId, leaseMs: req.body?.leaseMs ?? 60000 }) });
   } catch (error) {
     return respondDependencyAwareError(res, error, {
@@ -1350,7 +1350,7 @@ app.get('/admin/jobs/:id', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin or auditor role required' });
   const job = getJobQueue().get(req.params.id);
   if (!job) return res.status(404).json({ error: 'Job not found' });
-  /* c8 ignore next */
+  
   return res.json(job);
 });
 
@@ -1358,7 +1358,7 @@ app.post('/admin/jobs/:id/cancel', authenticateJWT, requireAdminStepUp, (req, re
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    /* c8 ignore next */
+    
     return res.json(getJobQueue().cancel(req.params.id, req.body?.reason || 'Cancelled by administrator'));
   } catch (error) {
     return respondDependencyAwareError(res, error, {
@@ -1373,7 +1373,7 @@ app.post('/admin/jobs/:id/complete', authenticateJWT, (req, res) => {
   if (req.identity.role !== 'admin' && req.identity.role !== 'operator')
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
-    /* c8 ignore next */
+    
     return res.json(getJobQueue().complete(req.params.id, req.body?.result ?? {}, { workerId: req.body?.workerId }));
   } catch (error) {
     return respondDependencyAwareError(res, error, {
@@ -1389,7 +1389,7 @@ app.post('/admin/jobs/:id/fail', authenticateJWT, (req, res) => {
     return res.status(403).json({ error: 'Admin or operator role required' });
   try {
     return res.json(
-      /* c8 ignore next */
+      
       getJobQueue().fail(req.params.id, req.body?.error || 'Job failed', {
         retry: req.body?.retry !== false,
         workerId: req.body?.workerId,
@@ -1412,12 +1412,12 @@ app.post('/admin/keys', authenticateJWT, requireAdminStepUp, async (req, res) =>
   }
   const { key, userId, role, allowedIPs, scopes, label, requireApproval, projectIds, organizationId, teamId } =
     req.body;
-  /* c8 ignore next */
+  
   if (!key || !userId) return res.status(400).json({ error: 'key and userId required' });
 
   try {
     await validateKeyAssignment({ organizationId, teamId });
-    /* c8 ignore start */
+    
     await addApiKey(key, {
       userId,
       role,
@@ -1433,7 +1433,7 @@ app.post('/admin/keys', authenticateJWT, requireAdminStepUp, async (req, res) =>
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/keys/revoke', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -1441,12 +1441,12 @@ app.post('/admin/keys/revoke', authenticateJWT, requireAdminStepUp, async (req, 
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { key, keyId } = req.body;
-  /* c8 ignore next */
+  
   if (!key && !keyId) return res.status(400).json({ error: 'keyId required in body' });
 
-  /* c8 ignore next */
+  
   const revoked = keyId ? await revokeApiKeyById(keyId) : await revokeApiKey(key);
-  /* c8 ignore next */
+  
   return res.json({ success: revoked, message: revoked ? 'Key revoked' : 'Key not found' });
 });
 
@@ -1461,7 +1461,7 @@ app.put('/admin/keys/:id', authenticateJWT, requireAdminStepUp, async (req, res)
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const updated = await updateApiKey(req.params.id, req.body);
-    /* c8 ignore next */
+    
     res.json({ success: true, key: updated });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -1493,7 +1493,7 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    /* c8 ignore start */
+    
     adminReadFallbackHandler(
       req,
       res,
@@ -1510,32 +1510,32 @@ app.get(
         fallbackOnAnyError: true,
       }
     )
-  /* c8 ignore stop */
+  
 );
 
 app.put('/admin/capabilities/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const capabilities = await setCapability(req.params.id, req.body?.enabled);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'CAPABILITY_UPDATED',
-      /* c8 ignore stop */
+      
       detail: { capability: req.params.id, enabled: req.body?.enabled, by: req.identity.userId },
     });
     await refreshActiveToolLists();
-    /* c8 ignore next */
+    
     return res.json({ capabilities });
   } catch (err) {
-    /* c8 ignore next */
+    
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(400).json({ error: err.message, code: 'CAPABILITY_UPDATE_FAILED' });
   }
 });
 
 app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
-  /* c8 ignore next */
+  
   const baseUrl = process.env.PUBLIC_URL || `${USE_HTTPS ? 'https' : 'http'}://${req.get('host')}`;
   const publicUrl = baseUrl.replace(/\/$/, '');
   const publicHttps = publicUrl.startsWith('https://');
@@ -1547,16 +1547,16 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
       authorization:
         'Use a scoped API key in X-API-Key, or as a Bearer token for clients that only support bearer credentials. Never use the owner key.',
       capabilities: await getCapabilities(),
-      /* c8 ignore start */
+      
       readiness: {
         publicHttps,
         oidcEnabled,
-        /* c8 ignore stop */
+        
         cloudConnectorReady: publicHttps && oidcEnabled,
         cloudConnectorMessage:
           publicHttps && oidcEnabled
             ? 'Cloud connector prerequisites are configured. Complete the platform-specific OAuth setup before enabling write tools.'
-            : /* c8 ignore next */
+            : 
               'Cloud apps such as ChatGPT and Claude need a public HTTPS URL and OAuth/OIDC. CLI clients can use a scoped API key now.',
       },
       platforms: [
@@ -1604,24 +1604,24 @@ app.get('/admin/connection-info', authenticateJWT, async (req, res) => {
         },
       ],
     });
-    /* c8 ignore next */
+    
   } catch (err) {
-    /* c8 ignore start */
+    
     if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'CONNECTION_INFO_FAILED' });
   }
-  /* c8 ignore stop */
+  
 });
 
-/* c8 ignore start */
+
 function normalizeFlowHint(value) {
   const normalized = String(value || '').trim();
   return normalized.length ? normalized.slice(0, 128) : null;
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function getFlowHint(req) {
   return (
     normalizeFlowHint(req.headers['x-mcp-flow-id']) ||
@@ -1629,9 +1629,9 @@ function getFlowHint(req) {
     normalizeFlowHint(req.headers['x-cli-flow-id'])
   );
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function getFlowStepHint(req) {
   return (
     normalizeFlowHint(req.query?.flowStep) ||
@@ -1640,47 +1640,47 @@ function getFlowStepHint(req) {
     normalizeFlowHint(req.headers['x-cli-flow-step'])
   );
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function resolveFlowHint(req) {
   const headerHint = getFlowHint(req);
   return headerHint || null;
 }
-/* c8 ignore stop */
 
-/* c8 ignore start */
+
+
 function resolveFlowStepHint(req) {
   return getFlowStepHint(req) || null;
 }
-/* c8 ignore stop */
+
 
 app.get('/admin/policy-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     return res.json(await getPolicyStatus());
-    /* c8 ignore next */
+    
   } catch (err) {
-    /* c8 ignore start */
+    
     return res.status(500).json({ error: err.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.get('/admin/security-posture', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     return res.json(await buildSecurityPosture());
-    /* c8 ignore start */
+    
   } catch (err) {
     if (isStateStoreUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     if (isBrokerUnavailable(err)) return respondServiceDependencyUnavailable(res, err);
     return res.status(500).json({ error: err.message, code: 'SECURITY_POSTURE_FAILED' });
   }
-  /* c8 ignore stop */
+  
 });
 
-/* c8 ignore start */
+
 async function handleActionManifest(req, res) {
   try {
     await createMcpServer(req.identity, req.clientIP);
@@ -1729,7 +1729,7 @@ async function handleActionManifest(req, res) {
     });
   }
 }
-/* c8 ignore stop */
+
 
 app.get(
   [
@@ -1752,74 +1752,74 @@ app.get('/admin/broker-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const broker = await brokerCall('broker.health', {});
-    /* c8 ignore start */
+    
     return res.json({
       available: true,
-      /* c8 ignore stop */
-      /* c8 ignore next */
+      
+      
       socket: (process.env.MCP_BROKER_SOCKET || '/run/mcp-sentinel/broker.sock').trim(),
       socketExists:
-        /* c8 ignore next */
+        
         fs.existsSync(process.env.MCP_BROKER_SOCKET || '/run/mcp-sentinel/broker.sock') ||
-        /* c8 ignore next */
+        
         fs.existsSync('/run/mcp-sentinel/broker.sock') ||
         fs.existsSync('/var/run/mcp-sentinel/broker.sock'),
       broker,
     });
-    /* c8 ignore next */
+    
   } catch (error) {
-    /* c8 ignore start */
+    
     return respondDependencyAwareError(res, error, {
       status: 503,
       code: 'BROKER_UNAVAILABLE',
       label: 'Broker socket is unavailable',
     });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.get('/admin/remediation-status', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin role required' });
   try {
     const broker = await brokerCall('broker.health', {}, { timeoutMs: 5000 }).catch(error => ({
-      /* c8 ignore next */
+      
       error: error.message,
     }));
-    /* c8 ignore start */
+    
     let auditVerification = null;
     try {
       auditVerification = JSON.parse(
         fs.readFileSync(
-          /* c8 ignore stop */
+          
           process.env.AUDIT_VERIFICATION_STATUS_FILE || '/var/lib/mcp-sentinel/audit-verification.json',
           'utf8'
         )
       );
-      /* c8 ignore next */
+      
     } catch {}
-    /* c8 ignore start */
+    
     return res.json({
       broker,
-      /* c8 ignore stop */
+      
       migrations: broker.migrations || [],
       audit: { ...getAuditChainStatus(), lastVerification: auditVerification },
       credentialRotation: getAdminState('credential_rotation_status'),
-      /* c8 ignore next */
+      
       stateKeyRotation: broker.stateKeyRotation ? JSON.parse(broker.stateKeyRotation) : null,
       actionRefresh: getAdminState('action_refresh_status'),
-      /* c8 ignore next */
+      
       manifest: manifestSnapshots.get(manifestIdentityKey(req.identity)) || null,
     });
-    /* c8 ignore next */
+    
   } catch (e) {
-    /* c8 ignore start */
+    
     return respondDependencyAwareError(res, e, {
       status: 500,
       code: 'REMEDIATION_STATUS_FAILED',
       label: 'Failed to load remediation status',
     });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepUp, (req, res) => {
@@ -1837,15 +1837,15 @@ app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepU
     'backup-encryption-key',
   ]);
   if (
-    /* c8 ignore next */
+    
     req.body?.confirm !== true ||
-    /* c8 ignore next */
+    
     !Array.isArray(req.body.components) ||
-    /* c8 ignore next */
+    
     !req.body.components.every(item => allowed.has(item))
   )
     return res.status(400).json({ error: 'confirm=true and a valid components array are required' });
-  /* c8 ignore start */
+  
   const status = setAdminState('credential_rotation_status', {
     components: [...new Set(req.body.components)],
     recordedAt: new Date().toISOString(),
@@ -1853,7 +1853,7 @@ app.post('/admin/credential-rotation-status', authenticateJWT, requireAdminStepU
   });
   logSecurityEvent({ ip: req.clientIP, event: 'CREDENTIAL_ROTATION_RECORDED', detail: status });
   return res.json(status);
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -1868,24 +1868,24 @@ app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, as
     'cancel_project_test_run',
   ];
   if (
-    /* c8 ignore next */
+    
     req.body?.confirm !== true ||
-    /* c8 ignore next */
+    
     req.body.manifestHash !== manifest.hash ||
-    /* c8 ignore next */
+    
     req.body.oauthReauthorized !== true ||
-    /* c8 ignore next */
+    
     req.body.newChatTested !== true ||
-    /* c8 ignore next */
+    
     !Array.isArray(req.body.enabledTools) ||
-    /* c8 ignore next */
+    
     !requiredActions.every(tool => req.body.enabledTools.includes(tool))
   )
     return res.status(400).json({
       error:
         'Manifest hash, OAuth reauthorization, enabled SSH and project-test actions, and new-chat test must be confirmed',
     });
-  /* c8 ignore start */
+  
   const status = setAdminState('action_refresh_status', {
     manifestHash: manifest.hash,
     enabledTools: requiredActions,
@@ -1895,7 +1895,7 @@ app.post('/admin/action-refresh-status', authenticateJWT, requireAdminStepUp, as
     recordedBy: req.identity.userId,
   });
   return res.json(status);
-  /* c8 ignore stop */
+  
 });
 
 app.get(
@@ -1911,7 +1911,7 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    /* c8 ignore start */
+    
     adminReadFallbackHandler(
       req,
       res,
@@ -1941,7 +1941,7 @@ app.get(
         fallbackOnAnyError: true,
       }
     )
-  /* c8 ignore stop */
+  
 );
 
 // ── Admin Web UI API Endpoints ─────────────────────────────
@@ -1971,18 +1971,18 @@ app.get('/admin/workflows', authenticateJWT, (req, res) => {
 app.get('/admin/approvals', authenticateJWT, async (req, res) => {
   try {
     const approvals = await listApprovals(req.identity, { includeResolved: req.query.includeResolved === 'true' });
-    /* c8 ignore next */
+    
     return res.json({ approvals, count: approvals.length });
-    /* c8 ignore next */
+    
   } catch (err) {
-    /* c8 ignore start */
+    
     return respondDependencyAwareError(res, err, {
       status: 500,
       code: 'APPROVALS_LOAD_FAILED',
       label: 'Failed to load approvals',
     });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -1993,14 +1993,14 @@ app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req
       note: req.body?.note,
       identity: req.identity,
     });
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'APPROVAL_DECIDED',
       detail: { approvalId: approval.id, decision: approval.status, by: req.identity.userId },
     });
     return res.json({ approval });
-    /* c8 ignore stop */
+    
   } catch (err) {
     return respondDependencyAwareError(
       res,
@@ -2015,7 +2015,7 @@ app.post('/admin/approvals/:id', authenticateJWT, requireAdminStepUp, async (req
 app.get('/admin/projects', authenticateJWT, async (req, res) => {
   try {
     return res.json({ projects: await listProjects(req.identity) });
-    /* c8 ignore start */
+    
   } catch (err) {
     return respondDependencyAwareError(res, err, {
       status: 500,
@@ -2023,21 +2023,21 @@ app.get('/admin/projects', authenticateJWT, async (req, res) => {
       label: 'Failed to load projects',
     });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/projects', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const project = await createProject(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'PROJECT_CREATED',
       detail: { projectId: project.id, name: project.name, by: req.identity.userId },
     });
     return res.status(201).json({ project });
-    /* c8 ignore stop */
+    
   } catch (err) {
     return respondDependencyAwareError(
       res,
@@ -2051,7 +2051,7 @@ app.post('/admin/projects', authenticateJWT, requireAdminStepUp, async (req, res
 
 app.get('/me/ssh-access', authenticateJWT, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     return res.json(await getMySshAccess(req.identity, { projectId: req.query.projectId }));
   } catch (err) {
     return res.status(400).json({ error: err.message });
@@ -2060,16 +2060,16 @@ app.get('/me/ssh-access', authenticateJWT, async (req, res) => {
 
 app.put('/me/ssh-access', authenticateJWT, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const result = await setMySshAccess(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_SELF_PREFERENCE_UPDATED',
       detail: { scope: result.scope, enabled: result.sshEnabled, by: req.identity.userId },
     });
     return res.json(result);
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
@@ -2079,23 +2079,23 @@ app.get('/admin/ssh-access', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listSshAccessPolicies(req.identity));
   } catch (err) {
-    /* c8 ignore next */
+    
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
 });
 
 app.put('/admin/ssh-access', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const result = await adminSetSshAccess(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_POLICY_UPDATED',
       detail: { targetType: result.targetType, targetId: result.targetId, by: req.identity.userId },
     });
     return res.json(result);
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2103,16 +2103,16 @@ app.put('/admin/ssh-access', authenticateJWT, requireAdminStepUp, async (req, re
 
 app.post('/admin/ssh-hosts', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const result = await createSshHost(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_HOST_REGISTERED',
       detail: { hostId: result.host.id, by: req.identity.userId },
     });
     return res.status(201).json(result);
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2120,16 +2120,16 @@ app.post('/admin/ssh-hosts', authenticateJWT, requireAdminStepUp, async (req, re
 
 app.post('/admin/ssh-connections', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const result = await createSshConnection(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'SSH_CONNECTION_REGISTERED',
       detail: { connectionId: result.connection.id, hostId: result.connection.hostId, by: req.identity.userId },
     });
     return res.status(201).json(result);
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2138,14 +2138,14 @@ app.post('/admin/ssh-connections', authenticateJWT, requireAdminStepUp, async (r
 app.put('/admin/projects/:id/transport', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
     const result = await setProjectTransport({ ...req.body, projectId: req.params.id }, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'PROJECT_TRANSPORT_UPDATED',
       detail: { projectId: result.project.id, transportKind: result.project.transportKind, by: req.identity.userId },
     });
     return res.json(result);
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2154,25 +2154,25 @@ app.put('/admin/projects/:id/transport', authenticateJWT, requireAdminStepUp, as
 app.get('/admin/organizations', authenticateJWT, async (req, res) => {
   try {
     return res.json(await listOrganizations(req.identity));
-    /* c8 ignore start */
+    
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/organizations', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const organization = await createOrganization(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'ORGANIZATION_CREATED',
       detail: { organizationId: organization.id, by: req.identity.userId },
     });
     return res.status(201).json({ organization });
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2180,16 +2180,16 @@ app.post('/admin/organizations', authenticateJWT, requireAdminStepUp, async (req
 
 app.post('/admin/teams', authenticateJWT, requireAdminStepUp, async (req, res) => {
   try {
-    /* c8 ignore next */
+    
     const team = await createTeam(req.body || {}, req.identity);
-    /* c8 ignore start */
+    
     logSecurityEvent({
       ip: req.clientIP,
       event: 'TEAM_CREATED',
       detail: { teamId: team.id, organizationId: team.organizationId, by: req.identity.userId },
     });
     return res.status(201).json({ team });
-    /* c8 ignore stop */
+    
   } catch (err) {
     return res.status(err.message.includes('Only administrators') ? 403 : 400).json({ error: err.message });
   }
@@ -2202,31 +2202,31 @@ app.get('/admin/os-users', authenticateJWT, async (req, res) => {
   try {
     const { listUsers } = await import('./tools/users.js');
     const result = await listUsers({ includeSystem: false }, req.identity);
-    /* c8 ignore start */
+    
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.get('/admin/logs', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
   }
-  /* c8 ignore next */
+  
   const limit = Math.min(parseInt(req.query.limit || '200', 10), 1000);
-  /* c8 ignore next */
+  
   const logDir = process.env.AUDIT_LOG_DIR || path.join(import.meta.dirname, 'logs');
   try {
     const files = (await fsPromises.readdir(logDir))
       .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
       .sort()
       .reverse();
-    /* c8 ignore next */
+    
     if (files.length === 0) return res.json({ logs: [] });
     const content = await fsPromises.readFile(path.join(logDir, files[0]), 'utf8');
-    /* c8 ignore start */
+    
     const lines = content.trim().split('\n').filter(Boolean).reverse().slice(0, limit);
     const logs = lines.map(line => {
       try {
@@ -2239,7 +2239,7 @@ app.get('/admin/logs', authenticateJWT, async (req, res) => {
   } catch (e) {
     return res.json({ logs: [], error: e.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
@@ -2254,13 +2254,13 @@ app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
   });
   res.write('data: {"type":"connected"}\n\n');
 
-  /* c8 ignore next */
+  
   const logDir = process.env.AUDIT_LOG_DIR || path.join(import.meta.dirname, 'logs');
   let lastSize = 0;
   let currentFile = null;
 
-  const pollInterval = setInterval(async () => {
-    /* c8 ignore start */
+  const pollInterval = process.env.TEST_NO_LISTEN !== 'true' ? setInterval(async () => {
+    
     try {
       const files = (await fsPromises.readdir(logDir))
         .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
@@ -2290,11 +2290,11 @@ app.get('/admin/logs/stream', authenticateJWT, (req, res) => {
         lastSize = stat.size;
       }
     } catch {}
-    /* c8 ignore stop */
-  }, 2000);
+    
+  }, 2000) : null;
 
   req.on('close', () => {
-    /* c8 ignore next */
+    
     clearInterval(pollInterval);
   });
 });
@@ -2308,7 +2308,7 @@ app.delete('/admin/sessions/:id', authenticateJWT, requireAdminStepUp, (req, res
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
-  /* c8 ignore start */
+  
   try {
     if (session.mcpServer) session.mcpServer.close().catch(() => {});
     monitor.unsubscribeAll(sessionId);
@@ -2322,7 +2322,7 @@ app.delete('/admin/sessions/:id', authenticateJWT, requireAdminStepUp, (req, res
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.delete(
@@ -2336,7 +2336,7 @@ app.delete(
   ],
   authenticateJWT,
   async (req, res) => {
-    /* c8 ignore start */
+    
     if (req.identity.role !== 'admin') {
       return res.status(403).json({ error: 'Admin role required' });
     }
@@ -2360,7 +2360,7 @@ app.delete(
     });
     return res.json({ success: true, disconnected: count });
   }
-  /* c8 ignore stop */
+  
 );
 
 app.get('/admin/backups', authenticateJWT, async (req, res) => {
@@ -2368,11 +2368,11 @@ app.get('/admin/backups', authenticateJWT, async (req, res) => {
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { configId } = req.query;
-  /* c8 ignore next */
+  
   if (!configId) return res.status(400).json({ error: 'configId query param required' });
   try {
     const result = await listConfigBackups({ configId }, req.identity);
-    /* c8 ignore next */
+    
     return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -2384,11 +2384,11 @@ app.post('/admin/backups/restore', authenticateJWT, requireAdminStepUp, async (r
     return res.status(403).json({ error: 'Admin role required' });
   }
   const { configId, timestamp, confirm } = req.body;
-  /* c8 ignore next */
+  
   if (!confirm) return res.status(400).json({ error: 'confirm: true required' });
   try {
     const result = await restoreConfig({ configId, timestamp }, req.identity);
-    /* c8 ignore next */
+    
     return res.json(result);
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -2398,12 +2398,12 @@ app.post('/admin/backups/restore', authenticateJWT, requireAdminStepUp, async (r
 // ── OAuth Metadata (RFC 9728) ──────────────────────────────
 
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
-  /* c8 ignore next */
+  
   const resource = process.env.OAUTH_RESOURCE_URL || `${req.protocol}://${req.get('host')}`;
   const authorizationServer = process.env.AUTHELIA_ISSUER;
   res.json({
     resource,
-    /* c8 ignore next */
+    
     ...(authorizationServer ? { authorization_servers: [authorizationServer] } : {}),
     // Authelia advertises offline_access and refresh_token support. Include it
     // here so cloud MCP clients such as ChatGPT can request a renewable grant
@@ -2416,7 +2416,7 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 
 // ── OAuth User Management ──────────────────────────────────
 
-/* c8 ignore start */
+
 function safeJsonDependencyFallback(res, reader, operationName, fallbackData = null, options = {}) {
   const { fallbackOnAnyError = false } = options;
   const isDependencyLikeError = error => {
@@ -2459,7 +2459,7 @@ function safeJsonDependencyFallback(res, reader, operationName, fallbackData = n
     });
   }
 }
-/* c8 ignore stop */
+
 
 app.get(
   [
@@ -2474,14 +2474,14 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    /* c8 ignore start */
+    
     readAdminCollectionFallback(req, res, () => listOAuthUsersFromState(), {
       pathHint: '/admin/oauth-users',
       fallbackData: [],
       code: 'OAUTH_USERS_LIST_FAILED',
       label: 'OAuth users list',
     })
-  /* c8 ignore stop */
+  
 );
 
 app.post(
@@ -2493,13 +2493,13 @@ app.post(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       const user = await addOAuthUser(sanitizeOAuthUserPayload(req.body));
-      /* c8 ignore start */
+      
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_CREATED', detail: { username: req.body.username } });
       res.json(user);
-      /* c8 ignore stop */
-      /* c8 ignore next */
+      
+      
     } catch (e) {
-      /* c8 ignore start */
+      
       respondDependencyAwareError(
         res,
         e,
@@ -2508,7 +2508,7 @@ app.post(
           : { status: 400, code: 'OAUTH_USER_CREATE_FAILED', label: 'Failed to create OAuth user' }
       );
     }
-    /* c8 ignore stop */
+    
   }
 );
 
@@ -2520,20 +2520,20 @@ app.put(
   async (req, res) => {
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
-      /* c8 ignore next */
+      
       const { username: bodyUsername, ...updates } = req.body || {};
       if (bodyUsername && bodyUsername !== req.params.username)
-        /* c8 ignore next */
+        
         return res.status(400).json({ error: 'OAuth username cannot be changed by an update' });
       await updateOAuthUser(req.params.username, sanitizeOAuthUserPayload(updates));
-      /* c8 ignore start */
+      
       await invalidateOAuthSessions(req.params.username);
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_UPDATED', detail: { username: req.params.username } });
       res.json({ success: true });
-      /* c8 ignore stop */
-      /* c8 ignore next */
+      
+      
     } catch (e) {
-      /* c8 ignore start */
+      
       respondDependencyAwareError(
         res,
         e,
@@ -2544,7 +2544,7 @@ app.put(
             : { status: 400, code: 'OAUTH_USER_UPDATE_FAILED', label: 'Failed to update OAuth user' }
       );
     }
-    /* c8 ignore stop */
+    
   }
 );
 
@@ -2557,7 +2557,7 @@ app.delete(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       await deleteOAuthUser(req.params.username);
-      /* c8 ignore start */
+      
       await invalidateOAuthSessions(req.params.username);
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_USER_DELETED', detail: { username: req.params.username } });
       res.json({ success: true });
@@ -2570,7 +2570,7 @@ app.delete(
           : { status: 400, code: 'OAUTH_USER_DELETE_FAILED', label: 'Failed to delete OAuth user' }
       );
     }
-    /* c8 ignore stop */
+    
   }
 );
 
@@ -2589,14 +2589,14 @@ app.get(
   ],
   authenticateJWT,
   (req, res) =>
-    /* c8 ignore start */
+    
     readAdminCollectionFallback(req, res, () => listOAuthClientsFromState(), {
       pathHint: '/admin/oauth-clients',
       fallbackData: [],
       code: 'OAUTH_CLIENTS_LIST_FAILED',
       label: 'OAuth clients list',
     })
-  /* c8 ignore stop */
+  
 );
 
 app.post(
@@ -2608,7 +2608,7 @@ app.post(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       const client = await addOAuthClient(req.body);
-      /* c8 ignore start */
+      
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_CREATED', detail: { clientId: req.body.clientId } });
       res.json(client);
     } catch (e) {
@@ -2618,7 +2618,7 @@ app.post(
         label: 'Failed to create OAuth client',
       });
     }
-    /* c8 ignore stop */
+    
   }
 );
 
@@ -2631,7 +2631,7 @@ app.delete(
     if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
     try {
       await deleteOAuthClient(req.params.clientId);
-      /* c8 ignore start */
+      
       logSecurityEvent({ ip: req.clientIP, event: 'OAUTH_CLIENT_DELETED', detail: { clientId: req.params.clientId } });
       res.json({ success: true });
     } catch (e) {
@@ -2641,7 +2641,7 @@ app.delete(
         label: 'Failed to delete OAuth client',
       });
     }
-    /* c8 ignore stop */
+    
   }
 );
 
@@ -2650,18 +2650,18 @@ app.delete(
 // OAuth client as soon as the callback completes.
 app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  /* c8 ignore next */
+  
   const issuer = (process.env.AUTHELIA_ISSUER || '').replace(/\/$/, '');
   const resource =
-    /* c8 ignore next */
+    
     (
       process.env.OAUTH_RESOURCE_URL ||
-      /* c8 ignore next */
+      
       process.env.PUBLIC_URL ||
-      /* c8 ignore next */
+      
       `${req.protocol}://${req.get('host')}`
     ).replace(/\/$/, '');
-  /* c8 ignore next */
+  
   if (!issuer) return res.status(400).json({ error: 'Authelia issuer is not configured' });
   const state = randomUUID();
   const codeVerifier = Buffer.from(`${randomUUID()}${randomUUID()}`).toString('base64url');
@@ -2674,7 +2674,7 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, a
       clientName: 'Temporary MCP OAuth diagnostic',
       redirectUris: [redirectUri],
     });
-    /* c8 ignore start */
+    
     const expiresAt = Date.now() + 10 * 60 * 1000;
     oauthDiagnostics.set(state, {
       clientId: client.client_id,
@@ -2712,31 +2712,31 @@ app.post('/admin/oauth-diagnostic/start', authenticateJWT, requireAdminStepUp, a
     if (isBrokerUnavailable(error)) return respondServiceDependencyUnavailable(res, error);
     res.status(400).json({ error: error.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.get('/oauth-diagnostic/callback', async (req, res) => {
-  /* c8 ignore next */
+  
   const state = typeof req.query.state === 'string' ? req.query.state : '';
-  /* c8 ignore next */
+  
   const code = typeof req.query.code === 'string' ? req.query.code : '';
   const diagnostic = oauthDiagnostics.get(state);
   oauthDiagnostics.delete(state);
   const render = (title, message, passed = false) =>
     res
-      /* c8 ignore next */
+      
       .status(passed ? 200 : 400)
       .type('html')
       .send(
         `<!doctype html><meta charset="utf-8"><title>${title}</title><main style="font:16px system-ui;max-width:640px;margin:4rem auto;padding:2rem"><h1>${title}</h1><p>${message}</p><p>You may close this window.</p></main>`
       );
-  /* c8 ignore next */
+  
   if (!diagnostic || diagnostic.expiresAt < Date.now() || !code)
     return render(
       'OAuth diagnostic failed',
       'The test expired or no authorization code was returned. Start a new test from the OAuth screen.'
     );
-  /* c8 ignore start */
+  
   try {
     const tokenResponse = await fetch(`${process.env.AUTHELIA_ISSUER.replace(/\/$/, '')}/api/oidc/token`, {
       method: 'POST',
@@ -2753,11 +2753,11 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
       }),
     });
     const tokenBody = await tokenResponse.json().catch(() => ({}));
-    /* c8 ignore stop */
+    
     if (!tokenResponse.ok || typeof tokenBody.access_token !== 'string')
-      /* c8 ignore next */
+      
       throw new Error(
-        /* c8 ignore start */
+        
         `Token exchange failed (${tokenResponse.status}${tokenBody.error ? `: ${tokenBody.error}` : ''})`
       );
     if (typeof tokenBody.refresh_token !== 'string')
@@ -2822,7 +2822,7 @@ app.get('/oauth-diagnostic/callback', async (req, res) => {
       logError({ ip: req.clientIP, userId: 'system', tool: 'OAUTH_DIAGNOSTIC_CLEANUP', error })
     );
   }
-  /* c8 ignore stop */
+  
 });
 
 // ── Authelia Health & Control ──────────────────────────────
@@ -2831,13 +2831,13 @@ app.get('/admin/oauth-health', authenticateJWT, async (req, res) => {
   if (req.identity.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   try {
     const health = await getAutheliaHealth();
-    /* c8 ignore start */
+    
     res.json(health);
   } catch (e) {
     if (isBrokerUnavailable(e)) return respondServiceDependencyUnavailable(res, e);
     res.status(500).json({ error: e.message });
   }
-  /* c8 ignore stop */
+  
 });
 
 app.post('/admin/oauth-restart', authenticateJWT, requireAdminStepUp, async (req, res) => {
@@ -2850,7 +2850,7 @@ app.post('/admin/oauth-restart', authenticateJWT, requireAdminStepUp, async (req
 // MCP SSE endpoint. A session is created by a GET request to /mcp;
 // subsequent POST requests to /mcp/message must present the session id.
 app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (req, res) => {
-  /* c8 ignore start */
+  
   const sessionId = req.headers['mcp-session-id'] || req.headers['x-session-id'] || req.query.sessionId;
   let session = activeTransports.get(sessionId);
 
@@ -3044,10 +3044,10 @@ app.all(['/mcp', '/mcp/message'], authenticateJWT, authenticatedLimiter, async (
     session.inFlight = false;
     session.lastActivity = Date.now();
   }
-  /* c8 ignore stop */
+  
 });
 
-/* c8 ignore start */
+
 function sendAdminSpaFallback(req, res, next) {
   if (req.method !== 'GET') return next();
 
@@ -3059,7 +3059,7 @@ function sendAdminSpaFallback(req, res, next) {
 
   return res.sendFile(path.join(import.meta.dirname, 'public', 'index.html'));
 }
-/* c8 ignore stop */
+
 
 app.get(['/admin', '/admin/*'], sendAdminSpaFallback);
 
@@ -3068,7 +3068,7 @@ app.get(['/admin', '/admin/*'], sendAdminSpaFallback);
 // deployment. These endpoints are intentionally dependency-safe and should never
 // be 404-fatal for the dashboard; instead, return a local fallback shape.
 app.use((req, res, next) => {
-  /* c8 ignore start */
+  
   if (req.method !== 'GET') return next();
 
   const fallback = adminDependencyFallbackResponse(req.path);
@@ -3084,13 +3084,13 @@ app.use((req, res, next) => {
   if (!hasAuthHeader) return next();
 
   return res.status(fallback.status).json(fallback.body);
-  /* c8 ignore stop */
+  
 });
 
 // ── Centralized Error Handler ──────────────────────────────
 
 app.use((err, req, res, next) => {
-  /* c8 ignore start */
+  
   const errorId = randomUUID();
   logError({
     ip: req.clientIP || 'unknown',
@@ -3109,7 +3109,7 @@ app.use((err, req, res, next) => {
   if (!res.headersSent) {
     res.status(err.status || 500).json({ error: `Internal Server Error (ID: ${errorId})` });
   }
-  /* c8 ignore stop */
+  
 });
 
 // ── MCP Server Factory ─────────────────────────────────────
@@ -3118,14 +3118,14 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
   const server = new McpServer({
     name: 'server-control',
     version:
-      /* c8 ignore next */
+      
       process.env.npm_package_version ||
       JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8')).version,
   });
 
-  /* c8 ignore next */
+  
   server.onerror = err => {
-    /* c8 ignore next */
+    
     logError({ ip, userId: identity.userId, tool: 'MCP_SERVER_ERROR', error: err });
   };
 
@@ -3134,7 +3134,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'mcp-sentinel://alerts/current',
     { title: 'Current MCP Sentinel alerts', description: 'Alert subscriptions for this exact MCP session' },
     async uri => ({
-      /* c8 ignore start */
+      
       contents: [
         {
           uri: uri.href,
@@ -3146,7 +3146,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         },
       ],
     })
-    /* c8 ignore stop */
+    
   );
 
   // ── Helper: wrap tool calls with audit logging ───────────
@@ -3165,18 +3165,18 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     forceReplay: z.boolean().optional().describe('Force re-execution even when resumeFromPassed has a cached success.'),
   });
   const normalizeFlowArgs = args => {
-    /* c8 ignore start */
+    
     if (!args || typeof args !== 'object' || Array.isArray(args)) return args;
     const { flowId, resumeFromPassed, forceReplay, flowStep, ...rest } = args;
     return rest;
-    /* c8 ignore stop */
+    
   };
 
   function tool(name, description, schema, handler, resultSchema = null) {
     // Tools outside the authenticated identity's scope are never advertised.
     // Invocation checks below remain as defense in depth for stale sessions.
     if (!scopeAllows(identity.scopes || [], name)) return;
-    /* c8 ignore start */
+    
     const readOnlyTools = new Set([
       'get_system_info',
       'get_processes',
@@ -3269,9 +3269,9 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       return null;
     };
 
-    /* c8 ignore stop */
+    
     const fullDescription = `${description}${isDeprecatedTool(name) ? ' Deprecated: retained for compatibility through the next minor release.' : ''}`;
-    /* c8 ignore next */
+    
     const resolvedSchema = schema instanceof z.ZodObject ? schema.extend(FLOW_CONTROL_SCHEMA.shape) : schema;
     const inputJsonSchema = zodToJsonSchema(z.object(resolvedSchema), { target: 'openApi3', $refStrategy: 'none' });
     const errorResultSchema = z
@@ -3299,7 +3299,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         annotations,
       },
       async args => {
-        /* c8 ignore start */
+        
         const start = Date.now();
         const normalizedArgs = normalizeFlowArgs(args);
         const providedFlowId = typeof args?.flowId === 'string' ? args.flowId.trim() : '';
@@ -3556,7 +3556,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
           };
         }
       }
-      /* c8 ignore stop */
+      
     );
     registrations.push({
       name,
@@ -4098,10 +4098,10 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'List safe, plain-language workflows for server care and developer work.',
     {},
     async () => {
-      /* c8 ignore start */
+      
       return { workflows: getWorkflowCatalog() };
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4109,12 +4109,12 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'Review the server security posture in plain language. This read-only tool reports TLS, access controls, approvals, and policy configuration.',
     {},
     async (_, toolIdentity) => {
-      /* c8 ignore start */
+      
       if (toolIdentity.role !== 'admin' && toolIdentity.role !== 'auditor')
         throw new Error('Security posture requires an administrator or auditor role');
       return buildSecurityPosture();
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4127,7 +4127,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       risk: z.enum(['medium', 'high', 'critical']).optional().describe('Impact level for the reviewer'),
     },
     async ({ tool: requestedTool, arguments: requestedArgs, summary, risk }, toolIdentity) => {
-      /* c8 ignore start */
+      
       if (requestedTool === 'request_change_approval' || requestedTool === 'list_guided_workflows') {
         throw new Error('Approval requests must target an operational tool');
       }
@@ -4146,7 +4146,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
           : 'An identical approval request is already pending.',
       };
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4154,10 +4154,10 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
     'List the software projects this identity is allowed to inspect and deploy.',
     {},
     async (_, toolIdentity) => {
-      /* c8 ignore start */
+      
       return { projects: await listProjects(toolIdentity) };
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4234,11 +4234,11 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       projectId: z.string().uuid().describe('Registered project identifier'),
     },
     async ({ projectId }, toolIdentity) => {
-      /* c8 ignore start */
+      
       const project = await getProject(projectId, toolIdentity);
       return getDeploymentPlan(project);
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4249,7 +4249,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       confirm: z.literal(true).describe('Must be true to deploy'),
     },
     async ({ projectId }, toolIdentity) => {
-      /* c8 ignore start */
+      
       if (toolIdentity.role !== 'admin') throw new Error('Deploying a project requires an administrator role');
       const project = await getProject(projectId, toolIdentity);
       if (!project.serviceName)
@@ -4282,7 +4282,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
         rollback: 'Use the project’s previous Git revision and restart its registered service if verification fails.',
       };
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4300,7 +4300,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       persistent: z.boolean().optional().describe('Restore this subscription for later sessions of the same identity'),
     },
     async ({ alertType, threshold, cooldownSeconds, persistent }, identity) => {
-      /* c8 ignore start */
+      
       if (!identity.sessionId || !activeTransports.has(identity.sessionId)) throw new Error('Exact session not found');
       const id = monitor.subscribe(
         identity.sessionId,
@@ -4312,7 +4312,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       );
       return { id, alertType, threshold, persistent: persistent === true };
     }
-    /* c8 ignore stop */
+    
   );
 
   tool(
@@ -4322,36 +4322,36 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
       alertId: z.string().max(4096).describe('Alert ID returned from subscribe_to_alert'),
     },
     async ({ alertId }, identity) => {
-      /* c8 ignore start */
+      
       if (!identity.sessionId || !activeTransports.has(identity.sessionId)) throw new Error('Exact session not found');
       monitor.unsubscribe(identity.sessionId, alertOwnerKey(identity), alertId);
       return { alertId, unsubscribed: true };
     }
-    /* c8 ignore stop */
+    
   );
 
   tool('list_active_alerts', 'List alert subscriptions for this exact MCP session.', {}, async (_, identity) => {
-    /* c8 ignore next */
+    
     return { alerts: monitor.getActiveAlerts(identity.sessionId) };
   });
 
   // Disabled packs are absent from tools/list, so an AI cannot casually discover
   // or invoke specialist operations.
   for (const { name, registration } of registrations) {
-    /* c8 ignore start */
+    
     const availability = await toolAvailability(name);
     const policyDecision = await evaluatePolicy({ tool: name, identity }).catch(() => ({ allowed: false }));
     if (!availability.available || !policyDecision.allowed) registration.disable();
   }
-  /* c8 ignore stop */
+  
   const visibleTools = [];
   for (const item of registrations) {
-    /* c8 ignore start */
+    
     const availability = await toolAvailability(item.name);
     const policyDecision = await evaluatePolicy({ tool: item.name, identity }).catch(() => ({ allowed: false }));
     if (availability.available && policyDecision.allowed) visibleTools.push(item.definition);
   }
-  /* c8 ignore stop */
+  
   const manifestBody = JSON.stringify(visibleTools);
   manifestSnapshots.set(manifestIdentityKey(identity), {
     // Increment whenever the public action contract changes. Version 3 adds
@@ -4368,7 +4368,7 @@ async function createMcpServer(identity, ip, flowHint = null, flowStepHint = nul
 
 // ── TLS Setup ─────────────────────────────────────────────
 
-/* c8 ignore start */
+
 function createHttpsServer() {
   const certPath = process.env.TLS_CERT_PATH || path.join(import.meta.dirname, 'certs', 'server.crt');
   const keyPath = process.env.TLS_KEY_PATH || path.join(import.meta.dirname, 'certs', 'server.key');
@@ -4394,38 +4394,38 @@ function createHttpsServer() {
     app
   );
 }
-/* c8 ignore stop */
+
 
 // ── Start Server ───────────────────────────────────────────
 
 function validateConfig() {
-  /* c8 ignore next */
+  
   if (!jwtSecretIsConfigured()) {
-    /* c8 ignore start */
+    
     console.error('FATAL: JWT signing credential must be at least 64 characters and not a placeholder.');
     process.exit(1);
   }
-  /* c8 ignore stop */
-  /* c8 ignore next */
+  
+  
   const adminKey = process.env.ADMIN_API_KEY || '';
   const hasStoredAdmin = listApiKeys().some(key => key.active !== false && key.role === 'admin');
-  /* c8 ignore next */
+  
   if ((!adminKey || adminKey.includes('CHANGE_ME')) && !hasStoredAdmin) {
-    /* c8 ignore start */
+    
     console.error('FATAL: configure an ADMIN_API_KEY bootstrap credential or retain an active stored admin key.');
     process.exit(1);
   }
-  /* c8 ignore stop */
-  /* c8 ignore next */
+  
+  
   const port = parseInt(process.env.PORT || '4444', 10);
-  /* c8 ignore next */
+  
   if (isNaN(port) || port < 1 || port > 65535) {
-    /* c8 ignore start */
+    
     console.error('FATAL: PORT must be a valid integer between 1 and 65535.');
     process.exit(1);
   }
-  /* c8 ignore stop */
-  /* c8 ignore next */
+  
+  
   const jwtExpiry = process.env.JWT_EXPIRY || '8h';
   const expiryMatch = jwtExpiry.match(/^(\d+)([hmd])$/);
   if (expiryMatch) {
@@ -4433,42 +4433,42 @@ function validateConfig() {
     const unit = expiryMatch[2];
     const maxHours = 24;
     let hours = val;
-    /* c8 ignore next */
+    
     if (unit === 'd') hours = val * 24;
-    /* c8 ignore next */
+    
     if (unit === 'm') hours = val / 60;
-    /* c8 ignore next */
+    
     if (hours > maxHours) {
-      /* c8 ignore start */
+      
       console.error('FATAL: JWT_EXPIRY cannot exceed 24 hours.');
       process.exit(1);
     }
-    /* c8 ignore stop */
-    /* c8 ignore next */
+    
+    
   } else {
-    /* c8 ignore start */
+    
     console.error('FATAL: Invalid JWT_EXPIRY format. Use formats like 8h, 30m.');
     process.exit(1);
   }
-  /* c8 ignore stop */
-  /* c8 ignore next */
+  
+  
   const rlMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60', 10);
-  /* c8 ignore next */
+  
   const rlWindow = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
-  /* c8 ignore next */
+  
   if (isNaN(rlMax) || rlMax <= 0 || isNaN(rlWindow) || rlWindow <= 0) {
-    /* c8 ignore start */
+    
     console.error('FATAL: Rate limit values must be positive integers.');
     process.exit(1);
   }
-  /* c8 ignore stop */
-  /* c8 ignore next */
+  
+  
   if (process.env.NODE_ENV === 'production' && !(process.env.ALLOWED_ORIGINS || '').trim()) {
-    /* c8 ignore start */
+    
     console.error('FATAL: ALLOWED_ORIGINS must list explicit dashboard origins in production.');
     process.exit(1);
   }
-  /* c8 ignore stop */
+  
 }
 
 validateConfig();
@@ -4477,9 +4477,9 @@ let acmeManager = null;
 let server;
 
 async function startServer() {
-  /* c8 ignore next */
+  
   if (USE_HTTPS && process.env.ACME_DOMAIN && process.env.ACME_EMAIL) {
-    /* c8 ignore start */
+    
     console.log(`[ACME] Initializing Let's Encrypt for ${process.env.ACME_DOMAIN}...`);
     acmeManager = new AcmeManager(process.env.ACME_DOMAIN, process.env.ACME_EMAIL);
     await acmeManager.init();
@@ -4495,7 +4495,7 @@ async function startServer() {
       res.redirect(`https://${process.env.ACME_DOMAIN}${req.url}`);
     });
 
-    http.createServer(acmeApp).listen(acmePort, HOST, () => {
+    if (process.env.TEST_NO_LISTEN !== 'true') if (process.env.TEST_NO_LISTEN !== 'true') http.createServer(acmeApp).listen(acmePort, HOST, () => {
       console.log(`[ACME] Challenge server listening on port ${acmePort}`);
     });
 
@@ -4504,7 +4504,7 @@ async function startServer() {
       process.env.TLS_CERT_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.crt');
       process.env.TLS_KEY_PATH = path.join(process.cwd(), 'certs', 'acme', 'server.key');
 
-      setInterval(async () => {
+      if (process.env.TEST_NO_LISTEN !== 'true') setInterval(async () => {
         try {
           await acmeManager.checkAndRenew();
           if (server && typeof server.setSecureContext === 'function') {
@@ -4523,18 +4523,17 @@ async function startServer() {
       console.error('[ACME] Provisioning failed, falling back to self-signed certs:', err);
     }
   }
-  /* c8 ignore stop */
+  
 
-  /* c8 ignore next */
+  
   server = USE_HTTPS ? createHttpsServer() : http.createServer(app);
-
-  server.listen(PORT, HOST, () => {
-    /* c8 ignore next */
+if (process.env.TEST_NO_LISTEN !== 'true') server.listen(PORT, HOST, () => {
+    
     const protocol = USE_HTTPS ? 'https' : 'http';
     logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
 
     const currentVersion =
-      /* c8 ignore next */
+      
       process.env.npm_package_version ||
       JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8')).version;
 
@@ -4556,7 +4555,7 @@ async function startServer() {
 
   // Start the background monitor
   monitor.start((sessionId, notification) => {
-    /* c8 ignore start */
+    
     const session = activeTransports.get(sessionId);
     if (session && session.mcpServer && typeof session.mcpServer.server.notification === 'function') {
       try {
@@ -4565,22 +4564,22 @@ async function startServer() {
         console.error('[Monitor] Failed to send notification', e);
       }
     }
-    /* c8 ignore stop */
+    
   });
 }
 
 startServer().catch(err => {
-  /* c8 ignore start */
+  
   console.error('Failed to start server:', err);
   process.exit(1);
-  /* c8 ignore stop */
+  
 });
 
 // ── Graceful Shutdown ──────────────────────────────────────
 
 const MAX_SSE_CONNECTIONS = parseInt(process.env.MAX_SSE_CONNECTIONS || '100');
 
-/* c8 ignore start */
+
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutting down gracefully...`);
   // Close all active SSE connections
@@ -4607,18 +4606,48 @@ function gracefulShutdown(signal) {
   }
   setTimeout(() => process.exit(1), 10000);
 }
-/* c8 ignore stop */
+
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('uncaughtException', err => {
-  /* c8 ignore start */
+  
   logError({ tool: 'UNCAUGHT_EXCEPTION', error: err });
   console.error('Uncaught exception:', err);
   process.exit(1);
-  /* c8 ignore stop */
+  
 });
 process.on('unhandledRejection', reason => {
-  /* c8 ignore next */
+  
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });
 });
+export const __TEST_EXPORTS__ = {
+  ensurePrivilegeBrokerAvailable,
+  isBrokerUnavailable,
+  respondServiceDependencyUnavailable,
+  respondDependencyAwareError,
+  isStateStoreUnavailable,
+  isRecoverableDependencyError,
+  extractDependencyErrorText,
+  isDependencyText,
+  isDependencyError,
+  isOAuthDependencyError,
+  safeLogError,
+  sanitizeClientOverrides,
+  sanitizeOAuthUserPayload,
+  normalizeAdminReadPath,
+  adminDependencyFallbackResponse,
+  isBrokerUnavailableError,
+  respondBrokerUnavailable,
+  respondStateUnavailable,
+  summarizeHealth,
+  adminReadFallbackHandler,
+  readAdminCollectionFallback,
+  buildSecurityPosture,
+  alertOwnerKey,
+  invalidateOAuthSessions,
+  manifestIdentityKey,
+  refreshActiveToolLists,
+  makeSessionRoom,
+  requireAdminStepUp
+};

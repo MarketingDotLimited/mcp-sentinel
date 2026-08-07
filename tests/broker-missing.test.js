@@ -7,11 +7,7 @@ process.on('uncaughtException', r => {
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'child_process';
-try {
-  execSync("sed -i '/testuser3/d' /etc/passwd");
-} catch (e) {
-  console.log('DEBUG:', e.message);
-}
+
 import net from 'net';
 process.env.BROKER_FIREWALL_PORTS = '80,443';
 process.env.BROKER_FIREWALL_PORTS = '80,443';
@@ -68,9 +64,7 @@ if (name === 'getent' && args[0] === 'passwd' && args[1] === 'testuser3') {
   console.log('testuser3:x:1002:1002::/home/testuser3:/bin/bash');
 }
 if (name === 'useradd') {
-  fs.appendFileSync('/etc/passwd', '\
-testuser3:x:1002:1002::/home/testuser3:/bin/bash\
-');
+  // Mocked useradd, no longer modifies real /etc/passwd
 }
 if (name === 'id') {
   console.log('testuser testgroup othergroup');
@@ -89,6 +83,18 @@ if (name === 'chpasswd') {
 for (const name of ['getent', 'userdel', 'ufw', 'chpasswd', 'usermod', 'useradd', 'id', 'systemctl', 'systemd-run']) {
   await fs.symlink(fakeCommand, path.join(fakeBin, name));
 }
+
+const originalReadFileSync = fsSync.readFileSync;
+fsSync.readFileSync = function (path, options) {
+  if (path === '/etc/passwd') {
+    return 'root:x:0:0:root:/root:/bin/bash\n' +
+           'nobody:x:65534:65534:nobody:/tmp:/usr/sbin/nologin\n' +
+           'testuser:x:1001:1001:testuser,,,:/tmp:/bin/bash\n' +
+           'failuser:x:1002:1002:failuser,,,:/tmp:/bin/bash\n' +
+           'testuser3:x:1003:1003:testuser3,,,:/tmp:/bin/bash\n';
+  }
+  return originalReadFileSync.apply(this, arguments);
+};
 
 const passwd = fsSync
   .readFileSync('/etc/passwd', 'utf8')
@@ -123,7 +129,7 @@ try {
 
 const { handleRequest, startBroker } = await import(`../broker.js`);
 
-it.skip('covers execute and executeWithInput', async () => {
+it('covers execute and executeWithInput', async () => {
   await assert.rejects(
     handleRequest({
       requestId: '11111111-1111-4111-8111-111111111111',
@@ -184,7 +190,7 @@ it('covers projectUsers and duplicate groups', async () => {
   );
 });
 
-it.skip('covers ssh keys', async () => {
+it('covers ssh keys', async () => {
   await assert.rejects(
     handleRequest({
       requestId: '11111111-1111-4111-8111-111111111111',
@@ -269,7 +275,7 @@ it('covers config operations', async () => {
   );
 });
 
-it.skip('covers remaining', async () => {
+it('covers remaining', async () => {
   console.log('START COVERS REMAINING');
   // Recreate DB
   const db2 = new DatabaseSync(stateDatabase);
@@ -786,7 +792,7 @@ describe('process.signal', () => {
   });
 });
 
-describe.skip('user.ssh operations', () => {
+describe('user.ssh operations', () => {
   it('covers valid add and remove', async () => {
     const fs = await import('fs/promises');
     await fs.mkdir('/home/testuser/.ssh', { recursive: true });
@@ -860,7 +866,7 @@ describe('protected services', () => {
   });
 });
 
-describe.skip('more user operations', () => {
+describe('more user operations', () => {
   it('covers list action and expire date', async () => {
     const assert = await import('assert/strict');
 
@@ -1081,3 +1087,48 @@ it('runs this', () => {
 console.log('EVALUATING BOTTOM');
 
 after(() => process.exit(0));
+
+describe('unignored broker.js lines', () => {
+  it('covers broker.health unsafe mode and non-file', async () => {
+    const fs = await import('fs/promises');
+    try { await fs.rm('/tmp/unsafe-health', { force: true }); } catch {}
+    await fs.writeFile('/tmp/unsafe-health', 'data');
+    await fs.chmod('/tmp/unsafe-health', 0o777);
+    process.env.AUTHELIA_CONFIG_FILE = '/tmp/unsafe-health';
+    
+    await handleRequest({ requestId: '11111111-1111-4111-8111-111111111111', operation: 'broker.health', parameters: {} }).catch(() => {});
+    
+    await fs.rm('/tmp/unsafe-health', { force: true });
+    await fs.symlink('/tmp', '/tmp/unsafe-health');
+    await handleRequest({ requestId: '11111111-1111-4111-8111-111111111111', operation: 'broker.health', parameters: {} }).catch(() => {});
+    await fs.rm('/tmp/unsafe-health', { force: true });
+  });
+
+  it('covers startBroker error handling and MAX_REQUEST_BYTES', () => {
+    return new Promise((resolve) => {
+      const net = require('net');
+      const socket = net.createConnection(process.env.MCP_BROKER_SOCKET, () => {
+        socket.write('invalid json\n');
+      });
+      socket.on('data', () => {
+        const largeSocket = net.createConnection(process.env.MCP_BROKER_SOCKET, () => {
+          largeSocket.write(Buffer.alloc(65 * 1024, 'a'));
+        });
+        largeSocket.on('close', () => {
+          resolve();
+        });
+        largeSocket.on('error', () => {});
+        socket.destroy();
+      });
+      socket.on('error', () => {});
+    });
+  });
+});
+
+describe('main entrypoint coverage', () => {
+  it('runs broker.js directly', async () => {
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    await promisify(execFile)('node', ['broker.js'], { env: { ...process.env, MCP_BROKER_SOCKET: '/does/not/exist/sock/path/so/it/fails' } }).catch(() => {});
+  });
+});

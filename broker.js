@@ -734,14 +734,12 @@ const operations = {
       const unsafeProtectedFiles = protectedFiles.filter(file => {
         try {
           const stat = fs.lstatSync(file);
-          /* c8 ignore next */
           return !stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0;
         } catch {
           return true;
         }
       });
       return {
-        /* c8 ignore next 3 */
         healthy:
           migrations.some(item => item.version >= 3) &&
           invalidProjectUsers.length === 0 &&
@@ -1412,7 +1410,6 @@ export function startBroker() {
         try {
           requestId = JSON.parse(request.trim()).requestId || null;
         } catch {
-          /* c8 ignore next */
         }
         response = { requestId, ok: false, error: error.message };
       }
@@ -1420,7 +1417,6 @@ export function startBroker() {
     };
     socket.on('data', chunk => {
       request += chunk;
-      /* c8 ignore next */
       if (Buffer.byteLength(request) > MAX_REQUEST_BYTES) socket.destroy(new Error('Request too large'));
       else if (request.includes('\n')) respond();
     });
@@ -1434,7 +1430,5 @@ export function startBroker() {
   return server;
 }
 
-/* c8 ignore start */
 if (process.argv[1] && fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1]))
   startBroker();
-/* c8 ignore stop */

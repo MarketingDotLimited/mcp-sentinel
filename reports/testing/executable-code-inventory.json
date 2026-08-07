@@ -1,0 +1,121 @@
+{
+  "generatedAt": "2026-08-07T12:12:00Z",
+  "startingCommit": "ff2e4140548eaab51b7fa5a5de395d61f0874afd",
+  "totalProductionFiles": 81,
+  "totalProductionLines": 16247,
+  "categories": {
+    "root": {
+      "files": [
+        {"path": "server.js", "lines": 4625, "exports": ["(main entry point)"], "category": "core"},
+        {"path": "broker.js", "lines": 1441, "exports": ["startBroker"], "category": "core"},
+        {"path": "security.js", "lines": 798, "exports": ["authenticate", "issueToken", "requireScope", "addApiKey", "revokeApiKey", "listApiKeys", "scopeAllows"], "category": "core"},
+        {"path": "audit.js", "lines": 254, "exports": ["logAccess", "logAuth", "logSecurityEvent", "logError", "logServerStart", "shutdownLoggers", "getAuditChainStatus", "sanitizeArgs"], "category": "core"},
+        {"path": "keystore.js", "lines": 179, "exports": ["loadKeystore", "hashKey", "addKeyEntry", "revokeKeyEntry", "getKeyEntry", "getKeys", "updateKeyEntry"], "category": "core"},
+        {"path": "node-gateway.js", "lines": 60, "exports": ["handleGatewayInput"], "category": "core"},
+        {"path": "setup.js", "lines": 198, "exports": [], "category": "utility"},
+        {"path": "keygen.js", "lines": 47, "exports": [], "category": "utility"},
+        {"path": "patch_keys.js", "lines": 154, "exports": [], "category": "patch"},
+        {"path": "patch_oauth.js", "lines": 101, "exports": [], "category": "patch"},
+        {"path": "check-fw.mjs", "lines": 16, "exports": [], "category": "utility"},
+        {"path": "eslint.config.js", "lines": 46, "exports": ["(eslint config)"], "category": "config"}
+      ],
+      "totalLines": 7919
+    },
+    "lib": {
+      "files": [
+        {"path": "lib/control-plane.js", "lines": 1197, "exports": ["getWorkflowCatalog", "listApprovals", "requestApproval", "decideApproval", "consumeApproval", "listProjects", "createProject"]},
+        {"path": "lib/authelia.js", "lines": 660, "exports": ["getOAuthUsers", "addOAuthUser", "updateOAuthUser", "deleteOAuthUser", "getOAuthClients", "addOAuthClient", "deleteOAuthClient"]},
+        {"path": "lib/sqlite-state.js", "lines": 362, "exports": ["openSqliteState", "loadSqliteState", "saveSqliteState", "upsertTaskRun", "loadTaskRun"]},
+        {"path": "lib/ssh-gateway-client.js", "lines": 287, "exports": ["validateSshConnection", "killTree", "runSshProcess", "sshGatewayCall", "clearSshConnectionCache"]},
+        {"path": "lib/job-queue.js", "lines": 270, "exports": ["JobQueue", "getJobQueue"]},
+        {"path": "lib/monitor.js", "lines": 259, "exports": ["monitor"]},
+        {"path": "lib/capabilities.js", "lines": 199, "exports": ["CAPABILITY_PACKS", "isDeprecatedTool", "getCapabilities", "setCapability", "toolAvailability"]},
+        {"path": "lib/tool-result-schemas.js", "lines": 176, "exports": ["toolResultSchema"]},
+        {"path": "lib/telemetry.js", "lines": 170, "exports": ["requestId", "incrementMetric", "observeDuration", "queueSpan", "flushTelemetry", "metricsText"]},
+        {"path": "lib/ssh-policy.js", "lines": 168, "exports": ["evaluateSshPolicy", "scopedSshPolicyId"]},
+        {"path": "lib/webauthn.js", "lines": 160, "exports": ["registrationOptions", "finishRegistration", "authenticationOptions", "finishAuthentication"]},
+        {"path": "lib/state-crypto.js", "lines": 130, "exports": ["encryptStateValue", "decryptStateValue", "encryptSensitiveFields", "decryptSensitiveFields"]},
+        {"path": "lib/broker-client.js", "lines": 124, "exports": ["brokerCall"]},
+        {"path": "lib/deployment.js", "lines": 106, "exports": ["validateReleaseManifest", "validateArchiveEntries", "parseEnvironment"]},
+        {"path": "lib/oauth-mappings-store.js", "lines": 99, "exports": ["readOAuthMappings", "writeOAuthMappings"]},
+        {"path": "lib/key-provider.js", "lines": 98, "exports": ["LocalKeyProvider", "createKeyProvider"]},
+        {"path": "lib/acme.js", "lines": 83, "exports": ["AcmeManager"]},
+        {"path": "lib/policy.js", "lines": 85, "exports": ["evaluatePolicy", "simulatePolicy", "getPolicyStatus"]},
+        {"path": "lib/exec.js", "lines": 50, "exports": ["secureExec"]},
+        {"path": "lib/deployment-profile.js", "lines": 37, "exports": ["validateDeploymentProfile"]},
+        {"path": "lib/admin-state.js", "lines": 34, "exports": ["getAdminState", "setAdminState"]},
+        {"path": "lib/oauth-token-policy.js", "lines": 29, "exports": ["validateOAuthTokenPolicy"]},
+        {"path": "lib/slo.js", "lines": 25, "exports": ["SLO_DEFINITIONS", "getSloDefinitions"]},
+        {"path": "lib/credentials.js", "lines": 23, "exports": ["loadCredentialSecret"]},
+        {"path": "lib/project-operation-dispatcher.js", "lines": 22, "exports": ["createProjectOperationDispatcher", "dispatchProjectOperation"]},
+        {"path": "lib/remote-operation-policy.js", "lines": 21, "exports": ["REMOTE_BROKER_OPERATIONS", "assertRemoteBrokerOperation"]},
+        {"path": "lib/authelia-client.js", "lines": 11, "exports": ["getOAuthUsers", "addOAuthUser", "updateOAuthUser", "deleteOAuthUser"]}
+      ],
+      "totalLines": 4904
+    },
+    "routes": {
+      "files": [
+        {"path": "routes/core.js", "lines": 30, "exports": ["(Express router)"]},
+        {"path": "routes/auth.js", "lines": 23, "exports": ["(Express router)"]}
+      ],
+      "totalLines": 53
+    },
+    "tools": {
+      "files": [
+        {"path": "tools/system.js", "lines": 535, "exports": ["getSystemInfo", "getProcesses", "killProcess", "startProjectTestRun", "cancelProjectTestRun"]},
+        {"path": "tools/docker.js", "lines": 211, "exports": ["runSandboxedCode"]},
+        {"path": "tools/db.js", "lines": 169, "exports": ["executeQuery", "classifyQuery", "boundedRows"]},
+        {"path": "tools/services.js", "lines": 142, "exports": ["manageService", "getServiceStatus", "listServices", "getJournalLogs", "manageFirewall"]},
+        {"path": "tools/users.js", "lines": 104, "exports": ["listUsers", "getUserInfo", "createUser", "deleteUser", "setUserPassword", "modifyUser", "manageSshKeys"]},
+        {"path": "tools/files.js", "lines": 94, "exports": ["readFile", "writeFile", "deleteFile", "listDirectory", "moveFile", "copyFile"]},
+        {"path": "tools/rollback.js", "lines": 32, "exports": ["applyConfig", "listConfigBackups", "restoreConfig"]},
+        {"path": "tools/git.js", "lines": 16, "exports": ["gitOperation"]}
+      ],
+      "totalLines": 1303
+    },
+    "publicJs": {
+      "files": [
+        {"path": "public/js/pages/oauth.js", "lines": 1069},
+        {"path": "public/js/pages/keys.js", "lines": 473},
+        {"path": "public/js/pages/ssh-access.js", "lines": 422},
+        {"path": "public/js/pages/logs.js", "lines": 360},
+        {"path": "public/js/api.js", "lines": 321},
+        {"path": "public/js/pages/connect.js", "lines": 301},
+        {"path": "public/js/pages/rollbacks.js", "lines": 255},
+        {"path": "public/js/pages/dashboard.js", "lines": 237},
+        {"path": "public/js/pages/sessions.js", "lines": 236},
+        {"path": "public/js/app.js", "lines": 228},
+        {"path": "public/js/scope-registry.js", "lines": 174},
+        {"path": "public/js/pages/action-manifest.js", "lines": 115},
+        {"path": "public/js/pages/administration.js", "lines": 98},
+        {"path": "public/js/pages/teams.js", "lines": 84},
+        {"path": "public/js/router.js", "lines": 72},
+        {"path": "public/js/pages/approvals.js", "lines": 72},
+        {"path": "public/js/pages/projects.js", "lines": 68},
+        {"path": "public/js/toast.js", "lines": 65},
+        {"path": "public/js/pages/workflows.js", "lines": 63},
+        {"path": "public/js/auth.js", "lines": 48},
+        {"path": "public/js/pages/security.js", "lines": 39}
+      ],
+      "totalLines": 4400,
+      "coverageStatus": "NOT_MEASURED"
+    },
+    "scripts": {
+      "files": [
+        {"path": "scripts/deploy-release.js", "lines": 466},
+        {"path": "scripts/production-preflight.js", "lines": 323},
+        {"path": "scripts/migrate-state.js", "lines": 128},
+        {"path": "scripts/register-node-project.js", "lines": 114},
+        {"path": "scripts/export-legacy-state.js", "lines": 94},
+        {"path": "scripts/rotate-state-key.js", "lines": 89},
+        {"path": "scripts/verify-audit.js", "lines": 73},
+        {"path": "scripts/backup-state.js", "lines": 66},
+        {"path": "scripts/restore-state.js", "lines": 54},
+        {"path": "scripts/upgrade-state.js", "lines": 17},
+        {"path": "scripts/firewall-rollback.js", "lines": 16}
+      ],
+      "totalLines": 1440,
+      "coverageStatus": "EXCLUDED"
+    }
+  }
+}
