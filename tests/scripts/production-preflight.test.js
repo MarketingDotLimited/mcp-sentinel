@@ -118,7 +118,7 @@ function setupBase(tmp) {
   db.exec('CREATE TABLE api_keys (payload TEXT);');
   db.exec(`INSERT INTO api_keys VALUES ('{"role":"admin","active":true}');`);
   db.close();
-  fs.chownSync(dbPath, 999, 999);
+  safeChownSync(dbPath, 999, 999);
   fs.chmodSync(dbPath, 0o600);
   fs.chmodSync(dbPath, 0o600);
 
@@ -141,7 +141,7 @@ function setupBase(tmp) {
   );
   fs.symlinkSync(releaseDir, path.join(tmp, 'opt/mcp-sentinel/current'));
   fs.writeFileSync(path.join(tmp, 'etc/mcp-sentinel/release-signing-fingerprint'), signatureFingerprint);
-  fs.chownSync(path.join(tmp, 'etc/mcp-sentinel/release-signing-fingerprint'), 0, 0);
+  safeChownSync(path.join(tmp, 'etc/mcp-sentinel/release-signing-fingerprint'), 0, 0);
   fs.chmodSync(path.join(tmp, 'etc/mcp-sentinel/release-signing-fingerprint'), 0o600);
 }
 
@@ -290,7 +290,7 @@ test('production-preflight.js db edge cases loop', async t => {
     const db = new DatabaseSync(dbPath);
     db.exec(query);
     db.close();
-    fs.chownSync(dbPath, 999, 999);
+    safeChownSync(dbPath, 999, 999);
     fs.chmodSync(dbPath, 0o600);
 
     const originalEnv = { ...process.env };
@@ -315,7 +315,7 @@ test('production-preflight.js bad url', async t => {
     path.join(tmp, 'etc/mcp-sentinel/environment'),
     'NODE_ENV=production\nOAUTH_RESOURCE_URL=not-a-url\n'
   );
-  fs.chownSync(path.join(tmp, 'etc/mcp-sentinel/environment'), 0, 0);
+  safeChownSync(path.join(tmp, 'etc/mcp-sentinel/environment'), 0, 0);
   fs.chmodSync(path.join(tmp, 'etc/mcp-sentinel/environment'), 0o600);
   const srv = await createUnixSocket(path.join(tmp, 'run/mcp-sentinel/broker.sock'));
   fs.chmodSync(path.join(tmp, 'run/mcp-sentinel/broker.sock'), 0o660);
@@ -988,14 +988,14 @@ test('production-preflight.js absolutely last branches', async t => {
   await t.test('uid mismatch', async () => {
     const tmp = fs.mkdtempSync('/tmp/mcp-test-');
     setupBase(tmp);
-    fs.chownSync(path.join(tmp, 'etc/mcp-sentinel'), 999, 0); // Should be 0, 0
+    safeChownSync(path.join(tmp, 'etc/mcp-sentinel'), 999, 0); // Should be 0, 0
     await run(tmp);
   });
 
   await t.test('gid mismatch', async () => {
     const tmp = fs.mkdtempSync('/tmp/mcp-test-');
     setupBase(tmp);
-    fs.chownSync(path.join(tmp, 'etc/mcp-sentinel'), 0, 999); // Should be 0, 0
+    safeChownSync(path.join(tmp, 'etc/mcp-sentinel'), 0, 999); // Should be 0, 0
     await run(tmp);
   });
 
