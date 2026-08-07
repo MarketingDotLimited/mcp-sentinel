@@ -63,46 +63,8 @@ jobs:
           name: dependency-sbom
           path: sbom.cdx.json
 
-  unit-tests:
-    name: Unit Tests & Coverage
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [22.x]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Run Static Test Integrity Audit
-        run: node scripts/detect-unsafe-tests.mjs
-
-      - name: Verify Coverage Scope
-        run: node scripts/verify-coverage-scope.mjs
-
-      - name: Run Unit Tests with Coverage
-        run: npm run test:coverage
-
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage/
-
-  e2e-tests:
-    name: End-to-End Tests
+  test-suite:
+    name: Test Suite & Coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -120,18 +82,45 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run Live MCP E2E Test
-        run: sudo env "PATH=$PATH" npm run test:live
+      - name: Test Integrity Audit
+        run: npm run test:integrity
 
-      - name: Run UI E2E Test
-        run: npm run test:ui
+      - name: Verify User Needs
+        run: npm run test:user-needs
 
-      - name: Upload Playwright artifacts
+      - name: Verify Coverage Scope
+        run: node scripts/verify-coverage-scope.mjs
+
+      - name: Run Test Suites (Node)
+        run: npm run test:coverage:node
+
+      - name: Run Privileged Tests
+        run: sudo env "PATH=$PATH" c8 --clean=false npm run test:privileged
+
+      - name: Fix Coverage Permissions
+        run: sudo chown -R $USER:$USER coverage/ || true
+
+      - name: Run Browser Tests
+        run: npm run test:browser
+
+      - name: Generate Node Coverage Report
+        run: npm run test:coverage:node:report
+
+      - name: Merge Coverage
+        run: npm run test:coverage:merge
+
+      - name: Verify Coverage Thresholds
+        run: npm run test:coverage:verify
+
+      - name: Run Mutation Testing
+        run: npm run test:mutation
+
+      - name: Upload Coverage Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: failure()
+        if: always()
         with:
-          name: playwright-artifacts
-          path: .playwright-mcp/
+          name: coverage-report
+          path: coverage/
 
   security-audit:
     name: Security Audit

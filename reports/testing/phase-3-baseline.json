@@ -1,0 +1,27 @@
+{
+  "baseline": {
+    "sha": "28a84b7adbe7f5b38dbd9b8fb6e2f5b838feb964",
+    "github_actions_run_id": "31185607661",
+    "github_actions_conclusion": "failure",
+    "tests": {
+      "discovered": 606,
+      "passed": 594,
+      "failed": 10,
+      "cancelled": 2,
+      "skipped": 0,
+      "todo": 0
+    },
+    "coverage": {
+      "statement": 56.27,
+      "line": 56.27,
+      "public_js_files": 0
+    },
+    "mutation_testing": {
+      "runs_in_ci": false,
+      "passes_baseline": false
+    },
+    "user_needs_validation": {
+      "runs_in_ci": false
+    }
+  }
+}

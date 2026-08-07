@@ -1,0 +1,24 @@
+{
+  "reconciliation": [
+    {
+      "claim": "ALL CI GATES PASSING",
+      "status": "contradicted",
+      "evidence": "GitHub Actions run 31185607661 failed."
+    },
+    {
+      "claim": "100% per-file coverage",
+      "status": "contradicted",
+      "evidence": "Overall coverage is 56.27%. All public/js files reported at 0% coverage."
+    },
+    {
+      "claim": "Playwright coverage integrated",
+      "status": "contradicted",
+      "evidence": "Browser JS coverage is not collected in CI. Node coverage overwritten."
+    },
+    {
+      "claim": "100% mutation proof",
+      "status": "insufficient_evidence",
+      "evidence": "Custom script executes only 7 mutations, mutates only first occurrences, counts test-process failures as kills, does not prove baseline passes, and isn't a required CI job."
+    }
+  ]
+}

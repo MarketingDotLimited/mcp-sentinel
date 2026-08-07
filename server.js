@@ -439,7 +439,7 @@ function sanitizeClientOverrides(rawOverrides = {}) {
   return Object.fromEntries(
     Object.entries(rawOverrides).flatMap(([clientId, rawOverride]) => {
       if (!clientId || typeof clientId !== 'string') return [];
-      if (!rawOverride || Array.isArray(rawOverride) || typeof rawOverride !== 'object') return [clientId, {}];
+      if (!rawOverride || Array.isArray(rawOverride) || typeof rawOverride !== 'object') return [[clientId, {}]];
       const sanitized = {};
       for (const field of CLIENT_OVERRIDE_FIELDS) {
         if (Object.prototype.hasOwnProperty.call(rawOverride, field)) {
@@ -1048,8 +1048,9 @@ async function makeSessionRoom(identity, ip) {
   return true;
 }
 
+let idleCheckInterval;
 if (process.env.TEST_NO_LISTEN !== 'true')
-  setInterval(() => {
+  idleCheckInterval = setInterval(() => {
     const now = Date.now();
     for (const [id, session] of activeTransports.entries()) {
       if (now - session.lastActivity > IDLE_TIMEOUT_MS) {
@@ -4152,7 +4153,7 @@ function validateConfig() {
 
   const port = parseInt(process.env.PORT || '4444', 10);
 
-  if (isNaN(port) || port < 1 || port > 65535) {
+  if (isNaN(port) || port < 0 || port > 65535) {
     console.error('FATAL: PORT must be a valid integer between 1 and 65535.');
     process.exit(1);
   }
@@ -4250,6 +4251,9 @@ async function startServer() {
   server = USE_HTTPS ? createHttpsServer() : http.createServer(app);
   if (process.env.TEST_NO_LISTEN !== 'true')
     server.listen(PORT, HOST, () => {
+      server.on('close', () => {
+        if (idleCheckInterval) clearInterval(idleCheckInterval);
+      });
       const protocol = USE_HTTPS ? 'https' : 'http';
       logServerStart({ port: PORT, host: HOST, https: USE_HTTPS });
 
@@ -4333,6 +4337,9 @@ process.on('unhandledRejection', reason => {
   logError({ tool: 'UNHANDLED_REJECTION', error: new Error(String(reason)) });
 });
 export const __TEST_EXPORTS__ = {
+  app,
+  getServer: () => server,
+  gracefulShutdown,
   ensurePrivilegeBrokerAvailable,
   isBrokerUnavailable,
   respondServiceDependencyUnavailable,
