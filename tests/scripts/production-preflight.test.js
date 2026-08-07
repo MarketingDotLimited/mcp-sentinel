@@ -21,6 +21,14 @@ async function runPreflight(tmp) {
   }
 }
 
+function safeChownSync(p, uid, gid) {
+  try {
+    fs.chownSync(p, uid, gid);
+  } catch (e) {
+    if (e.code !== 'EPERM') throw e;
+  }
+}
+
 function setupBase(tmp) {
   fs.mkdirSync(path.join(tmp, 'etc/mcp-sentinel/credentials'), { recursive: true });
   fs.mkdirSync(path.join(tmp, 'var/lib/mcp-sentinel'), { recursive: true });
@@ -31,28 +39,28 @@ function setupBase(tmp) {
 
   fs.writeFileSync(path.join(tmp, 'etc/passwd'), 'mcp-sentinel:x:999:999::/var/lib/mcp-sentinel:/usr/sbin/nologin\n');
 
-  fs.chownSync(path.join(tmp, 'etc/mcp-sentinel'), 0, 0);
+  safeChownSync(path.join(tmp, 'etc/mcp-sentinel'), 0, 0);
   fs.chmodSync(path.join(tmp, 'etc/mcp-sentinel'), 0o700);
-  fs.chownSync(path.join(tmp, 'etc/mcp-sentinel/credentials'), 0, 0);
+  safeChownSync(path.join(tmp, 'etc/mcp-sentinel/credentials'), 0, 0);
   fs.chmodSync(path.join(tmp, 'etc/mcp-sentinel/credentials'), 0o700);
 
-  fs.chownSync(path.join(tmp, 'var/lib/mcp-sentinel'), 999, 999);
+  safeChownSync(path.join(tmp, 'var/lib/mcp-sentinel'), 999, 999);
   fs.chmodSync(path.join(tmp, 'var/lib/mcp-sentinel'), 0o700);
-  fs.chownSync(path.join(tmp, 'var/log/mcp-sentinel'), 999, 999);
+  safeChownSync(path.join(tmp, 'var/log/mcp-sentinel'), 999, 999);
   fs.chmodSync(path.join(tmp, 'var/log/mcp-sentinel'), 0o700);
 
   fs.writeFileSync(
     path.join(tmp, 'etc/mcp-sentinel/environment'),
     'NODE_ENV=production\nHOST=127.0.0.1\nTRUST_PROXY=true\nTRUSTED_PROXIES=127.0.0.1\nOAUTH_RESOURCE_URL=https://mcp.example.com\nAUTHELIA_ISSUER=https://auth.example.com\nAUTHELIA_JWKS_URL=https://auth.example.com/jwks\nALLOWED_ORIGINS=https://mcp.example.com\nPUBLIC_URL=https://mcp.example.com\n'
   );
-  fs.chownSync(path.join(tmp, 'etc/mcp-sentinel/environment'), 0, 0);
+  safeChownSync(path.join(tmp, 'etc/mcp-sentinel/environment'), 0, 0);
   fs.chmodSync(path.join(tmp, 'etc/mcp-sentinel/environment'), 0o600);
 
   fs.writeFileSync(
     path.join(tmp, 'etc/mcp-sentinel/broker-environment'),
     'BROKER_PROTECTED_SERVICES=mcp-sentinel,mcp-sentinel-broker,ssh,sshd,nginx,authelia\nBROKER_GIT_ALLOWED_REPOS=/tmp/repo\nBROKER_MANAGED_USERS=projuser\nBROKER_MANAGEMENT_PORTS=22,443\nMCP_STATE_DB=/var/lib/mcp-sentinel/state.sqlite3\n'
   );
-  fs.chownSync(path.join(tmp, 'etc/mcp-sentinel/broker-environment'), 0, 0);
+  safeChownSync(path.join(tmp, 'etc/mcp-sentinel/broker-environment'), 0, 0);
   fs.chmodSync(path.join(tmp, 'etc/mcp-sentinel/broker-environment'), 0o600);
 
   let i = 0;
@@ -62,7 +70,7 @@ function setupBase(tmp) {
       .update(name + i++)
       .digest('hex');
     fs.writeFileSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), val);
-    fs.chownSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 0, 0);
+    safeChownSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 0, 0);
     fs.chmodSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 0o600);
   }
   const autheliaCredentials = [
@@ -76,7 +84,7 @@ function setupBase(tmp) {
   ];
   for (const name of autheliaCredentials) {
     fs.writeFileSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 'a'.repeat(32));
-    fs.chownSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 0, 0);
+    safeChownSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 0, 0);
     fs.chmodSync(path.join(tmp, `etc/mcp-sentinel/credentials/${name}`), 0o600);
   }
   fs.writeFileSync(

@@ -6,7 +6,6 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import net from 'net';
 import * as security from '../../security.js';
 
-
 test('server tools error branches', async () => {
   const srv = net.createServer();
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
